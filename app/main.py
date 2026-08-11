@@ -1,0 +1,501 @@
+"""VanCRM — FastAPI app: routes, validation, startup."""
+
+import json
+import re
+import sqlite3
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from dotenv import load_dotenv
+from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+from app import db
+
+load_dotenv()
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+STATUSES = ("new", "considering", "contacted", "viewing_booked", "rejected", "purchased")
+SOURCES = ("ebay", "facebook", "manual")
+PROPERTY_TYPES = ("text", "number", "checkbox", "select", "date")
+HEIGHT_CODES = ("H1", "H2", "H3")
+LENGTH_CODES = ("L1", "L2", "L3", "L4")
+
+# Fields a PATCH (or manual POST) is allowed to touch.
+EDITABLE_FIELDS = {
+    "url", "title", "price_gbp", "location", "seller_name", "image_urls",
+    "description", "make", "model", "year", "mileage", "reg", "status",
+    "notes", "custom", "is_active", "height_code", "length_code", "euro_status",
+}
+
+REG_RE = re.compile(r"\b[A-Z]{2}[0-9]{2}\s?[A-Z]{3}\b", re.IGNORECASE)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db.init_db()
+    yield
+
+
+app = FastAPI(title="VanCRM", lifespan=lifespan)
+
+
+# ---------------------------------------------------------------- helpers
+
+def extract_reg(*texts: str | None) -> str | None:
+    """Return the single distinct UK reg found across the given texts, else None."""
+    found = set()
+    for text in texts:
+        if not text:
+            continue
+        for match in REG_RE.findall(text):
+            found.add(match.replace(" ", "").upper())
+    return found.pop() if len(found) == 1 else None
+
+
+def normalise_reg(value) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).replace(" ", "").upper()
+    return cleaned or None
+
+
+def _as_number(value, field: str, integer: bool):
+    if value is None or value == "":
+        return None
+    try:
+        return int(float(value)) if integer else float(value)
+    except (TypeError, ValueError):
+        raise HTTPException(400, f"{field} must be a number")
+
+
+def _as_text(value) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def property_defs_by_key() -> dict:
+    with db.connect() as conn:
+        rows = conn.execute("SELECT * FROM property_defs").fetchall()
+    return {r["key"]: db.row_to_property(r) for r in rows}
+
+
+def coerce_custom_value(prop: dict, value):
+    """Validate one custom value against its property definition's declared type."""
+    ptype, label = prop["type"], prop["label"]
+    if ptype == "checkbox":
+        if isinstance(value, bool):
+            return value
+        if value in (0, 1, "true", "false"):
+            return value in (1, "true")
+        raise HTTPException(400, f"'{label}' must be true or false")
+    if ptype == "number":
+        if value == "":
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"'{label}' must be a number")
+        return int(number) if number.is_integer() else number
+    if ptype == "select":
+        if value == "":
+            return None
+        if value not in prop["options"]:
+            raise HTTPException(400, f"'{value}' is not an option for '{label}'")
+        return value
+    if ptype == "date":
+        if value == "":
+            return None
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(value)):
+            raise HTTPException(400, f"'{label}' must be a date (YYYY-MM-DD)")
+        return str(value)
+    return str(value)
+
+
+def merge_custom(existing: dict, incoming: dict) -> dict:
+    """Merge incoming keys into the existing custom object; a null value drops the key."""
+    if not isinstance(incoming, dict):
+        raise HTTPException(400, "custom must be an object")
+    defs = property_defs_by_key()
+    merged = dict(existing)
+    for key, value in incoming.items():
+        if key not in defs:
+            raise HTTPException(400, f"unknown custom property '{key}'")
+        if value is None:
+            merged.pop(key, None)
+        else:
+            coerced = coerce_custom_value(defs[key], value)
+            if coerced is None:
+                merged.pop(key, None)
+            else:
+                merged[key] = coerced
+    return merged
+
+
+def clean_listing_fields(payload: dict, existing: dict | None = None) -> dict:
+    """Filter to the allowlist and coerce each value to its stored representation."""
+    unknown = set(payload) - EDITABLE_FIELDS
+    if unknown:
+        raise HTTPException(400, f"cannot set field(s): {', '.join(sorted(unknown))}")
+
+    out = {}
+    for field, value in payload.items():
+        if field in ("price_gbp",):
+            out[field] = _as_number(value, field, integer=False)
+        elif field in ("year", "mileage"):
+            out[field] = _as_number(value, field, integer=True)
+        elif field == "reg":
+            out[field] = normalise_reg(value)
+        elif field == "status":
+            if value not in STATUSES:
+                raise HTTPException(400, f"invalid status '{value}'")
+            out[field] = value
+        elif field == "height_code":
+            code = (_as_text(value) or "").upper() or None
+            if code and code not in HEIGHT_CODES:
+                raise HTTPException(400, "height_code must be H1, H2 or H3")
+            out[field] = code
+        elif field == "length_code":
+            code = (_as_text(value) or "").upper() or None
+            if code and code not in LENGTH_CODES:
+                raise HTTPException(400, "length_code must be L1-L4")
+            out[field] = code
+        elif field == "image_urls":
+            urls = value
+            if isinstance(urls, str):
+                urls = [line.strip() for line in urls.splitlines() if line.strip()]
+            if not isinstance(urls, list):
+                raise HTTPException(400, "image_urls must be a list or newline-separated text")
+            out[field] = json.dumps([str(u).strip() for u in urls if str(u).strip()])
+        elif field == "custom":
+            base = existing["custom"] if existing else {}
+            out[field] = json.dumps(merge_custom(base, value))
+        elif field in ("notes",):
+            out[field] = "" if value is None else str(value)
+        elif field == "is_active":
+            out[field] = 1 if value in (True, 1, "true", "1") else 0
+        elif field == "title":
+            title = _as_text(value)
+            if not title:
+                raise HTTPException(400, "title is required")
+            out[field] = title
+        else:
+            out[field] = _as_text(value)
+    return out
+
+
+def get_listing_or_404(conn: sqlite3.Connection, listing_id: int) -> dict:
+    row = conn.execute("SELECT * FROM listings WHERE id = ?", (listing_id,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "listing not found")
+    return db.row_to_listing(row)
+
+
+def slugify(label: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", label.strip().lower()).strip("_")
+    return slug or "property"
+
+
+def not_configured(what: str, detail: str):
+    raise HTTPException(503, f"{what} is not configured yet — {detail}")
+
+
+# ---------------------------------------------------------------- listings
+
+@app.get("/api/listings")
+def list_listings(
+    status: str | None = None,
+    source: str | None = None,
+    q: str | None = None,
+    active: int = 1,
+):
+    sql = "SELECT * FROM listings WHERE 1=1"
+    params: list = []
+    if status:
+        wanted = [s for s in status.split(",") if s]
+        sql += f" AND status IN ({','.join('?' * len(wanted))})"
+        params += wanted
+    if source:
+        sql += " AND source = ?"
+        params.append(source)
+    if q:
+        sql += " AND title LIKE ?"
+        params.append(f"%{q}%")
+    if active in (0, 1):
+        sql += " AND is_active = ?"
+        params.append(active)
+    sql += " ORDER BY id DESC"
+    with db.connect() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [db.row_to_listing(r) for r in rows]
+
+
+@app.post("/api/listings", status_code=201)
+def create_listing(payload: dict = Body(...)):
+    source = payload.pop("source", "facebook")
+    if source not in SOURCES:
+        raise HTTPException(400, f"invalid source '{source}'")
+    if not _as_text(payload.get("title")):
+        raise HTTPException(400, "title is required")
+
+    fields = clean_listing_fields(payload)
+    if not fields.get("reg"):
+        fields["reg"] = extract_reg(fields.get("title"), fields.get("description"))
+
+    now = db.now_iso()
+    fields.update(
+        source=source,
+        first_seen_at=now,
+        last_seen_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+    columns = ", ".join(fields)
+    placeholders = ", ".join("?" * len(fields))
+    with db.connect() as conn:
+        cursor = conn.execute(
+            f"INSERT INTO listings ({columns}) VALUES ({placeholders})", list(fields.values())
+        )
+        return get_listing_or_404(conn, cursor.lastrowid)
+
+
+@app.patch("/api/listings/{listing_id}")
+def update_listing(listing_id: int, payload: dict = Body(...)):
+    with db.connect() as conn:
+        existing = get_listing_or_404(conn, listing_id)
+        fields = clean_listing_fields(payload, existing=existing)
+        if fields:
+            fields["updated_at"] = db.now_iso()
+            assignments = ", ".join(f"{f} = ?" for f in fields)
+            conn.execute(
+                f"UPDATE listings SET {assignments} WHERE id = ?",
+                [*fields.values(), listing_id],
+            )
+        return get_listing_or_404(conn, listing_id)
+
+
+@app.delete("/api/listings/{listing_id}")
+def delete_listing(listing_id: int):
+    with db.connect() as conn:
+        get_listing_or_404(conn, listing_id)
+        conn.execute("DELETE FROM listings WHERE id = ?", (listing_id,))
+    return {"deleted": listing_id}
+
+
+# ---------------------------------------------------------------- searches
+
+@app.get("/api/searches")
+def list_searches():
+    with db.connect() as conn:
+        rows = conn.execute("SELECT * FROM searches ORDER BY id").fetchall()
+    return [db.row_to_search(r) for r in rows]
+
+
+@app.post("/api/searches", status_code=201)
+def create_search(payload: dict = Body(...)):
+    label = _as_text(payload.get("label"))
+    query = _as_text(payload.get("query"))
+    if not label or not query:
+        raise HTTPException(400, "label and query are required")
+    with db.connect() as conn:
+        cursor = conn.execute(
+            "INSERT INTO searches (label, query, max_price, category_id, enabled) VALUES (?,?,?,?,?)",
+            (
+                label,
+                query,
+                _as_number(payload.get("max_price"), "max_price", integer=False),
+                _as_text(payload.get("category_id")),
+                0 if payload.get("enabled") in (False, 0, "false") else 1,
+            ),
+        )
+        row = conn.execute("SELECT * FROM searches WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return db.row_to_search(row)
+
+
+@app.patch("/api/searches/{search_id}")
+def update_search(search_id: int, payload: dict = Body(...)):
+    allowed = {"label", "query", "max_price", "category_id", "enabled"}
+    unknown = set(payload) - allowed
+    if unknown:
+        raise HTTPException(400, f"cannot set field(s): {', '.join(sorted(unknown))}")
+    fields = {}
+    for field, value in payload.items():
+        if field == "max_price":
+            fields[field] = _as_number(value, field, integer=False)
+        elif field == "enabled":
+            fields[field] = 0 if value in (False, 0, "false") else 1
+        else:
+            fields[field] = _as_text(value)
+    if not fields.get("label", "x") or not fields.get("query", "x"):
+        raise HTTPException(400, "label and query cannot be empty")
+    with db.connect() as conn:
+        if conn.execute("SELECT 1 FROM searches WHERE id = ?", (search_id,)).fetchone() is None:
+            raise HTTPException(404, "search not found")
+        if fields:
+            assignments = ", ".join(f"{f} = ?" for f in fields)
+            conn.execute(
+                f"UPDATE searches SET {assignments} WHERE id = ?", [*fields.values(), search_id]
+            )
+        row = conn.execute("SELECT * FROM searches WHERE id = ?", (search_id,)).fetchone()
+        return db.row_to_search(row)
+
+
+@app.delete("/api/searches/{search_id}")
+def delete_search(search_id: int):
+    with db.connect() as conn:
+        if conn.execute("SELECT 1 FROM searches WHERE id = ?", (search_id,)).fetchone() is None:
+            raise HTTPException(404, "search not found")
+        conn.execute("DELETE FROM searches WHERE id = ?", (search_id,))
+    return {"deleted": search_id}
+
+
+# ---------------------------------------------------------------- properties
+
+@app.get("/api/properties")
+def list_properties():
+    with db.connect() as conn:
+        rows = conn.execute("SELECT * FROM property_defs ORDER BY sort_order, id").fetchall()
+    return [db.row_to_property(r) for r in rows]
+
+
+@app.post("/api/properties", status_code=201)
+def create_property(payload: dict = Body(...)):
+    label = _as_text(payload.get("label"))
+    ptype = payload.get("type")
+    if not label:
+        raise HTTPException(400, "label is required")
+    if ptype not in PROPERTY_TYPES:
+        raise HTTPException(400, f"type must be one of {', '.join(PROPERTY_TYPES)}")
+    options = payload.get("options") or []
+    if isinstance(options, str):
+        options = [line.strip() for line in options.splitlines() if line.strip()]
+    if ptype == "select" and not options:
+        raise HTTPException(400, "a select property needs at least one option")
+
+    key = slugify(label)
+    with db.connect() as conn:
+        if conn.execute("SELECT 1 FROM property_defs WHERE key = ?", (key,)).fetchone():
+            raise HTTPException(400, f"a property named '{label}' already exists")
+        next_order = conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM property_defs"
+        ).fetchone()["n"]
+        cursor = conn.execute(
+            "INSERT INTO property_defs (key, label, type, options, sort_order) VALUES (?,?,?,?,?)",
+            (key, label, ptype, json.dumps([str(o) for o in options]), next_order),
+        )
+        row = conn.execute(
+            "SELECT * FROM property_defs WHERE id = ?", (cursor.lastrowid,)
+        ).fetchone()
+        return db.row_to_property(row)
+
+
+@app.patch("/api/properties/{property_id}")
+def update_property(property_id: int, payload: dict = Body(...)):
+    allowed = {"label", "options", "sort_order"}
+    unknown = set(payload) - allowed
+    if unknown:
+        raise HTTPException(400, f"cannot set field(s): {', '.join(sorted(unknown))}")
+    fields = {}
+    if "label" in payload:
+        label = _as_text(payload["label"])
+        if not label:
+            raise HTTPException(400, "label cannot be empty")
+        fields["label"] = label
+    if "options" in payload:
+        options = payload["options"] or []
+        if isinstance(options, str):
+            options = [line.strip() for line in options.splitlines() if line.strip()]
+        fields["options"] = json.dumps([str(o) for o in options])
+    if "sort_order" in payload:
+        fields["sort_order"] = _as_number(payload["sort_order"], "sort_order", integer=True) or 0
+
+    with db.connect() as conn:
+        row = conn.execute("SELECT * FROM property_defs WHERE id = ?", (property_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "property not found")
+        if fields:
+            assignments = ", ".join(f"{f} = ?" for f in fields)
+            conn.execute(
+                f"UPDATE property_defs SET {assignments} WHERE id = ?",
+                [*fields.values(), property_id],
+            )
+        row = conn.execute("SELECT * FROM property_defs WHERE id = ?", (property_id,)).fetchone()
+        return db.row_to_property(row)
+
+
+@app.delete("/api/properties/{property_id}")
+def delete_property(property_id: int):
+    """Delete the definition and strip its key from every listing's custom object."""
+    with db.connect() as conn:
+        row = conn.execute("SELECT * FROM property_defs WHERE id = ?", (property_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "property not found")
+        key = row["key"]
+        conn.execute("DELETE FROM property_defs WHERE id = ?", (property_id,))
+
+        stripped = 0
+        for listing in conn.execute("SELECT id, custom FROM listings").fetchall():
+            custom = json.loads(listing["custom"] or "{}")
+            if key in custom:
+                del custom[key]
+                conn.execute(
+                    "UPDATE listings SET custom = ?, updated_at = ? WHERE id = ?",
+                    (json.dumps(custom), db.now_iso(), listing["id"]),
+                )
+                stripped += 1
+    return {"deleted": property_id, "listings_updated": stripped}
+
+
+# ---------------------------------------------------------------- not yet wired
+
+@app.post("/api/scrape")
+def scrape():
+    not_configured("eBay", "add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env (milestone 4)")
+
+
+@app.post("/api/import/ebay")
+def import_ebay(payload: dict = Body(...)):
+    not_configured("eBay", "add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env (milestone 4)")
+
+
+@app.post("/api/listings/{listing_id}/check")
+def check_listing(listing_id: int):
+    not_configured("eBay", "add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env (milestone 4)")
+
+
+@app.get("/api/listings/{listing_id}/mot")
+def get_mot(listing_id: int):
+    with db.connect() as conn:
+        listing = get_listing_or_404(conn, listing_id)
+        if not listing["reg"]:
+            return {"cached": False, "reason": "no reg set"}
+        row = conn.execute(
+            "SELECT * FROM mot_cache WHERE reg = ?", (listing["reg"],)
+        ).fetchone()
+    if row is None:
+        return {"cached": False}
+    return {"cached": True, "fetched_at": row["fetched_at"], "raw": json.loads(row["raw_json"])}
+
+
+@app.post("/api/listings/{listing_id}/mot")
+def fetch_mot(listing_id: int, force: bool = Query(False)):
+    not_configured("The MOT History API", "DVSA credentials are pending (milestone 5)")
+
+
+@app.post("/api/lookup/reg")
+def lookup_reg(payload: dict = Body(...)):
+    not_configured("Reg lookup", "DVSA/DVLA credentials are pending (milestone 5)")
+
+
+# ---------------------------------------------------------------- static
+
+@app.get("/")
+def index():
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

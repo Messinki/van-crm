@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VanCRM</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>VanCRM</h1>
+  <div class="topbar-actions">
+    <button id="btn-scrape" class="btn primary">Scrape eBay</button>
+    <div class="dropdown">
+      <button id="btn-add" class="btn">Add listing ▾</button>
+      <div id="add-menu" class="dropdown-menu hidden">
+        <button data-add="manual">Manual entry</button>
+        <button data-add="ebay">From eBay link</button>
+      </div>
+    </div>
+    <button id="btn-searches" class="btn">Searches</button>
+    <button id="btn-columns" class="btn">Columns</button>
+  </div>
+</header>
+
+<div class="filters">
+  <div id="status-chips" class="chips"></div>
+  <select id="filter-source">
+    <option value="">All sources</option>
+    <option value="ebay">eBay</option>
+    <option value="facebook">Facebook</option>
+    <option value="manual">Manual</option>
+  </select>
+  <input id="filter-q" type="search" placeholder="Search title…">
+  <input id="filter-max-price" type="number" placeholder="Max £" min="0" step="100">
+  <label class="inline"><input id="filter-inactive" type="checkbox"> Show inactive</label>
+  <span id="row-count" class="muted"></span>
+</div>
+
+<main>
+  <table id="listings-table">
+    <thead><tr id="header-row"></tr></thead>
+    <tbody id="listings-body"></tbody>
+  </table>
+  <p id="empty-state" class="empty hidden">No listings yet. Use <strong>Add listing</strong> to enter one manually.</p>
+</main>
+
+<!-- Detail drawer -->
+<div id="drawer-backdrop" class="backdrop hidden"></div>
+<aside id="drawer" class="drawer hidden">
+  <div class="drawer-header">
+    <h2 id="drawer-title">Listing</h2>
+    <button id="drawer-close" class="icon-btn" title="Close">✕</button>
+  </div>
+  <div id="drawer-body" class="drawer-body"></div>
+</aside>
+
+<!-- Manual entry modal -->
+<div id="modal-manual" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header"><h2>Add listing</h2><button class="icon-btn modal-close">✕</button></div>
+    <form id="form-manual" class="modal-body">
+      <div class="field reg-field">
+        <label>Number plate</label>
+        <div class="row">
+          <input name="reg" placeholder="AB12 CDE" autocomplete="off">
+          <button type="button" id="btn-lookup" class="btn">Look up</button>
+        </div>
+        <p id="lookup-msg" class="hint"></p>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Title *</label><input name="title" required></div>
+        <div class="field"><label>Link (URL)</label><input name="url" type="url"></div>
+        <div class="field"><label>Price (£)</label><input name="price_gbp" type="number" step="1"></div>
+        <div class="field"><label>Source</label>
+          <select name="source"><option value="facebook">Facebook</option><option value="manual">Manual / other</option></select>
+        </div>
+        <div class="field"><label>Make</label><input name="make"></div>
+        <div class="field"><label>Model</label><input name="model"></div>
+        <div class="field"><label>Year</label><input name="year" type="number" step="1"></div>
+        <div class="field"><label>Mileage</label><input name="mileage" type="number" step="1"></div>
+        <div class="field"><label>Length</label>
+          <select name="length_code"><option value=""></option><option>L1</option><option>L2</option><option>L3</option><option>L4</option></select>
+        </div>
+        <div class="field"><label>Height</label>
+          <select name="height_code"><option value=""></option><option>H1</option><option>H2</option><option>H3</option></select>
+        </div>
+        <div class="field"><label>Euro status</label><input name="euro_status" placeholder="EURO 6"></div>
+        <div class="field"><label>Location</label><input name="location"></div>
+        <div class="field"><label>Seller</label><input name="seller_name"></div>
+      </div>
+      <div class="field"><label>Image URLs (one per line)</label><textarea name="image_urls" rows="3"></textarea></div>
+      <div class="field"><label>Description</label><textarea name="description" rows="6" placeholder="Paste the listing text here"></textarea></div>
+      <div class="modal-footer">
+        <button type="button" class="btn modal-close">Cancel</button>
+        <button type="submit" class="btn primary">Save listing</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Import from eBay link modal -->
+<div id="modal-import" class="modal hidden">
+  <div class="modal-card narrow">
+    <div class="modal-header"><h2>Import from eBay link</h2><button class="icon-btn modal-close">✕</button></div>
+    <form id="form-import" class="modal-body">
+      <div class="field"><label>Paste eBay listing URL</label><input name="url" placeholder="https://www.ebay.co.uk/itm/…" required></div>
+      <p id="import-msg" class="hint"></p>
+      <div class="modal-footer">
+        <button type="button" class="btn modal-close">Cancel</button>
+        <button type="submit" class="btn primary">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Searches modal -->
+<div id="modal-searches" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header"><h2>Saved eBay searches</h2><button class="icon-btn modal-close">✕</button></div>
+    <div class="modal-body">
+      <table class="mini-table">
+        <thead><tr><th>Label</th><th>Query</th><th>Max £</th><th>On</th><th></th></tr></thead>
+        <tbody id="searches-body"></tbody>
+      </table>
+      <form id="form-search-add" class="row add-row">
+        <input name="label" placeholder="Label" required>
+        <input name="query" placeholder="eBay query" required>
+        <input name="max_price" type="number" placeholder="Max £">
+        <button type="submit" class="btn">Add</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Columns modal -->
+<div id="modal-columns" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-header"><h2>Custom columns</h2><button class="icon-btn modal-close">✕</button></div>
+    <div class="modal-body">
+      <table class="mini-table">
+        <thead><tr><th>Label</th><th>Type</th><th>Options</th><th>Order</th><th></th></tr></thead>
+        <tbody id="columns-body"></tbody>
+      </table>
+      <form id="form-column-add" class="row add-row">
+        <input name="label" placeholder="Column name" required>
+        <select name="type">
+          <option value="text">Text</option>
+          <option value="number">Number</option>
+          <option value="checkbox">Checkbox</option>
+          <option value="select">Select</option>
+          <option value="date">Date</option>
+        </select>
+        <input name="options" placeholder="Options (comma separated)">
+        <button type="submit" class="btn">Add</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="toasts" class="toasts"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
