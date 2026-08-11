@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS listings (
   location      TEXT,
   seller_name   TEXT,
   image_urls    TEXT NOT NULL DEFAULT '[]',
-  description   TEXT,
   make          TEXT,
   model         TEXT,
   year          INTEGER,
@@ -62,10 +61,14 @@ CREATE TABLE IF NOT EXISTS mot_cache (
 """
 
 # Amendment 01 section A: columns added after v1.0 shipped.
+# `euro_status` was dropped from the app — every van considered is Euro 6, so the
+# field earned nothing. Older DBs keep the (now unused) column; nothing reads it.
 MIGRATIONS = [
     ("listings", "height_code", "TEXT"),
     ("listings", "length_code", "TEXT"),
-    ("listings", "euro_status", "TEXT"),
+    # Hand-entered MOT expiry (ISO date, 'YYYY-MM-DD'). Independent of the DVSA
+    # lookup in milestone 5 — that fills mot_cache, this is the user's own note.
+    ("listings", "mot_due", "TEXT"),
 ]
 
 SEED_SEARCHES = [

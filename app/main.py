@@ -4,6 +4,7 @@ import json
 import re
 import sqlite3
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -18,24 +19,194 @@ load_dotenv()
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 STATUSES = ("new", "considering", "contacted", "viewing_booked", "rejected", "purchased")
+STATUS_LABELS = {
+    "new": "New",
+    "considering": "Considering",
+    "contacted": "Contacted",
+    "viewing_booked": "Viewing booked",
+    "rejected": "Rejected",
+    "purchased": "Purchased",
+}
 SOURCES = ("ebay", "facebook", "manual")
+SOURCE_LABELS = {"ebay": "eBay", "facebook": "Facebook", "manual": "Manual / other"}
 PROPERTY_TYPES = ("text", "number", "checkbox", "select", "date")
 HEIGHT_CODES = ("H1", "H2", "H3")
 LENGTH_CODES = ("L1", "L2", "L3", "L4")
 
-# Fields a PATCH (or manual POST) is allowed to touch.
-EDITABLE_FIELDS = {
-    "url", "title", "price_gbp", "location", "seller_name", "image_urls",
-    "description", "make", "model", "year", "mileage", "reg", "status",
-    "notes", "custom", "is_active", "height_code", "length_code", "euro_status",
-}
+# ---------------------------------------------------------------- field registry
+#
+# ONE ordered description of every property a listing has. This list is the single
+# source of truth for: the API allowlist (EDITABLE_FIELDS, derived below), the table
+# column order, the drawer's field order and grouping, and the manual-entry form.
+# The frontend fetches it from GET /api/schema and hardcodes none of it, so adding a
+# field here is all it takes to make it appear everywhere.
+#
+# Keys per entry:
+#   key         listings column name, or a derived pseudo-key (see DERIVED_KEYS)
+#   label       human label — table header, drawer label, form label
+#   type        text|url|number|integer|money|date|select|textarea|urls|checkbox
+#   options     list of strings, `select` only
+#   labels      value -> pretty label map, `select` only, when values aren't pretty
+#   editable    may a PATCH set it (this is what EDITABLE_FIELDS is built from)
+#   create_only accepted on POST but never on PATCH
+#   in_table    render as a table column (default True)
+#   in_form     render in the manual-entry form (default: settable at create time)
+#   section     drawer grouping: Details|Images|Notes|MOT, or None = not an input
+#   cell        table rendering hint
+#   widget      drawer widget override where a plain input won't do
+#   sortable    is the table column sortable (default True)
+FIELD_SPECS = [
+    {
+        "key": "thumb", "label": "", "type": "text", "editable": False,
+        "in_table": True, "in_form": False, "section": None, "cell": "thumb",
+        "sortable": False,
+    },
+    {
+        "key": "title", "label": "Title", "type": "text", "editable": True,
+        "required": True, "in_form": True, "section": "Details", "cell": "title_link",
+    },
+    {
+        "key": "price_gbp", "label": "Price", "type": "money", "editable": True,
+        "in_form": True, "section": "Details", "cell": "money", "numeric": True,
+    },
+    {
+        "key": "make", "label": "Make", "type": "text", "editable": True,
+        "in_form": True, "section": "Details", "cell": "text",
+    },
+    {
+        "key": "model", "label": "Model", "type": "text", "editable": True,
+        "in_form": True, "section": "Details", "cell": "text",
+    },
+    {
+        "key": "year", "label": "Year", "type": "integer", "editable": True,
+        "in_form": True, "section": "Details", "cell": "number", "numeric": True,
+        # A year is a label, not a quantity: 2015, never "2,015".
+        "grouped": False,
+    },
+    {
+        "key": "mileage", "label": "Mileage", "type": "integer", "editable": True,
+        "in_form": True, "section": "Details", "cell": "number", "numeric": True,
+    },
+    {
+        "key": "height_code", "label": "Height", "type": "select",
+        "options": list(HEIGHT_CODES), "editable": True, "in_form": True,
+        "section": "Details", "cell": "text",
+    },
+    {
+        "key": "length_code", "label": "Length", "type": "select",
+        "options": list(LENGTH_CODES), "editable": True, "in_form": True,
+        "section": "Details", "cell": "text",
+    },
+    {
+        "key": "reg", "label": "Reg", "type": "text", "editable": True,
+        "in_form": True, "section": "Details", "cell": "reg", "widget": "reg_lookup",
+    },
+    {
+        "key": "location", "label": "Location", "type": "text", "editable": True,
+        "in_form": True, "section": "Details", "cell": "text",
+    },
+    {
+        "key": "seller_name", "label": "Seller", "type": "text", "editable": True,
+        "in_form": True, "section": "Details", "cell": "text",
+    },
+    {
+        # No column of its own: the title cell is a link to this URL when it's set.
+        "key": "url", "label": "Link (URL)", "type": "url", "editable": True,
+        "in_table": False, "in_form": True, "section": "Details",
+    },
+    {
+        # A listing's source is fixed at creation — POST accepts it, PATCH rejects it.
+        # section None: the drawer shows it as a read-only line, not an input.
+        "key": "source", "label": "Source", "type": "select", "options": list(SOURCES),
+        "labels": SOURCE_LABELS, "editable": False, "create_only": True,
+        "in_table": True, "in_form": True, "section": None, "cell": "badge",
+        # The form offers no blank option for source; this is what it preselects,
+        # and it matches the fallback create_listing() applies when it's omitted.
+        "form_default": "facebook",
+    },
+    {
+        "key": "status", "label": "Status", "type": "select", "options": list(STATUSES),
+        "labels": STATUS_LABELS, "editable": True, "in_form": True,
+        "section": "Details", "cell": "status_pill",
+    },
+    {
+        "key": "is_active", "label": "Active", "type": "checkbox", "editable": True,
+        "in_form": False, "section": "Details", "cell": "check",
+    },
+    {
+        # No column of its own: the `thumb` column already surfaces image_urls[0].
+        "key": "image_urls", "label": "Image URLs (one per line)", "type": "urls",
+        "editable": True, "in_table": False, "in_form": True, "section": "Images",
+    },
+    {
+        "key": "mot_due", "label": "MOT due", "type": "date", "editable": True,
+        "in_form": True, "section": "MOT", "cell": "mot_due",
+    },
+    {
+        # Placeholder column until milestone 5 stores MOT data on the listing.
+        "key": "mot", "label": "MOT", "type": "text", "editable": False,
+        "in_table": True, "in_form": False, "section": None, "cell": "mot",
+        "sortable": False,
+    },
+    {
+        "key": "notes", "label": "Notes", "type": "textarea", "editable": True,
+        "in_form": True, "section": "Notes", "cell": "notes", "widget": "notes",
+        "sortable": False,
+        "placeholder": "Paste the listing text here, plus anything you want to remember",
+    },
+]
+
+# Registry keys that are not listings columns — computed for display only.
+DERIVED_KEYS = frozenset({"thumb", "mot"})
+
+# Listings columns deliberately kept out of the UI: identity, bookkeeping, the
+# JSON custom bag (it has its own /api/properties machinery), and the dead
+# euro_status column older DBs still carry.
+UNMANAGED_COLUMNS = frozenset({
+    "id", "external_id", "custom", "euro_status",
+    "first_seen_at", "last_seen_at", "created_at", "updated_at",
+})
+
+# Fields a PATCH (or manual POST) is allowed to touch. `custom` is not a registry
+# field — custom properties are defined at runtime, so they're allowed separately.
+EDITABLE_FIELDS = {f["key"] for f in FIELD_SPECS if f.get("editable")} | {"custom"}
 
 REG_RE = re.compile(r"\b[A-Z]{2}[0-9]{2}\s?[A-Z]{3}\b", re.IGNORECASE)
+ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def check_registry_covers_schema() -> None:
+    """Fail startup if the listings table and FIELD_SPECS have drifted apart.
+
+    Adding a column via db.MIGRATIONS without deciding how it appears in the UI is
+    the drift this catches: every column must be a registry key or explicitly
+    unmanaged, and every non-derived registry key must be a real column.
+    """
+    with db.connect() as conn:
+        columns = {r["name"] for r in conn.execute("PRAGMA table_info(listings)")}
+
+    keys = {f["key"] for f in FIELD_SPECS}
+    missing = sorted(columns - keys - UNMANAGED_COLUMNS)
+    if missing:
+        raise RuntimeError(
+            "listings column(s) not covered by the field registry: "
+            f"{', '.join(missing)}. Add each one to FIELD_SPECS in app/main.py so it "
+            "appears in the table and drawer, or to UNMANAGED_COLUMNS if it is "
+            "deliberately hidden from the UI."
+        )
+    phantom = sorted(keys - DERIVED_KEYS - columns)
+    if phantom:
+        raise RuntimeError(
+            "field registry key(s) with no listings column: "
+            f"{', '.join(phantom)}. Add the column in db.MIGRATIONS, fix the key, or "
+            "list it in DERIVED_KEYS if it is computed for display only."
+        )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+    check_registry_covers_schema()
     yield
 
 
@@ -164,6 +335,16 @@ def clean_listing_fields(payload: dict, existing: dict | None = None) -> dict:
             if code and code not in LENGTH_CODES:
                 raise HTTPException(400, "length_code must be L1-L4")
             out[field] = code
+        elif field == "mot_due":
+            date = _as_text(value)
+            if date:
+                if not ISO_DATE_RE.match(date):
+                    raise HTTPException(400, "mot_due must be a date like 2027-03-14")
+                try:
+                    datetime.strptime(date, "%Y-%m-%d")
+                except ValueError:
+                    raise HTTPException(400, f"'{date}' is not a real date")
+            out[field] = date or None
         elif field == "image_urls":
             urls = value
             if isinstance(urls, str):
@@ -202,6 +383,18 @@ def slugify(label: str) -> str:
 
 def not_configured(what: str, detail: str):
     raise HTTPException(503, f"{what} is not configured yet — {detail}")
+
+
+# ---------------------------------------------------------------- schema
+
+@app.get("/api/schema")
+def get_schema():
+    """The field registry the frontend builds its table, drawer and form from.
+
+    Custom properties are deliberately NOT merged in here — they live at
+    /api/properties because they're user-defined at runtime.
+    """
+    return {"fields": FIELD_SPECS, "statuses": list(STATUSES), "sources": list(SOURCES)}
 
 
 # ---------------------------------------------------------------- listings
@@ -244,7 +437,7 @@ def create_listing(payload: dict = Body(...)):
 
     fields = clean_listing_fields(payload)
     if not fields.get("reg"):
-        fields["reg"] = extract_reg(fields.get("title"), fields.get("description"))
+        fields["reg"] = extract_reg(fields.get("title"), fields.get("notes"))
 
     now = db.now_iso()
     fields.update(

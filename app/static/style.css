@@ -15,6 +15,12 @@ body {
   font-size: 14px;
   color: var(--text);
   background: #fff;
+  /* Topbar and filters are fixed-height bands; main is the only scroller, so
+     the table header can stick at top: 0 without hardcoded offsets. */
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .hidden { display: none !important; }
@@ -28,8 +34,7 @@ body {
   gap: 16px;
   padding: 10px 16px;
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
+  flex: none;
   background: #fff;
   z-index: 30;
 }
@@ -75,7 +80,7 @@ body {
 .filters {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 8px 16px; border-bottom: 1px solid var(--border);
-  position: sticky; top: 45px; background: #fff; z-index: 20;
+  flex: none; background: #fff; z-index: 20;
 }
 .filters input, .filters select {
   font: inherit; padding: 4px 7px;
@@ -93,12 +98,12 @@ body {
 
 /* ---------------------------------------------------------------- table */
 
-main { overflow-x: auto; }
+main { flex: 1; overflow: auto; }
 
 table#listings-table { border-collapse: collapse; width: 100%; font-size: 13px; }
 
 #listings-table thead th {
-  position: sticky; top: 88px; background: #fafafa; z-index: 10;
+  position: sticky; top: 0; background: #fafafa; z-index: 10;
   text-align: left; font-weight: 600; font-size: 12px; color: var(--muted);
   padding: 7px 8px; border-bottom: 1px solid var(--border-strong);
   white-space: nowrap; cursor: pointer; user-select: none;
@@ -112,27 +117,17 @@ table#listings-table { border-collapse: collapse; width: 100%; font-size: 13px; 
 #listings-table tbody tr.dim { opacity: 0.55; }
 #listings-table tbody tr.selected { background: #eef4ff; }
 
-td.editable { cursor: text; }
-td.editable:empty::after { content: "—"; color: #c8c8c8; }
+/* Rows are read-only: clicking anywhere but the title link opens the drawer. */
+#listings-table tbody td { cursor: pointer; }
+td.val:empty::after { content: "—"; color: #c8c8c8; }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
 td.title-cell { min-width: 240px; }
 td.title-cell a { color: var(--text); text-decoration: none; }
-td.title-cell a:hover { text-decoration: underline; }
+td.title-cell a:hover { text-decoration: underline; color: var(--blue); }
 tr.inactive td.title-cell a { text-decoration: line-through; }
 
-td.open-cell { cursor: pointer; }
 .thumb { width: 48px; height: 36px; object-fit: cover; border-radius: 4px; display: block; }
 .thumb-empty { width: 48px; height: 36px; border-radius: 4px; background: #f0f0f0; }
-
-td input.cell-input, td select.cell-select {
-  font: inherit; width: 100%; padding: 3px 5px;
-  border: 1px solid var(--blue); border-radius: 4px; background: #fff;
-}
-td select.code-select {
-  font: inherit; border: 1px solid transparent; background: none;
-  padding: 2px 3px; border-radius: 4px; width: 100%;
-}
-td select.code-select:hover { border-color: var(--border-strong); }
 
 .badge {
   font-size: 11px; padding: 2px 7px; border-radius: 4px;
@@ -141,9 +136,9 @@ td select.code-select:hover { border-color: var(--border-strong); }
 .badge.ebay { background: #e4edff; color: #1e4bb8; }
 .badge.facebook, .badge.manual { background: #eee; color: #555; }
 
-select.status-pill {
-  font: inherit; font-size: 12px; padding: 2px 6px; border-radius: 999px;
-  border: 1px solid transparent; cursor: pointer; appearance: none; text-align: center;
+.status-pill {
+  display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px;
+  white-space: nowrap;
 }
 .st-new { background: #e4edff; color: #1e4bb8; }
 .st-considering { background: #fdf3c7; color: #8a6100; }
@@ -152,7 +147,13 @@ select.status-pill {
 .st-rejected { background: #eee; color: #666; }
 .st-purchased { background: #dcf5e3; color: #14713a; }
 
-.notes-cell { color: var(--muted); font-size: 12px; }
+/* Notes are previewed as a few words only — never let a long note widen a row. */
+.notes-cell {
+  color: var(--muted); font-size: 12px;
+  max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+td.mot-due { white-space: nowrap; }
+td.mot-due.overdue { color: #b3261e; }
 .empty { padding: 40px 16px; color: var(--muted); }
 
 /* ---------------------------------------------------------------- drawer */
@@ -188,11 +189,6 @@ select.status-pill {
 .section-title {
   font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--muted); margin: 18px 0 8px; padding-top: 12px; border-top: 1px solid var(--border);
-}
-.readonly-block {
-  white-space: pre-wrap; font-size: 13px; line-height: 1.45;
-  background: #fafafa; border: 1px solid var(--border); border-radius: 6px;
-  padding: 8px; max-height: 260px; overflow-y: auto;
 }
 .drawer-actions { display: flex; gap: 8px; margin-top: 18px; }
 .save-hint { font-size: 12px; color: var(--muted); height: 14px; }

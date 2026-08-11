@@ -54,6 +54,16 @@ are the seams to fill in.
   them so the API always hands out real types. Never leak the raw JSON string to the client.
 - Schema changes go in `db.MIGRATIONS` as `(table, column, type)` — `_migrate()` checks
   `PRAGMA table_info` and only adds what's missing, so existing data survives.
-- Every field a client may write is listed in `main.EDITABLE_FIELDS`. Anything absent is
-  rejected with 400 — that's what keeps `id`, `source` and timestamps out of reach.
+- **`main.FIELD_SPECS` is the one field registry.** It defines, in order, every listing
+  property: its label, type, whether it's editable, whether it appears in the table / the
+  manual-entry form, its drawer section, and how its cell renders. `EDITABLE_FIELDS` is
+  derived from it (plus `custom`), and the frontend fetches it from `GET /api/schema` — the
+  table, drawer and manual form all build from that and hardcode nothing. Add a field there,
+  not in three places.
+- `main.check_registry_covers_schema()` runs at startup and refuses to boot if a `listings`
+  column is neither a registry key nor in `UNMANAGED_COLUMNS` (or if a registry key isn't a
+  real column and isn't in `DERIVED_KEYS`). So adding a `db.MIGRATIONS` column forces you to
+  decide how it shows up in the UI.
+- Anything absent from `EDITABLE_FIELDS` is rejected with 400 — that's what keeps `id`,
+  `source` and timestamps out of reach.
 - Frontend state is one `state` object; mutations re-render from it. No framework, no routing.

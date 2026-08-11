@@ -2,18 +2,14 @@
 
 /* ------------------------------------------------------------------ state */
 
-const STATUSES = ['new', 'considering', 'contacted', 'viewing_booked', 'rejected', 'purchased'];
-const STATUS_LABELS = {
-  new: 'New', considering: 'Considering', contacted: 'Contacted',
-  viewing_booked: 'Viewing booked', rejected: 'Rejected', purchased: 'Purchased',
-};
-const LENGTH_CODES = ['L1', 'L2', 'L3', 'L4'];
-const HEIGHT_CODES = ['H1', 'H2', 'H3'];
-
+// Every field the app knows about comes from GET /api/schema (app.main.FIELD_SPECS).
+// Nothing about listing fields is hardcoded here — that's what stops the table, the
+// drawer and the manual-entry form drifting apart.
 const state = {
   listings: [],
   properties: [],
   searches: [],
+  schema: { fields: [], statuses: [], sources: [] },
   filters: { statuses: new Set(), source: '', q: '', maxPrice: null, showInactive: false },
   sort: { key: 'id', dir: 'desc' },
   selectedId: null,
@@ -21,8 +17,12 @@ const state = {
 
 /* -------------------------------------------------------------------- api */
 
+// Set on beforeunload so any last-gasp save is sent with keepalive, which stops
+// the browser cancelling it as the page goes away.
+let unloading = false;
+
 async function api(method, path, body) {
-  const opts = { method, headers: {} };
+  const opts = { method, headers: {}, keepalive: unloading };
   if (body !== undefined) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
@@ -87,41 +87,77 @@ function formatReg(reg) {
   return reg.length === 7 ? reg.slice(0, 4) + ' ' + reg.slice(4) : reg;
 }
 
+function formatDate(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
+function todayIso() {
+  const now = new Date();
+  return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0')].join('-');
+}
+
+/** First `words` words of `text`, with an ellipsis if anything was dropped. */
+function truncateWords(text, words) {
+  const parts = (text || '').split(' ').filter(Boolean);
+  if (parts.length <= words) return parts.join(' ');
+  return parts.slice(0, words).join(' ') + '…';
+}
+
+/** Debounced `fn`, with `.flush()` to run a pending call right now (or nothing). */
 function debounce(fn, ms) {
-  let timer;
-  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+  let timer, pending = null;
+  const wrapped = (...args) => {
+    clearTimeout(timer);
+    pending = args;
+    timer = setTimeout(() => { pending = null; fn(...args); }, ms);
+  };
+  wrapped.flush = () => {
+    if (!pending) return;
+    clearTimeout(timer);
+    const args = pending;
+    pending = null;
+    fn(...args);
+  };
+  return wrapped;
 }
 
 function errorMessage(err) {
   return err && err.message ? err.message : 'Something went wrong';
 }
 
+/* ----------------------------------------------------------------- schema */
+
+function fieldSpec(key) {
+  return state.schema.fields.find((f) => f.key === key) || null;
+}
+
+/** Pretty label for a select value, from the spec's `labels` map. */
+function specLabel(spec, value) {
+  if (!spec) return value;
+  return (spec.labels && spec.labels[value]) || value;
+}
+
+function statusLabel(value) {
+  return specLabel(fieldSpec('status'), value);
+}
+
 /* ---------------------------------------------------------------- columns */
 
-// Amendment 01 §A column order. `edit` marks a cell as inline-editable.
-const BASE_COLUMNS = [
-  { key: 'thumb', label: '', sortable: false },
-  { key: 'title', label: 'Title', edit: 'text' },
-  { key: 'price_gbp', label: 'Price', edit: 'number', numeric: true },
-  { key: 'make', label: 'Make', edit: 'text' },
-  { key: 'model', label: 'Model', edit: 'text' },
-  { key: 'year', label: 'Year', edit: 'number', numeric: true },
-  { key: 'mileage', label: 'Mileage', edit: 'number', numeric: true },
-  { key: 'height_code', label: 'Height', edit: 'code' },
-  { key: 'length_code', label: 'Length', edit: 'code' },
-  { key: 'euro_status', label: 'Euro', edit: 'text' },
-  { key: 'reg', label: 'Reg', edit: 'text' },
-  { key: 'location', label: 'Location', edit: 'text' },
-  { key: 'source', label: 'Source' },
-  { key: 'status', label: 'Status' },
-  { key: 'mot', label: 'MOT', sortable: false },
-];
-
+// Amendment 01 §A column order, now owned by the backend registry. The table is
+// read-only: the only clickable thing in a row is the title link (opens the
+// original listing); everything else opens the drawer, where editing happens.
+// Custom properties are appended after the registry's columns, in their own order.
 function columns() {
+  const base = state.schema.fields.filter((f) => f.in_table !== false);
   const custom = state.properties.map((p) => ({
     key: 'custom:' + p.key, label: p.label, property: p, numeric: p.type === 'number',
   }));
-  return [...BASE_COLUMNS, ...custom, { key: 'notes', label: 'Notes', sortable: false }];
+  return [...base, ...custom];
 }
 
 /* ----------------------------------------------------------------- filters */
@@ -196,7 +232,8 @@ function renderRow(listing) {
       state.selectedId === listing.id ? 'selected' : '',
     ].filter(Boolean).join(' '),
     onclick: (event) => {
-      if (event.target.closest('td.no-drawer, input, select, button, a')) return;
+      // The title link is the one thing in a row that isn't "open the drawer".
+      if (event.target.closest('a')) return;
       openDrawer(listing.id);
     },
   });
@@ -205,200 +242,99 @@ function renderRow(listing) {
 }
 
 function renderCell(listing, col) {
-  const { key } = col;
+  if (col.key.startsWith('custom:')) return customCell(listing, col);
 
-  if (key === 'thumb') {
-    // Deliberately not `no-drawer`: almost every other cell is click-to-edit, so the
-    // thumbnail is the reliable place to click for the detail drawer.
-    const src = listing.image_urls[0];
-    return el('td', { class: 'open-cell', title: 'Open details' },
-      src ? el('img', { class: 'thumb', src, loading: 'lazy', alt: '' }) : el('div', { class: 'thumb-empty' }));
+  const value = listing[col.key];
+  const plain = (text) => el('td', { class: 'val' + (col.numeric ? ' num' : ''), text });
+
+  switch (col.cell) {
+    case 'thumb': {
+      const src = listing.image_urls[0];
+      return el('td', { class: 'open-cell', title: 'Open details' },
+        src ? el('img', { class: 'thumb', src, loading: 'lazy', alt: '' }) : el('div', { class: 'thumb-empty' }));
+    }
+
+    case 'title_link': {
+      const td = el('td', { class: 'title-cell' });
+      td.append(listing.url
+        ? el('a', { href: listing.url, target: '_blank', rel: 'noopener', text: listing.title, title: 'Open the original listing' })
+        : document.createTextNode(listing.title));
+      return td;
+    }
+
+    case 'badge':
+      return el('td', {}, el('span', {
+        class: 'badge ' + value,
+        text: value === 'ebay' ? 'eBay' : value === 'facebook' ? 'FB' : 'Manual',
+      }));
+
+    case 'status_pill':
+      return el('td', {}, el('span', {
+        class: 'status-pill st-' + value,
+        text: statusLabel(value),
+      }));
+
+    case 'mot':
+      // MOT data isn't stored on the listing yet (milestone 5); the drawer holds
+      // the Check button, so this column is a placeholder until then.
+      return el('td', { class: 'muted', text: listing.reg ? '—' : 'add reg' });
+
+    case 'mot_due': {
+      // Stored as an ISO date; shown short, and flagged once it's in the past.
+      if (!value) return el('td', { class: 'val' });
+      const overdue = value < todayIso();
+      return el('td', {
+        class: 'val mot-due' + (overdue ? ' overdue' : ''),
+        text: formatDate(value),
+        title: overdue ? 'MOT expired' : 'MOT due',
+      });
+    }
+
+    case 'notes': {
+      // A few words only — the full text lives in the drawer, and long notes must
+      // not stretch the row.
+      const full = (value || '').replace(/\s+/g, ' ').trim();
+      const td = el('td', { class: 'notes-cell', text: truncateWords(full, 5) });
+      if (full) td.title = full;
+      return td;
+    }
+
+    case 'check':
+      return el('td', { class: 'val', text: value === true ? '✓' : '' });
+
+    case 'money':
+      return plain(money(value));
+
+    case 'number':
+      // `grouped: false` on the spec means "print it raw" — a year, not a quantity.
+      return plain(value === null || value === undefined ? ''
+        : col.grouped === false ? String(value) : number(value));
+
+    case 'reg':
+      return plain(formatReg(value));
+
+    case 'date':
+      return plain(formatDate(value));
+
+    default:
+      return plain(value === null || value === undefined ? '' : String(value));
   }
-
-  if (key === 'title') {
-    const td = el('td', { class: 'title-cell editable no-drawer' });
-    td.append(listing.url
-      ? el('a', { href: listing.url, target: '_blank', rel: 'noopener', text: listing.title })
-      : document.createTextNode(listing.title));
-    td.addEventListener('dblclick', () => startEdit(td, listing, 'title', 'text'));
-    td.title = 'Double-click to rename';
-    return td;
-  }
-
-  if (key === 'source') {
-    return el('td', {}, el('span', { class: 'badge ' + listing.source, text: listing.source === 'ebay' ? 'eBay' : listing.source === 'facebook' ? 'FB' : 'Manual' }));
-  }
-
-  if (key === 'status') {
-    const select = el('select', {
-      class: 'status-pill st-' + listing.status,
-      onchange: async (e) => {
-        try {
-          await saveField(listing, 'status', e.target.value);
-        } catch (err) { toast(errorMessage(err), 'error'); }
-        render();
-      },
-    }, STATUSES.map((s) => el('option', { value: s, text: STATUS_LABELS[s], selected: s === listing.status })));
-    return el('td', { class: 'no-drawer' }, select);
-  }
-
-  if (key === 'mot') {
-    return el('td', { class: 'no-drawer' }, motCell(listing));
-  }
-
-  if (key === 'notes') {
-    const preview = (listing.notes || '').replace(/\s+/g, ' ').trim();
-    return el('td', { class: 'notes-cell', text: preview.length > 60 ? preview.slice(0, 60) + '…' : preview });
-  }
-
-  if (col.edit === 'code') {
-    const codes = key === 'height_code' ? HEIGHT_CODES : LENGTH_CODES;
-    const select = el('select', {
-      class: 'code-select',
-      onchange: async (e) => {
-        try { await saveField(listing, key, e.target.value || null); } catch (err) { toast(errorMessage(err), 'error'); }
-      },
-    }, [el('option', { value: '', text: '—' }), ...codes.map((c) => el('option', { value: c, text: c, selected: listing[key] === c }))]);
-    return el('td', { class: 'no-drawer' }, select);
-  }
-
-  if (key.startsWith('custom:')) {
-    return customCell(listing, col);
-  }
-
-  // Plain inline-editable cells.
-  const value = listing[key];
-  const display = key === 'price_gbp' ? money(value)
-    : key === 'mileage' ? number(value)
-    : key === 'reg' ? formatReg(value)
-    : (value === null || value === undefined ? '' : String(value));
-  const td = el('td', {
-    class: 'editable no-drawer' + (col.numeric ? ' num' : ''),
-    text: display,
-    onclick: () => startEdit(td, listing, key, col.edit),
-  });
-  return td;
-}
-
-function motCell(listing) {
-  if (!listing.reg) return el('span', { class: 'muted', text: 'add reg' });
-  return el('button', {
-    class: 'btn',
-    text: 'Check',
-    onclick: async (e) => {
-      e.stopPropagation();
-      try {
-        await post(`/api/listings/${listing.id}/mot`);
-      } catch (err) { toast(errorMessage(err), 'error'); }
-    },
-  });
 }
 
 function customCell(listing, col) {
   const prop = col.property;
   const value = listing.custom[prop.key];
-  const save = async (raw) => {
-    try {
-      const updated = await patch(`/api/listings/${listing.id}`, { custom: { [prop.key]: raw } });
-      Object.assign(listing, updated);
-    } catch (err) {
-      toast(errorMessage(err), 'error');
-      render();
-    }
-  };
 
   if (prop.type === 'checkbox') {
-    return el('td', { class: 'no-drawer' }, el('input', {
-      type: 'checkbox', checked: value === true, onchange: (e) => save(e.target.checked),
-    }));
+    return el('td', { class: 'val', text: value === true ? '✓' : '' });
   }
-  if (prop.type === 'select') {
-    return el('td', { class: 'no-drawer' }, el('select', {
-      class: 'code-select', onchange: (e) => save(e.target.value || null),
-    }, [el('option', { value: '', text: '—' }),
-        ...prop.options.map((o) => el('option', { value: o, text: o, selected: value === o }))]));
-  }
-  if (prop.type === 'date') {
-    return el('td', { class: 'no-drawer' }, el('input', {
-      type: 'date', class: 'cell-input', value: value || '', onchange: (e) => save(e.target.value || null),
-    }));
-  }
-
-  const td = el('td', {
-    class: 'editable no-drawer' + (prop.type === 'number' ? ' num' : ''),
+  return el('td', {
+    class: 'val' + (prop.type === 'number' ? ' num' : ''),
     text: value === undefined || value === null ? '' : String(value),
-    onclick: () => startCustomEdit(td, listing, prop),
   });
-  return td;
 }
 
-/* ------------------------------------------------------------ inline edit */
-
-function startEdit(td, listing, field, kind) {
-  if (td.querySelector('input')) return;
-  const original = listing[field];
-  const input = el('input', {
-    class: 'cell-input',
-    type: kind === 'number' ? 'number' : 'text',
-    value: original === null || original === undefined ? '' : original,
-  });
-  td.replaceChildren(input);
-  input.focus();
-  input.select();
-
-  let done = false;
-  const finish = async (commit) => {
-    if (done) return;
-    done = true;
-    if (commit) {
-      const raw = input.value.trim();
-      const next = raw === '' ? null : (kind === 'number' ? Number(raw) : raw);
-      if (next !== original) {
-        try { await saveField(listing, field, next); } catch (err) { toast(errorMessage(err), 'error'); }
-      }
-    }
-    render();
-  };
-
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-  });
-  input.addEventListener('blur', () => finish(true));
-}
-
-function startCustomEdit(td, listing, prop) {
-  if (td.querySelector('input')) return;
-  const original = listing.custom[prop.key];
-  const input = el('input', {
-    class: 'cell-input',
-    type: prop.type === 'number' ? 'number' : 'text',
-    value: original === undefined || original === null ? '' : original,
-  });
-  td.replaceChildren(input);
-  input.focus();
-  input.select();
-
-  let done = false;
-  const finish = async (commit) => {
-    if (done) return;
-    done = true;
-    if (commit) {
-      const raw = input.value.trim();
-      try {
-        const updated = await patch(`/api/listings/${listing.id}`, { custom: { [prop.key]: raw === '' ? null : raw } });
-        Object.assign(listing, updated);
-      } catch (err) { toast(errorMessage(err), 'error'); }
-    }
-    render();
-  };
-
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-  });
-  input.addEventListener('blur', () => finish(true));
-}
+/* ------------------------------------------------------------------- save */
 
 async function saveField(listing, field, value) {
   const updated = await patch(`/api/listings/${listing.id}`, { [field]: value });
@@ -407,6 +343,14 @@ async function saveField(listing, field, value) {
 }
 
 /* ----------------------------------------------------------------- drawer */
+
+// The notes textarea autosaves on a debounce; this holds the pending save so
+// closing the drawer or leaving the page can flush it instead of dropping it.
+let pendingNotesSave = null;
+
+function flushNotes() {
+  if (pendingNotesSave) pendingNotesSave.flush();
+}
 
 function openDrawer(id) {
   state.selectedId = id;
@@ -417,28 +361,117 @@ function openDrawer(id) {
 }
 
 function closeDrawer() {
+  flushNotes();
   state.selectedId = null;
   $('#drawer').classList.add('hidden');
   $('#drawer-backdrop').classList.add('hidden');
   renderRows();
 }
 
-function drawerField(listing, label, field, type, options) {
-  const onchange = async (e) => {
-    const raw = e.target.value;
-    const value = raw === '' ? null : (type === 'number' ? Number(raw) : raw);
+const NUMERIC_TYPES = ['number', 'integer', 'money'];
+
+/** One editable drawer control, derived entirely from the field spec's `type`. */
+function drawerField(listing, spec) {
+  const key = spec.key;
+  const save = async (value) => {
     try {
-      await saveField(listing, field, value);
+      await saveField(listing, key, value);
       renderRows();
     } catch (err) {
       toast(errorMessage(err), 'error');
     }
   };
-  const input = options
-    ? el('select', { onchange }, [el('option', { value: '', text: '' }),
-        ...options.map((o) => el('option', { value: o.value ?? o, text: o.label ?? o, selected: (o.value ?? o) === listing[field] }))])
-    : el('input', { type: type === 'number' ? 'number' : 'text', value: listing[field] ?? '', onchange });
-  return el('div', { class: 'field' }, el('label', { text: label }), input);
+  const value = listing[key];
+
+  let input;
+  if (spec.type === 'select') {
+    input = el('select', { onchange: (e) => save(e.target.value === '' ? null : e.target.value) },
+      [el('option', { value: '', text: '' }),
+       ...(spec.options || []).map((o) => el('option', {
+         value: o, text: specLabel(spec, o), selected: o === value,
+       }))]);
+  } else if (spec.type === 'checkbox') {
+    input = el('input', { type: 'checkbox', checked: value === true, onchange: (e) => save(e.target.checked) });
+  } else if (spec.type === 'urls') {
+    input = el('textarea', { rows: 4, onchange: (e) => save(e.target.value) });
+    input.value = (value || []).join('\n');
+  } else if (spec.type === 'textarea') {
+    input = el('textarea', { rows: 6, onchange: (e) => save(e.target.value) });
+    input.value = value ?? '';
+  } else {
+    const numeric = NUMERIC_TYPES.includes(spec.type);
+    input = el('input', {
+      type: numeric ? 'number' : spec.type === 'date' ? 'date' : 'text',
+      value: value ?? '',
+      onchange: (e) => {
+        const raw = e.target.value;
+        save(raw === '' ? null : (numeric ? Number(raw) : raw));
+      },
+    });
+  }
+  return el('div', { class: 'field' }, el('label', { text: spec.label }), input);
+}
+
+/** Reg + plate lookup (the lookup endpoint activates once DVSA/DVLA keys exist). */
+function drawerRegField(listing, spec) {
+  const regInput = el('input', {
+    value: formatReg(listing.reg), onchange: async (e) => {
+      try { await saveField(listing, 'reg', e.target.value || null); renderDrawer(); renderRows(); }
+      catch (err) { toast(errorMessage(err), 'error'); }
+    },
+  });
+  const lookupMsg = el('p', { class: 'hint' });
+  return el('div', { class: 'field' },
+    el('label', { text: 'Number plate' }),
+    el('div', { class: 'row' }, regInput, el('button', {
+      class: 'btn', text: 'Look up plate', onclick: () => lookupPlate(regInput.value, lookupMsg, listing),
+    })),
+    lookupMsg);
+}
+
+/** Notes: no label, big box, autosaved on a debounce with a Saving…/Saved hint. */
+function drawerNotesField(listing) {
+  const savedHint = el('div', { class: 'save-hint' });
+  // Notes absorbed the old read-only description field, so give it room.
+  const notes = el('textarea', { rows: 14 });
+  notes.value = listing.notes || '';
+  const autosave = debounce(async () => {
+    try {
+      await saveField(listing, 'notes', notes.value);
+      savedHint.textContent = 'Saved';
+      setTimeout(() => { savedHint.textContent = ''; }, 1500);
+      renderRows();
+    } catch (err) { toast(errorMessage(err), 'error'); }
+  }, 800);
+  pendingNotesSave = autosave;
+  notes.addEventListener('input', () => { savedHint.textContent = 'Saving…'; autosave(); });
+  notes.addEventListener('blur', () => autosave.flush());
+  return el('div', { class: 'field' }, notes, savedHint);
+}
+
+/** A field the API won't let anyone change (source): shown, but not editable. */
+function drawerReadonlyField(listing, spec) {
+  return el('div', { class: 'field' },
+    el('label', { text: spec.label }),
+    el('input', { value: specLabel(spec, listing[spec.key]) ?? '', disabled: true }));
+}
+
+function drawerFieldFor(listing, spec) {
+  if (spec.widget === 'reg_lookup') return drawerRegField(listing, spec);
+  if (spec.widget === 'notes') return drawerNotesField(listing);
+  if (!spec.editable) return drawerReadonlyField(listing, spec);
+  return drawerField(listing, spec);
+}
+
+// Drawer section order. 'Custom' isn't a registry section — it's the user-defined
+// properties from /api/properties, slotted in between Images and Notes.
+const DRAWER_SECTIONS = ['Details', 'Images', 'Custom', 'Notes', 'MOT'];
+
+/** The specs rendered under a section heading, in registry order. */
+function sectionFields(name) {
+  return state.schema.fields.filter((f) =>
+    // `source` has no section (it isn't an input) but still belongs in Details.
+    f.section === name || (name === 'Details' && f.key === 'source'));
 }
 
 function renderDrawer() {
@@ -458,65 +491,20 @@ function renderDrawer() {
     parts.push(el('p', {}, el('a', { href: listing.url, target: '_blank', rel: 'noopener', text: 'Open original listing ↗' })));
   }
 
-  parts.push(el('div', { class: 'section-title', text: 'Details' }));
-  parts.push(drawerField(listing, 'Title', 'title', 'text'));
-  parts.push(drawerField(listing, 'Link (URL)', 'url', 'text'));
-  parts.push(drawerField(listing, 'Price (£)', 'price_gbp', 'number'));
-  parts.push(drawerField(listing, 'Make', 'make', 'text'));
-  parts.push(drawerField(listing, 'Model', 'model', 'text'));
-  parts.push(drawerField(listing, 'Year', 'year', 'number'));
-  parts.push(drawerField(listing, 'Mileage', 'mileage', 'number'));
-  parts.push(drawerField(listing, 'Length', 'length_code', 'text', LENGTH_CODES));
-  parts.push(drawerField(listing, 'Height', 'height_code', 'text', HEIGHT_CODES));
-  parts.push(drawerField(listing, 'Euro status', 'euro_status', 'text'));
-  parts.push(drawerField(listing, 'Location', 'location', 'text'));
-  parts.push(drawerField(listing, 'Seller', 'seller_name', 'text'));
-  parts.push(drawerField(listing, 'Status', 'status', 'text',
-    STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))));
-
-  // Reg + plate lookup (the lookup endpoint activates once DVSA/DVLA keys exist).
-  const regInput = el('input', {
-    value: formatReg(listing.reg), onchange: async (e) => {
-      try { await saveField(listing, 'reg', e.target.value || null); renderDrawer(); renderRows(); }
-      catch (err) { toast(errorMessage(err), 'error'); }
-    },
-  });
-  const lookupMsg = el('p', { class: 'hint' });
-  parts.push(el('div', { class: 'field' },
-    el('label', { text: 'Number plate' }),
-    el('div', { class: 'row' }, regInput, el('button', {
-      class: 'btn', text: 'Look up plate', onclick: () => lookupPlate(regInput.value, lookupMsg, listing),
-    })),
-    lookupMsg));
-
-  if (state.properties.length) {
-    parts.push(el('div', { class: 'section-title', text: 'Custom' }));
-    for (const prop of state.properties) {
-      parts.push(drawerCustomField(listing, prop));
+  for (const name of DRAWER_SECTIONS) {
+    if (name === 'Custom') {
+      if (!state.properties.length) continue;
+      parts.push(el('div', { class: 'section-title', text: 'Custom' }));
+      for (const prop of state.properties) parts.push(drawerCustomField(listing, prop));
+      continue;
     }
+    const specs = sectionFields(name);
+    if (!specs.length) continue;
+    parts.push(el('div', { class: 'section-title', text: name }));
+    for (const spec of specs) parts.push(drawerFieldFor(listing, spec));
   }
 
-  parts.push(el('div', { class: 'section-title', text: 'Notes' }));
-  const savedHint = el('div', { class: 'save-hint' });
-  const notes = el('textarea', { rows: 6 });
-  notes.value = listing.notes || '';
-  const autosave = debounce(async () => {
-    try {
-      await saveField(listing, 'notes', notes.value);
-      savedHint.textContent = 'Saved';
-      setTimeout(() => { savedHint.textContent = ''; }, 1500);
-      renderRows();
-    } catch (err) { toast(errorMessage(err), 'error'); }
-  }, 800);
-  notes.addEventListener('input', () => { savedHint.textContent = 'Saving…'; autosave(); });
-  parts.push(el('div', { class: 'field' }, notes, savedHint));
-
-  if (listing.description) {
-    parts.push(el('div', { class: 'section-title', text: 'Description' }));
-    parts.push(el('div', { class: 'readonly-block', text: listing.description }));
-  }
-
-  parts.push(el('div', { class: 'section-title', text: 'MOT' }));
+  // The MOT section's Check button hangs off the end of that section.
   parts.push(el('div', { class: 'field' },
     el('button', {
       class: 'btn', text: listing.reg ? 'Check MOT' : 'Add a reg first',
@@ -594,7 +582,7 @@ async function lookupPlate(reg, msgNode, listing) {
   try {
     const result = await post('/api/lookup/reg', { reg: cleaned });
     const fill = {};
-    for (const field of ['make', 'model', 'year', 'euro_status', 'length_code', 'height_code']) {
+    for (const field of ['make', 'model', 'year', 'length_code', 'height_code']) {
       if (result[field] && listing && !listing[field]) fill[field] = result[field];
     }
     if (listing) {
@@ -634,6 +622,51 @@ function setupModals() {
 
 /* ------------------------------------------------------- manual entry form */
 
+/** One control for the manual-entry form. `name` must equal the schema key: the
+ *  submit handler posts raw FormData. */
+function manualField(spec) {
+  const label = spec.label + (spec.required ? ' *' : '');
+  let input;
+
+  if (spec.type === 'select') {
+    // A spec with a form_default has no blank option — it's always set to something.
+    const blank = spec.form_default ? [] : [el('option', { value: '', text: '' })];
+    input = el('select', { name: spec.key }, [...blank,
+      ...(spec.options || []).map((o) => el('option', {
+        value: o, text: specLabel(spec, o), selected: o === spec.form_default,
+      }))]);
+  } else if (spec.type === 'checkbox') {
+    input = el('input', { type: 'checkbox', name: spec.key, value: 'true' });
+  } else if (spec.type === 'urls' || spec.type === 'textarea') {
+    input = el('textarea', {
+      name: spec.key, rows: spec.type === 'urls' ? 3 : 8, placeholder: spec.placeholder,
+    });
+  } else {
+    input = el('input', {
+      name: spec.key,
+      type: NUMERIC_TYPES.includes(spec.type) ? 'number' : spec.type === 'date' ? 'date' : spec.type === 'url' ? 'url' : 'text',
+      step: NUMERIC_TYPES.includes(spec.type) ? '1' : null,
+      required: spec.required || null,
+    });
+  }
+  return el('div', { class: 'field' }, el('label', { text: label }), input);
+}
+
+/** Build the manual-entry form from the schema. Called once, after boot's fetch —
+ *  the fields never change, and rebuilding would wipe half-typed input. */
+function renderManualFields() {
+  // `reg` is rendered above the grid, with its Look up button.
+  const specs = state.schema.fields.filter((f) => f.in_form && f.key !== 'reg');
+  const grid = el('div', { class: 'grid2' });
+  const wide = [];
+  for (const spec of specs) {
+    const node = manualField(spec);
+    if (spec.type === 'urls' || spec.type === 'textarea') wide.push(node);
+    else grid.append(node);
+  }
+  $('#manual-fields').replaceChildren(grid, ...wide);
+}
+
 function setupManualForm() {
   const form = $('#form-manual');
   const msg = $('#lookup-msg');
@@ -646,11 +679,11 @@ function setupManualForm() {
     try {
       const result = await post('/api/lookup/reg', { reg });
       // Only fill fields the user has left empty.
-      for (const field of ['make', 'model', 'year', 'euro_status', 'length_code', 'height_code']) {
+      for (const field of ['make', 'model', 'year', 'length_code', 'height_code']) {
         if (result[field] && form[field] && !form[field].value) form[field].value = result[field];
       }
       msg.className = 'hint ok';
-      msg.textContent = [result.make, result.model, result.fuel_type, result.euro_status]
+      msg.textContent = [result.make, result.model, result.fuel_type]
         .filter(Boolean).join(' · ') || 'Found';
     } catch (err) {
       msg.className = 'hint error';
@@ -827,9 +860,9 @@ function setupColumnsForm() {
 
 function renderChips() {
   const container = $('#status-chips');
-  container.replaceChildren(...STATUSES.map((status) => el('button', {
+  container.replaceChildren(...state.schema.statuses.map((status) => el('button', {
     class: 'chip' + (state.filters.statuses.has(status) ? ' on' : ''),
-    text: STATUS_LABELS[status],
+    text: statusLabel(status),
     onclick: () => {
       const set = state.filters.statuses;
       set.has(status) ? set.delete(status) : set.add(status);
@@ -845,6 +878,11 @@ function render() {
   renderHeader();
   renderRows();
   if (state.selectedId) renderDrawer();
+}
+
+async function loadSchema() {
+  // The field registry: table columns, drawer fields, form fields, status list.
+  state.schema = await get('/api/schema');
 }
 
 async function loadListings() {
@@ -886,6 +924,10 @@ function setupTopbar() {
 
   $('#drawer-close').addEventListener('click', closeDrawer);
   $('#drawer-backdrop').addEventListener('click', closeDrawer);
+
+  // A refresh while mid-sentence used to lose the note still sitting on the
+  // 800ms debounce; flush it (keepalive, so the request survives the unload).
+  window.addEventListener('beforeunload', () => { unloading = true; flushNotes(); });
 }
 
 function setupFilters() {
@@ -907,10 +949,11 @@ async function boot() {
   setupSearchesForm();
   setupColumnsForm();
   try {
-    await Promise.all([loadListings(), loadProperties()]);
+    await Promise.all([loadSchema(), loadListings(), loadProperties()]);
   } catch (err) {
     toast('Could not load data: ' + errorMessage(err), 'error');
   }
+  renderManualFields();
   render();
 }
 

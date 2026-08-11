@@ -69,29 +69,9 @@
         </div>
         <p id="lookup-msg" class="hint"></p>
       </div>
-      <div class="grid2">
-        <div class="field"><label>Title *</label><input name="title" required></div>
-        <div class="field"><label>Link (URL)</label><input name="url" type="url"></div>
-        <div class="field"><label>Price (£)</label><input name="price_gbp" type="number" step="1"></div>
-        <div class="field"><label>Source</label>
-          <select name="source"><option value="facebook">Facebook</option><option value="manual">Manual / other</option></select>
-        </div>
-        <div class="field"><label>Make</label><input name="make"></div>
-        <div class="field"><label>Model</label><input name="model"></div>
-        <div class="field"><label>Year</label><input name="year" type="number" step="1"></div>
-        <div class="field"><label>Mileage</label><input name="mileage" type="number" step="1"></div>
-        <div class="field"><label>Length</label>
-          <select name="length_code"><option value=""></option><option>L1</option><option>L2</option><option>L3</option><option>L4</option></select>
-        </div>
-        <div class="field"><label>Height</label>
-          <select name="height_code"><option value=""></option><option>H1</option><option>H2</option><option>H3</option></select>
-        </div>
-        <div class="field"><label>Euro status</label><input name="euro_status" placeholder="EURO 6"></div>
-        <div class="field"><label>Location</label><input name="location"></div>
-        <div class="field"><label>Seller</label><input name="seller_name"></div>
-      </div>
-      <div class="field"><label>Image URLs (one per line)</label><textarea name="image_urls" rows="3"></textarea></div>
-      <div class="field"><label>Description</label><textarea name="description" rows="6" placeholder="Paste the listing text here"></textarea></div>
+      <!-- Built from GET /api/schema by renderManualFields() — every field with
+           in_form, in registry order. Do not hardcode fields here. -->
+      <div id="manual-fields"></div>
       <div class="modal-footer">
         <button type="button" class="btn modal-close">Cancel</button>
         <button type="submit" class="btn primary">Save listing</button>
