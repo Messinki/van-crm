@@ -42,10 +42,15 @@ Port 8321 is fixed so bookmarks keep working. The DB is created and seeded at
 Milestones 1–3 are done (skeleton, listings CRUD + table, custom properties), plus
 Amendment 01 sections A–C's schema and UI. See the README's status table for detail.
 
-**Milestone 4 (eBay)** and **milestone 5 (MOT / reg lookup)** are not started — blocked on
-the user's eBay developer account and DVSA credentials. `app/ebay.py` and `app/mot.py` do
-not exist yet; the routes in `app/main.py` under the "not yet wired" heading return 503 and
-are the seams to fill in.
+**Milestone 5 (MOT / reg lookup)** is done: `app/mot.py` handles DVSA auth (cached token),
+fetch, 7-day cache and derived fields; `/api/lookup/reg` powers plate autofill in the manual
+form and drawer; listings carry a `mot` summary and the table has a live MOT column. The
+DVLA VES merge path exists but is dormant until `DVLA_VES_API_KEY` is set — its field names
+are unverified, re-check against live docs when a key lands.
+
+**Milestone 4 (eBay)** is not started — blocked on the user's eBay developer account.
+`app/ebay.py` does not exist yet; the routes in `app/main.py` under the "not yet wired"
+heading return 503 and are the seams to fill in.
 
 ## Conventions in this codebase
 

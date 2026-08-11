@@ -12,7 +12,7 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import db
+from app import db, mot
 
 load_dotenv()
 
@@ -155,12 +155,12 @@ FIELD_SPECS = [
         "in_form": True, "section": "MOT", "cell": "mot_due",
     },
     {
-        # Milestone 5 will store MOT data on the listing and give this something to
-        # show; until then it has nothing to say, so it's hidden on both surfaces.
-        # The drawer's Check MOT button and `mot_due` cover the MOT section for now.
+        # Not a column: the cached DVSA summary attached to every listing by
+        # attach_mot(). The table renders expiry + fault badges from it (or a Check
+        # button when there's nothing cached); the drawer has its own MOT panel, so
+        # no drawer row. Sorts on the expiry date — see sortValue() in app.js.
         "key": "mot", "label": "MOT", "type": "text", "editable": False,
-        "in_table": False, "in_drawer": False, "in_form": False, "cell": "mot",
-        "sortable": False,
+        "in_table": True, "in_drawer": False, "in_form": False, "cell": "mot",
     },
     {
         "key": "notes", "label": "Notes", "type": "textarea", "editable": True,
@@ -187,6 +187,12 @@ EDITABLE_FIELDS = {f["key"] for f in FIELD_SPECS if f.get("editable")} | {"custo
 
 REG_RE = re.compile(r"\b[A-Z]{2}[0-9]{2}\s?[A-Z]{3}\b", re.IGNORECASE)
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+# Amendment 01 §C: van size codes as they appear in an MOT model string, e.g.
+# "RELAY 35 L3H2 BLUEHDI". Plenty of models carry no codes at all (Fiat reports a
+# bare "DUCATO") — no match just means the user picks them from the dropdowns.
+MODEL_LENGTH_RE = re.compile(r"\bL([1-4])\b|L([1-4])H", re.IGNORECASE)
+MODEL_HEIGHT_RE = re.compile(r"H([1-3])\b", re.IGNORECASE)
 
 
 def check_registry_covers_schema() -> None:
@@ -394,6 +400,39 @@ def get_listing_or_404(conn: sqlite3.Connection, listing_id: int) -> dict:
     return db.row_to_listing(row)
 
 
+def parse_size_codes(model: str | None) -> tuple[str | None, str | None]:
+    """(length_code, height_code) read out of an MOT model string, or (None, None)."""
+    if not model:
+        return None, None
+    length = MODEL_LENGTH_RE.search(model)
+    height = MODEL_HEIGHT_RE.search(model)
+    return (
+        "L" + (length.group(1) or length.group(2)) if length else None,
+        "H" + height.group(1) if height else None,
+    )
+
+
+def attach_mot(conn: sqlite3.Connection, listings: list[dict]) -> list[dict]:
+    """Hang the cached MOT summary (or None) on each listing, in one query.
+
+    The table's MOT column reads this, so it must ride along with the listings
+    rather than costing a request per row. Nothing here ever calls DVSA — it only
+    reports what mot_cache already holds.
+    """
+    regs = sorted({l["reg"] for l in listings if l.get("reg")})
+    summaries: dict[str, dict] = {}
+    if regs:
+        placeholders = ", ".join("?" * len(regs))
+        rows = conn.execute(
+            f"SELECT reg, fetched_at, raw_json FROM mot_cache WHERE reg IN ({placeholders})", regs
+        ).fetchall()
+        for row in rows:
+            summaries[row["reg"]] = mot.summary(json.loads(row["raw_json"]), row["fetched_at"])
+    for listing in listings:
+        listing["mot"] = summaries.get(listing.get("reg"))
+    return listings
+
+
 def slugify(label: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "_", label.strip().lower()).strip("_")
     return slug or "property"
@@ -442,7 +481,7 @@ def list_listings(
     sql += " ORDER BY id DESC"
     with db.connect() as conn:
         rows = conn.execute(sql, params).fetchall()
-    return [db.row_to_listing(r) for r in rows]
+        return attach_mot(conn, [db.row_to_listing(r) for r in rows])
 
 
 @app.post("/api/listings", status_code=201)
@@ -469,7 +508,7 @@ def create_listing(payload: dict = Body(...)):
         cursor = conn.execute(
             f"INSERT INTO listings ({columns}) VALUES ({placeholders})", list(fields.values())
         )
-        return get_listing_or_404(conn, cursor.lastrowid)
+        return attach_mot(conn, [get_listing_or_404(conn, cursor.lastrowid)])[0]
 
 
 @app.patch("/api/listings/{listing_id}")
@@ -484,7 +523,7 @@ def update_listing(listing_id: int, payload: dict = Body(...)):
                 f"UPDATE listings SET {assignments} WHERE id = ?",
                 [*fields.values(), listing_id],
             )
-        return get_listing_or_404(conn, listing_id)
+        return attach_mot(conn, [get_listing_or_404(conn, listing_id)])[0]
 
 
 @app.delete("/api/listings/{listing_id}")
@@ -659,6 +698,104 @@ def delete_property(property_id: int):
     return {"deleted": property_id, "listings_updated": stripped}
 
 
+# ---------------------------------------------------------------- MOT + reg lookup
+
+@app.post("/api/lookup/reg")
+def lookup_reg(payload: dict = Body(...)):
+    """Amendment 01 §D: one plate in, everything two government sources know back.
+
+    The MOT call warms mot_cache as a side effect, so a listing created straight
+    after a lookup already has its MOT column filled in.
+    """
+    reg = normalise_reg(payload.get("reg"))
+    if not reg:
+        raise HTTPException(422, "enter a number plate to look up")
+    if not mot.configured() and not mot.ves_configured():
+        not_configured("Reg lookup", "add the five DVSA_* values to .env (DVLA_VES_API_KEY is optional)")
+
+    raw, ves, reasons = None, None, []
+    if mot.configured():
+        try:
+            with db.connect() as conn:
+                raw, _, _ = mot.get_cached_or_fetch(conn, reg)
+        except mot.MotError as err:
+            reasons.append(err.message)
+    if mot.ves_configured():
+        try:
+            ves = mot.fetch_ves(reg)
+        except mot.MotError as err:
+            reasons.append(err.message)
+
+    if raw is None and ves is None:
+        raise HTTPException(404, " · ".join(reasons) or f"Nothing found for {reg}")
+
+    derived = mot.derive(raw or {})
+    ves = ves or {}
+    length_code, height_code = parse_size_codes(derived["model"])
+
+    year = ves.get("yearOfManufacture")
+    if year is None and derived["first_used_date"]:
+        year = _as_number(str(derived["first_used_date"])[:4], "year", integer=True)
+
+    return {
+        "reg": reg,
+        "make": derived["make"] or ves.get("make"),   # MOT is the better-cased one
+        "model": derived["model"],                    # VES has no model at all
+        "year": year,
+        "fuel_type": derived["fuel_type"] or ves.get("fuelType"),
+        "colour": derived["colour"] or ves.get("colour"),
+        "engine_size": derived["engine_size"] or ves.get("engineCapacity"),
+        "length_code": length_code,
+        "height_code": height_code,
+        "mileage": derived["latest_odometer_miles"],
+        "mot_due": derived["latest_expiry"],
+        "tax_status": ves.get("taxStatus"),
+        "mot_cached": raw is not None,
+        "sources": {"mot": raw is not None, "ves": bool(ves)},
+    }
+
+
+def mot_response(raw: dict, fetched_at: str, from_cache: bool) -> dict:
+    return {
+        "cached": True,
+        "fetched_at": fetched_at,
+        "from_cache": from_cache,
+        "derived": mot.derive(raw),
+        "summary": mot.summary(raw, fetched_at),
+        "raw": raw,
+    }
+
+
+@app.get("/api/listings/{listing_id}/mot")
+def get_mot(listing_id: int):
+    """Whatever is already cached for this listing's reg. Never calls DVSA."""
+    with db.connect() as conn:
+        listing = get_listing_or_404(conn, listing_id)
+        if not listing["reg"]:
+            return {"cached": False, "reason": "no reg set"}
+        row = conn.execute(
+            "SELECT * FROM mot_cache WHERE reg = ?", (listing["reg"],)
+        ).fetchone()
+    if row is None:
+        return {"cached": False}
+    return mot_response(json.loads(row["raw_json"]), row["fetched_at"], from_cache=True)
+
+
+@app.post("/api/listings/{listing_id}/mot")
+def fetch_mot(listing_id: int, force: bool = Query(False)):
+    if not mot.configured():
+        not_configured("The MOT History API", "add the five DVSA_* values to .env")
+    with db.connect() as conn:
+        listing = get_listing_or_404(conn, listing_id)
+        if not listing["reg"]:
+            raise HTTPException(422, "add a number plate to this listing first")
+        try:
+            raw, fetched_at, from_cache = mot.get_cached_or_fetch(conn, listing["reg"], force=force)
+        except mot.MotError as err:
+            raise HTTPException(err.status, err.message)
+    return mot_response(raw, fetched_at, from_cache)
+
+
 # ---------------------------------------------------------------- not yet wired
 
 @app.post("/api/scrape")
@@ -674,30 +811,6 @@ def import_ebay(payload: dict = Body(...)):
 @app.post("/api/listings/{listing_id}/check")
 def check_listing(listing_id: int):
     not_configured("eBay", "add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env (milestone 4)")
-
-
-@app.get("/api/listings/{listing_id}/mot")
-def get_mot(listing_id: int):
-    with db.connect() as conn:
-        listing = get_listing_or_404(conn, listing_id)
-        if not listing["reg"]:
-            return {"cached": False, "reason": "no reg set"}
-        row = conn.execute(
-            "SELECT * FROM mot_cache WHERE reg = ?", (listing["reg"],)
-        ).fetchone()
-    if row is None:
-        return {"cached": False}
-    return {"cached": True, "fetched_at": row["fetched_at"], "raw": json.loads(row["raw_json"])}
-
-
-@app.post("/api/listings/{listing_id}/mot")
-def fetch_mot(listing_id: int, force: bool = Query(False)):
-    not_configured("The MOT History API", "DVSA credentials are pending (milestone 5)")
-
-
-@app.post("/api/lookup/reg")
-def lookup_reg(payload: dict = Body(...)):
-    not_configured("Reg lookup", "DVSA/DVLA credentials are pending (milestone 5)")
 
 
 # ---------------------------------------------------------------- static

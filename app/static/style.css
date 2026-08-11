@@ -156,6 +156,27 @@ td.mot-due { white-space: nowrap; }
 td.mot-due.overdue { color: #b3261e; }
 .empty { padding: 40px 16px; color: var(--muted); }
 
+/* MOT column: expiry date, then quiet badges for what the history says. */
+td.mot-cell { white-space: nowrap; }
+.mot-expiry { margin-right: 5px; }
+.mot-expiry.overdue { color: #b3261e; }
+.mot-badge {
+  display: inline-block; font-size: 10px; line-height: 15px; padding: 0 4px;
+  border-radius: 3px; margin-right: 3px; background: #eee; color: #555;
+  font-variant-numeric: tabular-nums; cursor: help;
+}
+.mot-badge.danger { background: #fbe0de; color: #a1201a; }
+.mot-badge.major { background: #ffe8d1; color: #a75200; }
+.mot-badge.warn { background: #eee; color: #666; }
+
+.mini-btn {
+  font: inherit; font-size: 11px; padding: 1px 7px;
+  border: 1px solid var(--border-strong); border-radius: 4px;
+  background: #fff; cursor: pointer; color: var(--muted);
+}
+.mini-btn:hover:not(:disabled) { background: #fff; color: var(--text); border-color: var(--muted); }
+.mini-btn:disabled { opacity: 0.6; cursor: default; }
+
 /* ---------------------------------------------------------------- drawer */
 
 .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.12); z-index: 45; }
@@ -193,6 +214,43 @@ td.mot-due.overdue { color: #b3261e; }
 .drawer-actions { display: flex; gap: 8px; margin-top: 18px; }
 .save-hint { font-size: 12px; color: var(--muted); height: 14px; }
 
+/* ------------------------------------------------------- drawer MOT panel */
+
+.mot-panel .row { justify-content: flex-start; }
+.mot-panel .row .btn { flex: none; }
+.mot-report { font-size: 13px; }
+.mot-report p { margin: 6px 0; }
+.mot-vehicle { color: var(--muted); }
+.mot-latest .ok { color: #14713a; }
+.mot-latest .bad, .mot-test-head .bad { color: #b3261e; }
+.mot-test-head .ok { color: #14713a; }
+.mot-latest .overdue { color: #b3261e; }
+.mot-serious { color: #a75200; cursor: help; }
+.mot-warn { color: #b3261e; }
+
+.flag-list {
+  margin: 8px 0; padding: 8px 10px 8px 26px;
+  border: 1px solid #f0c8c8; border-left: 3px solid #b3261e; border-radius: 6px;
+  color: #7a1a15; background: #fdf5f5;
+}
+.flag-list li { margin: 2px 0; }
+
+.mileage-list { margin: 8px 0; padding-left: 18px; color: var(--muted); }
+.mileage-list li { margin: 1px 0; font-variant-numeric: tabular-nums; }
+
+.mot-tests { margin-top: 10px; }
+.mot-tests summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.mot-test { border-top: 1px solid var(--border); padding: 8px 0; }
+.mot-test-head { display: flex; gap: 10px; font-size: 12px; }
+.mot-test-head span:first-child { min-width: 90px; }
+.defect-list { margin: 5px 0 0; padding-left: 18px; font-size: 12px; }
+.defect { margin: 2px 0; }
+.defect.dangerous { color: #b3261e; }
+.defect.major { color: #a75200; }
+.defect.minor { color: #8a6100; }
+.defect.advisory { color: var(--muted); }
+.no-defects { font-size: 12px; margin: 4px 0 0; }
+
 /* ---------------------------------------------------------------- modals */
 
 .modal {
@@ -222,6 +280,8 @@ td.mot-due.overdue { color: #b3261e; }
 .hint.error { color: #b91c1c; }
 .hint.ok { color: #14713a; }
 .reg-field input[name="reg"] { text-transform: uppercase; }
+/* The plate-lookup result: what it is, then the read-only fuel/colour/engine line. */
+.lookup-line { display: block; }
 
 .mini-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .mini-table th {

@@ -32,14 +32,19 @@ searches. Deleting that file resets everything.
 | 2. Listings CRUD, read-only table, drawer editor, filters, sorting, Add dropdown | done |
 | 3. Custom properties — typed columns, Columns modal | done |
 | 4. eBay — auth, scrape, upsert, import-from-link, liveness | **not started** (waiting on dev account) |
-| 5. MOT + reg lookup — DVSA, DVLA VES, `/api/lookup/reg` | **not started** (waiting on credentials) |
+| 5. MOT + reg lookup — DVSA, `/api/lookup/reg`, MOT column and drawer panel | done (DVLA VES sub-step dormant until a key is set) |
 | 6. Polish — inactive strikethrough, error toasts, README | mostly done |
 
-The eBay and MOT endpoints exist and are wired to the UI, but return **HTTP 503 with a
+The eBay endpoints exist and are wired to the UI, but return **HTTP 503 with a
 plain-English message** ("eBay is not configured yet — …"), which the frontend surfaces
 as an error toast or inline hint. Nothing crashes; every other part of the app works.
-Filling in `.env` is not enough on its own — the client modules (`app/ebay.py`,
-`app/mot.py`) still need writing in milestones 4 and 5.
+Filling in `.env` is not enough on its own — `app/ebay.py` still needs writing in
+milestone 4.
+
+MOT is live: with the `DVSA_*` values in `.env`, the table's MOT column, the drawer's
+MOT panel and the plate lookup all work. Without them they return the same 503s.
+`DVLA_VES_API_KEY` is still optional and still unset — the lookup runs MOT-only and
+`tax_status` comes back `null` until a key is added; no code change is needed then.
 
 ---
 
@@ -60,6 +65,11 @@ these map to `DVSA_*` in `.env`. Note the API key is revoked if unused for 90 da
 
 This is the *new* (2023+) MOT History API. Anything referencing `beta.check-mot.service.gov.uk`
 or `Accept: application/json+v6` is the old API and does not apply.
+
+**Verified working 2026-08-11** against the live API with the credentials in `.env`. The
+response field names match spec §6.3 with no deviations; the only addition worth noting is
+that each defect also carries a `dangerous` boolean alongside its `type`, and the app uses
+it (a defect counts as dangerous if either says so).
 
 ### DVLA Vehicle Enquiry Service (optional, milestone 5)
 Request a free key from <https://developer-portal.driver-vehicle-licensing.api.gov.uk> and set
@@ -85,6 +95,18 @@ no longer tracks it — see Decisions made.)
   in by hand before milestone 4's importer exists.
 - **Detail drawer** — click a row; all fields editable, notes autosave 800ms after you stop typing,
   image strip, delete with confirm.
+- **MOT column** — expiry date (red once it's inside 30 days or past), then small badges: `D3`
+  dangerous and `M3` major defect counts over the last three years, and `⚠` for a mileage
+  jump backwards or a corrosion/rust/oil-leak/"excessively" wording in a recent defect. Every
+  badge has a tooltip. A reg with nothing cached shows a **Check** button in the cell; no reg
+  shows `add reg`. Sorting the column sorts by expiry date.
+- **Drawer MOT panel** — Check MOT / Refresh, then the vehicle line, latest result and expiry,
+  the flagged defect texts, the mileage history newest-first, and a collapsible per-test
+  breakdown with defects coloured by severity.
+- **Look up plate** — in the drawer and on manual entry. Fills make, model, year, height,
+  length, mileage and MOT due, but only where the field is empty, and shows fuel · colour ·
+  engine size as a read-only line. It also warms the MOT cache, so a new listing has its MOT
+  column filled in without a separate Check.
 - **Suggestions on repeated fields** — Make, Model, Year, Location and Seller offer a dropdown of
   values already used on other listings (drawer and manual entry both). Free text either way.
 - **Columns modal** — add/rename/reorder/delete custom properties of any type. Deleting a property
@@ -107,15 +129,37 @@ Choices the spec left open, resolved the simplest way:
 - **The frontend loads every listing once** (`GET /api/listings?active=-1`) and does all filtering
   and sorting client-side, as §8 requires. `active=-1` means "don't filter on active" — the API
   still honours `active=0`/`active=1`.
-- **MOT column is a placeholder** (`—`, or `add reg` when there's no reg); the `Check MOT` button
-  lives in the drawer. Probing the cache per row would be one request per listing on load.
-  Milestone 5 will add a cached-MOT summary to the listings payload so the column can show
-  expiry dates directly.
+- **The MOT summary rides on the listings payload** (replaces the earlier "MOT column is a
+  placeholder" decision). `GET /api/listings` runs one extra `SELECT ... FROM mot_cache WHERE
+  reg IN (…)` and hangs a compact summary — expiry, result, mileage, defect counts, warning
+  flags — on each listing as `mot`. The table renders from that, so the column costs no
+  per-row requests, and single-listing responses (create, PATCH, the MOT fetch itself) carry
+  the same key so one row can be re-rendered on its own. Attaching happens in the route layer
+  (`main.attach_mot`), never in `db.py`; `mot` stays a `DERIVED_KEYS` pseudo-field.
+- **Serious-fault flagging uses DVSA's own classification, not AI** — `D`/`M` badges count
+  defects typed `DANGEROUS` and `MAJOR` (or carrying `dangerous: true`) across every test
+  completed in the last three years, alongside the spec's keyword flags. A fail that was fixed
+  on a retest still counts: it's a history signal, not a verdict on the current MOT. Defect
+  types the API stopped using (older tests carry `FAIL`, `PRS`, `USER ENTERED`) are bucketed as
+  advisories unless flagged dangerous.
+- **Reg lookup returns more than Amendment 01 §D asked for** — the response adds `mileage`
+  (latest odometer reading), `mot_due` (latest expiry), `colour`, `engine_size` and `fuel_type`
+  on top of §D's fields, because the point of the button is to type as little as possible.
+  `euro_status` is not in it (that field is gone from the app). Both surfaces fill *only* empty
+  inputs, so `mot_due` prefills on a new listing but never overwrites a date the user set.
+- **L/H autofill only works for makes that spell the codes out** — the regexes from §C run over
+  the MOT model string, which is `RELAY 35 HVY L4H2 ENT BHDI SS` for Citroën/Peugeot but a bare
+  `DUCATO` for Fiat. No match leaves both dropdowns blank rather than guessing.
+- **MOT errors are never cached** — a 404 or a credentials failure leaves any existing
+  `mot_cache` row alone, and the message is surfaced inline (drawer, manual form) or as a toast
+  (the table's Check button). The DVSA access token is cached module-level and reused until a
+  minute before it expires, so a run of checks costs one token request.
 - **`mot_due` is hand-entered, separate from the MOT lookup** — a `date` input in the drawer's MOT
   section and on manual entry, stored as an ISO `YYYY-MM-DD` string in `listings.mot_due` and
   validated server-side (a real calendar date, or null). It gets its own sortable **MOT due**
-  column, shown as `14 Mar 2027` and in red once the date has passed. Milestone 5's DVSA fetch
-  fills `mot_cache`; it will be free to prefill this field, but the user's own value stands alone.
+  column, shown as `14 Mar 2027` and in red once the date has passed. The DVSA lookup prefills it
+  from the real expiry when the field is empty, but never overwrites a value the user set — and
+  the MOT column beside it always shows what DVSA says, independently of this field.
 - **`description` is gone — notes absorbed it** — one editable free-text field instead of a
   pasted-in read-only block plus a notes box. The manual-entry form's big textarea now writes
   straight to `notes`, the drawer's Description panel is deleted, `description` is out of
@@ -150,9 +194,9 @@ Choices the spec left open, resolved the simplest way:
   `section` shows up in *both* the table and the drawer's Details section — adding a field is
   still a one-line change. Hiding it from one surface without hiding it from the other is
   `in_table: False` or `in_drawer: False`. Currently hidden: `is_active` from the drawer (a
-  listing is active from the moment it's added; the column defaults to 1), `mot` from both (it
-  has nothing to show until milestone 5), `thumb` from the drawer (which has its own image
-  strip), and `url` / `image_urls` from the table (the title cell and thumbnail carry them).
+  listing is active from the moment it's added; the column defaults to 1), `mot` from the drawer
+  (which has its own MOT panel), `thumb` from the drawer (which has its own image strip), and
+  `url` / `image_urls` from the table (the title cell and thumbnail carry them).
 - **`source` is editable.** It was create-only originally — a listing's origin looked like a fact
   about where it came from, not a preference — but a mis-set source on a manual entry was then
   unfixable, so PATCH now accepts it, validated against `SOURCES` in `clean_listing_fields()`
@@ -167,4 +211,4 @@ Choices the spec left open, resolved the simplest way:
 ## Notes
 
 - Secrets live only in `.env`, which is gitignored along with `data/`. Nothing logs credentials.
-- No git repository has been initialised yet — run `git init` when you want history.
+- History lives at <https://github.com/Messinki/van-crm> (`.env` and `data/` never leave this machine).

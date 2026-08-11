@@ -95,10 +95,25 @@ function formatDate(iso) {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
+function isoInDays(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0')].join('-');
+}
+
 function todayIso() {
-  const now = new Date();
-  return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0')].join('-');
+  return isoInDays(0);
+}
+
+/** An ISO-8601 UTC stamp (db.now_iso()) as local date + time. */
+function formatStamp(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
 }
 
 /** First `words` words of `text`, with an ellipsis if anything was dropped. */
@@ -190,6 +205,8 @@ function visibleListings() {
 
 function sortValue(listing, key) {
   if (key === 'id') return listing.id;
+  // The MOT cell is an object; what you want to sort it by is the expiry date.
+  if (key === 'mot') return (listing.mot && listing.mot.expiry) || null;
   if (key.startsWith('custom:')) {
     const value = listing.custom[key.slice(7)];
     return value === undefined || value === '' ? null : value;
@@ -276,9 +293,7 @@ function renderCell(listing, col) {
       }));
 
     case 'mot':
-      // MOT data isn't stored on the listing yet (milestone 5); the drawer holds
-      // the Check button, so this column is a placeholder until then.
-      return el('td', { class: 'muted', text: listing.reg ? '—' : 'add reg' });
+      return motCell(listing);
 
     case 'mot_due': {
       // Stored as an ISO date; shown short, and flagged once it's in the past.
@@ -333,6 +348,218 @@ function customCell(listing, col) {
     class: 'val' + (prop.type === 'number' ? ' num' : ''),
     text: value === undefined || value === null ? '' : String(value),
   });
+}
+
+/* -------------------------------------------------------------------- MOT */
+
+// Derived MOT reports (the drawer's panel) keyed by listing id, kept for the
+// session so reopening a drawer doesn't re-request. The compact summary the
+// table needs already rides on every listing as `listing.mot`.
+const motDetails = new Map();
+
+/** MOT column: no reg → a hint, no cached check → a Check button, else expiry + badges. */
+function motCell(listing) {
+  if (!listing.reg) return el('td', { class: 'mot-cell muted', text: 'add reg' });
+
+  const summary = listing.mot;
+  const td = el('td', { class: 'mot-cell' });
+  if (!summary) {
+    td.append(motCheckButton(listing));
+    return td;
+  }
+
+  if (summary.expiry) {
+    const expired = summary.expiry < todayIso();
+    td.append(el('span', {
+      class: 'mot-expiry' + (summary.expiry <= isoInDays(30) ? ' overdue' : ''),
+      text: formatDate(summary.expiry),
+      title: (expired ? 'MOT expired ' : 'MOT expires ') + formatDate(summary.expiry)
+        + ' · checked ' + formatStamp(summary.fetched_at),
+    }));
+  } else {
+    td.append(el('span', {
+      class: 'mot-expiry overdue', text: 'no pass',
+      title: 'No passing test on record — the latest test is a fail',
+    }));
+  }
+  td.append(...motBadges(summary));
+  return td;
+}
+
+/** Quiet badges: dangerous / major defect counts, then one catch-all warning. */
+function motBadges(summary) {
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'} in the last 3 years`;
+  const badges = [];
+  if (summary.dangerous) {
+    badges.push(el('span', {
+      class: 'mot-badge danger', text: 'D' + summary.dangerous,
+      title: plural(summary.dangerous, 'dangerous defect'),
+    }));
+  }
+  if (summary.major) {
+    badges.push(el('span', {
+      class: 'mot-badge major', text: 'M' + summary.major,
+      title: plural(summary.major, 'major defect'),
+    }));
+  }
+  const warnings = [];
+  if (summary.mileage_warning) warnings.push('the mileage goes backwards in this history');
+  if (summary.flagged) warnings.push('corrosion, rust, an oil leak or "excessively" in a recent defect');
+  if (warnings.length) {
+    badges.push(el('span', { class: 'mot-badge warn', text: '⚠', title: 'Worth a look: ' + warnings.join('; ') }));
+  }
+  return badges;
+}
+
+/** In-cell Check button — stops the click opening the drawer, like the title link. */
+function motCheckButton(listing) {
+  const btn = el('button', {
+    class: 'mini-btn', text: 'Check', title: 'Fetch the MOT history for ' + formatReg(listing.reg),
+    onclick: async (event) => {
+      event.stopPropagation();
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
+      try {
+        const result = await post(`/api/listings/${listing.id}/mot`);
+        listing.mot = result.summary;
+        motDetails.set(listing.id, result.derived);
+        renderRows();
+        if (state.selectedId === listing.id) renderDrawer();
+      } catch (err) {
+        toast(errorMessage(err), 'error');
+        btn.disabled = false;
+        btn.textContent = 'Check';
+      }
+    },
+  });
+  return btn;
+}
+
+/** Drawer MOT panel: the Check/Refresh button and the report it produces. */
+function motPanel(listing) {
+  const body = el('div', { class: 'mot-report' });
+  const msg = el('p', { class: 'hint' });
+  const button = el('button', {
+    class: 'btn', text: listing.reg ? 'Check MOT' : 'Add a reg first', disabled: !listing.reg,
+  });
+
+  const show = (derived, fetchedAt) => {
+    motDetails.set(listing.id, derived);
+    body.replaceChildren(...motReport(derived));
+    button.textContent = 'Refresh';
+    msg.className = 'hint';
+    msg.textContent = fetchedAt ? 'Checked ' + formatStamp(fetchedAt) : '';
+  };
+
+  button.addEventListener('click', async () => {
+    // Anything already on screen came from the cache, so the button is a Refresh.
+    const force = motDetails.has(listing.id) || Boolean(listing.mot);
+    button.disabled = true;
+    button.textContent = force ? 'Refreshing…' : 'Checking…';
+    msg.className = 'hint';
+    msg.textContent = '';
+    try {
+      const result = await post(`/api/listings/${listing.id}/mot?force=${force}`);
+      listing.mot = result.summary;
+      show(result.derived, result.fetched_at);
+      renderRows();
+    } catch (err) {
+      msg.className = 'hint error';
+      msg.textContent = errorMessage(err);
+      button.textContent = force ? 'Refresh' : 'Check MOT';
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  const loaded = motDetails.get(listing.id);
+  if (loaded) {
+    show(loaded, listing.mot && listing.mot.fetched_at);
+  } else if (listing.mot) {
+    // Cached on the server but not pulled into this page yet: fetch the full
+    // report quietly, without spending a DVSA call.
+    get(`/api/listings/${listing.id}/mot`)
+      .then((result) => {
+        if (result.cached && state.selectedId === listing.id) show(result.derived, result.fetched_at);
+      })
+      .catch(() => { /* the button is still there to try again */ });
+  }
+
+  return el('div', { class: 'field mot-panel' }, el('div', { class: 'row' }, button), msg, body);
+}
+
+/** The derived MOT history as drawer nodes (spec §8.3). */
+function motReport(derived) {
+  const parts = [];
+  const vehicle = [
+    derived.make, derived.model, derived.fuel_type, derived.colour,
+    derived.first_used_date ? 'first used ' + derived.first_used_date.slice(0, 4) : null,
+  ].filter(Boolean).join(' · ');
+  if (vehicle) parts.push(el('p', { class: 'mot-vehicle', text: vehicle }));
+
+  const expiry = derived.latest_expiry;
+  parts.push(el('p', { class: 'mot-latest' },
+    el('strong', {
+      class: derived.latest_result === 'PASSED' ? 'ok' : 'bad',
+      text: derived.latest_result || 'no tests on record',
+    }),
+    derived.latest_test_date ? ' on ' + formatDate(derived.latest_test_date) : null,
+    expiry ? ' · expires ' : null,
+    expiry ? el('span', { class: expiry <= isoInDays(30) ? 'overdue' : null, text: formatDate(expiry) }) : null));
+
+  const { dangerous, major, fails } = derived.serious;
+  if (dangerous || major || fails) {
+    const counts = [
+      fails ? `${fails} fail${fails === 1 ? '' : 's'}` : null,
+      dangerous ? `${dangerous} dangerous` : null,
+      major ? `${major} major` : null,
+    ].filter(Boolean).join(' · ');
+    parts.push(el('p', {
+      class: 'mot-serious',
+      text: `Last 3 years: ${counts}`,
+      title: 'A fail that was fixed on a retest still counts — it is history, not a verdict',
+    }));
+  }
+
+  if (derived.keyword_flags.length) {
+    parts.push(el('ul', { class: 'flag-list' },
+      derived.keyword_flags.map((text) => el('li', { text }))));
+  }
+
+  if (derived.mileage_series.length) {
+    if (derived.mileage_warning) {
+      parts.push(el('p', { class: 'mot-warn', text: 'Mileage goes backwards in this history — possible clocking.' }));
+    }
+    parts.push(el('ul', { class: 'mileage-list' },
+      [...derived.mileage_series].reverse().map((point) =>
+        el('li', { text: `${formatDate(point.date)} — ${number(point.miles)} mi` }))));
+  }
+
+  if (derived.tests.length) {
+    parts.push(el('details', { class: 'mot-tests' },
+      el('summary', { text: `All ${derived.tests.length} test${derived.tests.length === 1 ? '' : 's'}` }),
+      derived.tests.map(motTestBlock)));
+  }
+  return parts;
+}
+
+// Severity order, so a test's defects read worst-first however DVSA listed them.
+const DEFECT_ORDER = ['DANGEROUS', 'MAJOR', 'MINOR', 'ADVISORY'];
+
+function motTestBlock(test) {
+  const head = el('div', { class: 'mot-test-head' },
+    el('span', { text: formatDate(test.date) }),
+    el('span', { class: test.result === 'PASSED' ? 'ok' : 'bad', text: test.result || '' }),
+    el('span', { class: 'muted', text: test.odometer_miles === null ? '' : number(test.odometer_miles) + ' mi' }));
+
+  const sorted = [...test.defects].sort(
+    (a, b) => DEFECT_ORDER.indexOf(a.level) - DEFECT_ORDER.indexOf(b.level));
+  const defects = sorted.length
+    ? el('ul', { class: 'defect-list' }, sorted.map((defect) =>
+        el('li', { class: 'defect ' + defect.level.toLowerCase(), text: defect.text })))
+    : el('p', { class: 'muted no-defects', text: 'No defects recorded' });
+
+  return el('div', { class: 'mot-test' }, head, defects);
 }
 
 /* ------------------------------------------------------------------- save */
@@ -455,6 +682,7 @@ function drawerRegField(listing, spec) {
     },
   });
   const lookupMsg = el('p', { class: 'hint' });
+  if (lastLookup.has(listing.id)) showLookupResult(lookupMsg, lastLookup.get(listing.id));
   return el('div', { class: 'field' },
     el('label', { text: 'Number plate' }),
     el('div', { class: 'row' }, regInput, el('button', {
@@ -540,16 +768,8 @@ function renderDrawer() {
     for (const spec of specs) parts.push(drawerFieldFor(listing, spec));
   }
 
-  // The MOT section's Check button hangs off the end of that section.
-  parts.push(el('div', { class: 'field' },
-    el('button', {
-      class: 'btn', text: listing.reg ? 'Check MOT' : 'Add a reg first',
-      disabled: !listing.reg,
-      onclick: async () => {
-        try { await post(`/api/listings/${listing.id}/mot`); }
-        catch (err) { toast(errorMessage(err), 'error'); }
-      },
-    })));
+  // The DVSA report hangs off the end of the MOT section.
+  parts.push(motPanel(listing));
 
   const actions = el('div', { class: 'drawer-actions' });
   if (listing.source === 'ebay') {
@@ -610,6 +830,38 @@ function drawerCustomField(listing, prop) {
 
 /* ------------------------------------------------------------ plate lookup */
 
+// What a plate lookup is allowed to fill in — and only where the field is empty,
+// so the user's own typing always stands. Fuel, colour and engine size aren't
+// listing fields; they're shown as an informational line instead.
+const LOOKUP_FILLS = ['make', 'model', 'year', 'length_code', 'height_code', 'mileage', 'mot_due'];
+
+// The last successful lookup per listing, so its detail line survives the drawer
+// re-render that follows the PATCH.
+const lastLookup = new Map();
+
+function lookupDetailLine(result) {
+  return [result.fuel_type, result.colour, result.engine_size ? result.engine_size + 'cc' : null]
+    .filter(Boolean).join(' · ');
+}
+
+/** Two lines under the reg field: what it is, then the read-only extras. */
+function showLookupResult(msgNode, result) {
+  const headline = [result.make, result.model, result.year].filter(Boolean).join(' ') || 'Found';
+  const detail = lookupDetailLine(result);
+  msgNode.className = 'hint ok';
+  msgNode.replaceChildren(...[
+    el('span', { class: 'lookup-line', text: headline }),
+    detail ? el('span', { class: 'lookup-line muted', text: detail }) : null,
+  ].filter(Boolean));
+}
+
+function showLookupError(msgNode, err) {
+  msgNode.className = 'hint error';
+  msgNode.textContent = err.status === 404
+    ? (errorMessage(err) || 'No record found for this plate')
+    : errorMessage(err);
+}
+
 async function lookupPlate(reg, msgNode, listing) {
   const cleaned = (reg || '').replace(/\s+/g, '').toUpperCase();
   msgNode.className = 'hint';
@@ -618,22 +870,25 @@ async function lookupPlate(reg, msgNode, listing) {
   try {
     const result = await post('/api/lookup/reg', { reg: cleaned });
     const fill = {};
-    for (const field of ['make', 'model', 'year', 'length_code', 'height_code']) {
+    for (const field of LOOKUP_FILLS) {
       if (result[field] && listing && !listing[field]) fill[field] = result[field];
     }
     if (listing) {
       fill.reg = cleaned;
+      // The lookup warmed mot_cache, so this response carries the MOT summary too.
       const updated = await patch(`/api/listings/${listing.id}`, fill);
       Object.assign(listing, updated);
+      // renderDrawer() replaces msgNode with a fresh one, so the result is kept
+      // here for drawerRegField() to put back.
+      lastLookup.set(listing.id, result);
       renderDrawer();
       renderRows();
+      return result;
     }
-    msgNode.className = 'hint ok';
-    msgNode.textContent = `${result.make || ''} ${result.model || ''}`.trim() || 'Found';
+    showLookupResult(msgNode, result);
     return result;
   } catch (err) {
-    msgNode.className = 'hint error';
-    msgNode.textContent = err.status === 404 ? 'No record found for this plate' : errorMessage(err);
+    showLookupError(msgNode, err);
     return null;
   }
 }
@@ -715,16 +970,13 @@ function setupManualForm() {
     msg.textContent = 'Looking up…';
     try {
       const result = await post('/api/lookup/reg', { reg });
-      // Only fill fields the user has left empty.
-      for (const field of ['make', 'model', 'year', 'length_code', 'height_code']) {
+      // Only fill fields the user has left empty; everything stays editable.
+      for (const field of LOOKUP_FILLS) {
         if (result[field] && form[field] && !form[field].value) form[field].value = result[field];
       }
-      msg.className = 'hint ok';
-      msg.textContent = [result.make, result.model, result.fuel_type]
-        .filter(Boolean).join(' · ') || 'Found';
+      showLookupResult(msg, result);
     } catch (err) {
-      msg.className = 'hint error';
-      msg.textContent = err.status === 404 ? 'No record found for this plate' : errorMessage(err);
+      showLookupError(msg, err);
     }
   });
 
@@ -739,6 +991,7 @@ function setupManualForm() {
       const listing = await post('/api/listings', data);
       state.listings.unshift(listing);
       form.reset();
+      msg.className = 'hint';
       msg.textContent = '';
       closeAllModals();
       render();
