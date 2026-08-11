@@ -55,11 +55,18 @@ are the seams to fill in.
 - Schema changes go in `db.MIGRATIONS` as `(table, column, type)` — `_migrate()` checks
   `PRAGMA table_info` and only adds what's missing, so existing data survives.
 - **`main.FIELD_SPECS` is the one field registry.** It defines, in order, every listing
-  property: its label, type, whether it's editable, whether it appears in the table / the
-  manual-entry form, its drawer section, and how its cell renders. `EDITABLE_FIELDS` is
+  property: its label, type, whether it's editable, where it appears (table / drawer /
+  manual-entry form), its drawer section, and how its cell renders. `EDITABLE_FIELDS` is
   derived from it (plus `custom`), and the frontend fetches it from `GET /api/schema` — the
   table, drawer and manual form all build from that and hardcode nothing. Add a field there,
   not in three places.
+- `suggest: True` on a free-text field gives it a `<datalist>` of the values already used
+  across the listings — an autocomplete dropdown in the drawer and manual form that still
+  accepts anything typed. Built client-side from `state.listings`; no endpoint.
+- **A new field is visible everywhere by default.** With no `in_table` / `in_drawer` /
+  `section` it gets a table column *and* a drawer row under Details; hide it from one surface
+  with `in_table: False` or `in_drawer: False`. A non-editable field still shows in the
+  drawer, read-only.
 - `main.check_registry_covers_schema()` runs at startup and refuses to boot if a `listings`
   column is neither a registry key nor in `UNMANAGED_COLUMNS` (or if a registry key isn't a
   real column and isn't in `DERIVED_KEYS`). So adding a `db.MIGRATIONS` column forces you to

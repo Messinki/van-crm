@@ -148,10 +148,11 @@ function statusLabel(value) {
 
 /* ---------------------------------------------------------------- columns */
 
-// Amendment 01 §A column order, now owned by the backend registry. The table is
-// read-only: the only clickable thing in a row is the title link (opens the
-// original listing); everything else opens the drawer, where editing happens.
-// Custom properties are appended after the registry's columns, in their own order.
+// Amendment 01 §A column order, now owned by the backend registry. A field gets a
+// column unless it sets in_table: false. The table is read-only: the only clickable
+// thing in a row is the title link (opens the original listing); everything else
+// opens the drawer, where editing happens. Custom properties are appended after the
+// registry's columns, in their own order.
 function columns() {
   const base = state.schema.fields.filter((f) => f.in_table !== false);
   const custom = state.properties.map((p) => ({
@@ -342,6 +343,37 @@ async function saveField(listing, field, value) {
   return updated;
 }
 
+/* ----------------------------------------------- shared field-input helpers */
+
+const NUMERIC_TYPES = ['number', 'integer', 'money'];
+
+// A spec with `suggest` gets a <datalist> of the values already used across the
+// listings, so make/model/year autocomplete from what's been entered before while
+// staying free text. state.listings holds every listing (boot fetches active=-1),
+// so the values come from memory — no endpoint of its own.
+const suggestId = (key) => 'suggest-' + key;
+
+/** Rebuild every suggestion list from the current listings. Cheap, and cheaper
+ *  than tracking which save invalidated what — call it before showing a surface
+ *  that has suggest inputs. */
+function refreshSuggestions() {
+  const specs = state.schema.fields.filter((f) => f.suggest);
+  $('#suggestions').replaceChildren(...specs.map((spec) => {
+    const seen = new Set();
+    for (const listing of state.listings) {
+      const value = listing[spec.key];
+      if (value === null || value === undefined || value === '') continue;
+      seen.add(String(value));
+    }
+    // Years read best newest-first; everything else alphabetically.
+    const values = Array.from(seen).sort(NUMERIC_TYPES.includes(spec.type)
+      ? (a, b) => Number(b) - Number(a)
+      : (a, b) => a.localeCompare(b, 'en-GB', { sensitivity: 'base' }));
+    return el('datalist', { id: suggestId(spec.key) },
+      values.map((v) => el('option', { value: v })));
+  }));
+}
+
 /* ----------------------------------------------------------------- drawer */
 
 // The notes textarea autosaves on a debounce; this holds the pending save so
@@ -368,8 +400,6 @@ function closeDrawer() {
   renderRows();
 }
 
-const NUMERIC_TYPES = ['number', 'integer', 'money'];
-
 /** One editable drawer control, derived entirely from the field spec's `type`. */
 function drawerField(listing, spec) {
   const key = spec.key;
@@ -385,8 +415,11 @@ function drawerField(listing, spec) {
 
   let input;
   if (spec.type === 'select') {
+    // Same rule as the manual form: a spec with a form_default is never blank,
+    // so don't offer a blank the API would reject.
+    const blank = spec.form_default ? [] : [el('option', { value: '', text: '' })];
     input = el('select', { onchange: (e) => save(e.target.value === '' ? null : e.target.value) },
-      [el('option', { value: '', text: '' }),
+      [...blank,
        ...(spec.options || []).map((o) => el('option', {
          value: o, text: specLabel(spec, o), selected: o === value,
        }))]);
@@ -402,6 +435,7 @@ function drawerField(listing, spec) {
     const numeric = NUMERIC_TYPES.includes(spec.type);
     input = el('input', {
       type: numeric ? 'number' : spec.type === 'date' ? 'date' : 'text',
+      list: spec.suggest ? suggestId(key) : null,
       value: value ?? '',
       onchange: (e) => {
         const raw = e.target.value;
@@ -449,7 +483,7 @@ function drawerNotesField(listing) {
   return el('div', { class: 'field' }, notes, savedHint);
 }
 
-/** A field the API won't let anyone change (source): shown, but not editable. */
+/** A field the API won't let anyone change: shown in the drawer, but not editable. */
 function drawerReadonlyField(listing, spec) {
   return el('div', { class: 'field' },
     el('label', { text: spec.label }),
@@ -467,17 +501,19 @@ function drawerFieldFor(listing, spec) {
 // properties from /api/properties, slotted in between Images and Notes.
 const DRAWER_SECTIONS = ['Details', 'Images', 'Custom', 'Notes', 'MOT'];
 
-/** The specs rendered under a section heading, in registry order. */
+/** The specs rendered under a section heading, in registry order.
+ *  A field is in the drawer unless it opts out, and lands in Details unless it
+ *  names a section — same defaults the backend registry documents. */
 function sectionFields(name) {
   return state.schema.fields.filter((f) =>
-    // `source` has no section (it isn't an input) but still belongs in Details.
-    f.section === name || (name === 'Details' && f.key === 'source'));
+    f.in_drawer !== false && (f.section || 'Details') === name);
 }
 
 function renderDrawer() {
   const listing = state.listings.find((l) => l.id === state.selectedId);
   if (!listing) return closeDrawer();
 
+  refreshSuggestions();
   $('#drawer-title').textContent = listing.title;
   const body = $('#drawer-body');
   const parts = [];
@@ -645,6 +681,7 @@ function manualField(spec) {
     input = el('input', {
       name: spec.key,
       type: NUMERIC_TYPES.includes(spec.type) ? 'number' : spec.type === 'date' ? 'date' : spec.type === 'url' ? 'url' : 'text',
+      list: spec.suggest ? suggestId(spec.key) : null,
       step: NUMERIC_TYPES.includes(spec.type) ? '1' : null,
       required: spec.required || null,
     });
@@ -916,6 +953,9 @@ function setupTopbar() {
     const which = e.target.dataset.add;
     if (!which) return;
     menu.classList.add('hidden');
+    // The manual form is built once at boot, so its suggestion lists need
+    // topping up with anything added since.
+    if (which === 'manual') refreshSuggestions();
     openModal(which === 'manual' ? '#modal-manual' : '#modal-import');
   });
 

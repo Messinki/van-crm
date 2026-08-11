@@ -48,17 +48,28 @@ LENGTH_CODES = ("L1", "L2", "L3", "L4")
 #   options     list of strings, `select` only
 #   labels      value -> pretty label map, `select` only, when values aren't pretty
 #   editable    may a PATCH set it (this is what EDITABLE_FIELDS is built from)
-#   create_only accepted on POST but never on PATCH
 #   in_table    render as a table column (default True)
+#   in_drawer   render in the drawer (default True)
 #   in_form     render in the manual-entry form (default: settable at create time)
-#   section     drawer grouping: Details|Images|Notes|MOT, or None = not an input
+#   section     drawer grouping: Details|Images|Notes|MOT (default Details)
 #   cell        table rendering hint
 #   widget      drawer widget override where a plain input won't do
 #   sortable    is the table column sortable (default True)
+#   suggest     free-text field whose already-used values are offered as a
+#               dropdown (a <datalist>) in the drawer and manual form — still
+#               free text, the suggestions are only a shortcut. Meaningless on
+#               `select`, which already constrains its values.
+#
+# Visibility defaults to "everywhere": a field with no in_table/in_drawer/section
+# gets a table column AND a Details row in the drawer. Hiding is opt-out, per
+# surface — set in_table: False to keep it out of the table, in_drawer: False to
+# keep it out of the drawer. A field that isn't `editable` still shows in the
+# drawer, as a read-only line.
 FIELD_SPECS = [
     {
+        # The drawer opens with its own image strip, so no drawer row for this.
         "key": "thumb", "label": "", "type": "text", "editable": False,
-        "in_table": True, "in_form": False, "section": None, "cell": "thumb",
+        "in_table": True, "in_drawer": False, "in_form": False, "cell": "thumb",
         "sortable": False,
     },
     {
@@ -71,15 +82,16 @@ FIELD_SPECS = [
     },
     {
         "key": "make", "label": "Make", "type": "text", "editable": True,
-        "in_form": True, "section": "Details", "cell": "text",
+        "in_form": True, "section": "Details", "cell": "text", "suggest": True,
     },
     {
         "key": "model", "label": "Model", "type": "text", "editable": True,
-        "in_form": True, "section": "Details", "cell": "text",
+        "in_form": True, "section": "Details", "cell": "text", "suggest": True,
     },
     {
         "key": "year", "label": "Year", "type": "integer", "editable": True,
         "in_form": True, "section": "Details", "cell": "number", "numeric": True,
+        "suggest": True,
         # A year is a label, not a quantity: 2015, never "2,015".
         "grouped": False,
     },
@@ -103,11 +115,11 @@ FIELD_SPECS = [
     },
     {
         "key": "location", "label": "Location", "type": "text", "editable": True,
-        "in_form": True, "section": "Details", "cell": "text",
+        "in_form": True, "section": "Details", "cell": "text", "suggest": True,
     },
     {
         "key": "seller_name", "label": "Seller", "type": "text", "editable": True,
-        "in_form": True, "section": "Details", "cell": "text",
+        "in_form": True, "section": "Details", "cell": "text", "suggest": True,
     },
     {
         # No column of its own: the title cell is a link to this URL when it's set.
@@ -115,11 +127,9 @@ FIELD_SPECS = [
         "in_table": False, "in_form": True, "section": "Details",
     },
     {
-        # A listing's source is fixed at creation — POST accepts it, PATCH rejects it.
-        # section None: the drawer shows it as a read-only line, not an input.
         "key": "source", "label": "Source", "type": "select", "options": list(SOURCES),
-        "labels": SOURCE_LABELS, "editable": False, "create_only": True,
-        "in_table": True, "in_form": True, "section": None, "cell": "badge",
+        "labels": SOURCE_LABELS, "editable": True,
+        "in_table": True, "in_form": True, "section": "Details", "cell": "badge",
         # The form offers no blank option for source; this is what it preselects,
         # and it matches the fallback create_listing() applies when it's omitted.
         "form_default": "facebook",
@@ -130,8 +140,10 @@ FIELD_SPECS = [
         "section": "Details", "cell": "status_pill",
     },
     {
+        # Hidden from the drawer: a listing is active from the moment it's added
+        # (the column defaults to 1) and the table's tick is enough to read it back.
         "key": "is_active", "label": "Active", "type": "checkbox", "editable": True,
-        "in_form": False, "section": "Details", "cell": "check",
+        "in_drawer": False, "in_form": False, "cell": "check",
     },
     {
         # No column of its own: the `thumb` column already surfaces image_urls[0].
@@ -143,9 +155,11 @@ FIELD_SPECS = [
         "in_form": True, "section": "MOT", "cell": "mot_due",
     },
     {
-        # Placeholder column until milestone 5 stores MOT data on the listing.
+        # Milestone 5 will store MOT data on the listing and give this something to
+        # show; until then it has nothing to say, so it's hidden on both surfaces.
+        # The drawer's Check MOT button and `mot_due` cover the MOT section for now.
         "key": "mot", "label": "MOT", "type": "text", "editable": False,
-        "in_table": True, "in_form": False, "section": None, "cell": "mot",
+        "in_table": False, "in_drawer": False, "in_form": False, "cell": "mot",
         "sortable": False,
     },
     {
@@ -325,6 +339,10 @@ def clean_listing_fields(payload: dict, existing: dict | None = None) -> dict:
             if value not in STATUSES:
                 raise HTTPException(400, f"invalid status '{value}'")
             out[field] = value
+        elif field == "source":
+            if value not in SOURCES:
+                raise HTTPException(400, f"invalid source '{value}'")
+            out[field] = value
         elif field == "height_code":
             code = (_as_text(value) or "").upper() or None
             if code and code not in HEIGHT_CODES:
@@ -429,9 +447,8 @@ def list_listings(
 
 @app.post("/api/listings", status_code=201)
 def create_listing(payload: dict = Body(...)):
-    source = payload.pop("source", "facebook")
-    if source not in SOURCES:
-        raise HTTPException(400, f"invalid source '{source}'")
+    # source is an ordinary editable field now; it just has a default when omitted.
+    payload.setdefault("source", "facebook")
     if not _as_text(payload.get("title")):
         raise HTTPException(400, "title is required")
 
@@ -441,7 +458,6 @@ def create_listing(payload: dict = Body(...)):
 
     now = db.now_iso()
     fields.update(
-        source=source,
         first_seen_at=now,
         last_seen_at=now,
         created_at=now,

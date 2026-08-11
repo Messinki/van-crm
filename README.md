@@ -85,6 +85,8 @@ no longer tracks it — see Decisions made.)
   in by hand before milestone 4's importer exists.
 - **Detail drawer** — click a row; all fields editable, notes autosave 800ms after you stop typing,
   image strip, delete with confirm.
+- **Suggestions on repeated fields** — Make, Model, Year, Location and Seller offer a dropdown of
+  values already used on other listings (drawer and manual entry both). Free text either way.
 - **Columns modal** — add/rename/reorder/delete custom properties of any type. Deleting a property
   strips its values from every listing.
 - **Searches modal** — edit the saved eBay searches now, so they're ready when scraping goes live.
@@ -126,6 +128,13 @@ Choices the spec left open, resolved the simplest way:
   `fetch(keepalive)`). Before this, a refresh within 800ms of the last keystroke lost the note.
 - **Notes preview is 5 words** (`truncateWords`), with the full text on hover via `title` and a
   160px `text-overflow: ellipsis` cap, so a long note can't stretch the row.
+- **Repeated free-text fields suggest what's been typed before** — Make, Model, Year, Location and
+  Seller carry `suggest: True` in `FIELD_SPECS`, which gives them a `<datalist>` dropdown of the
+  distinct values already on the listings, in the drawer and on manual entry. They stay free text:
+  the list is a shortcut, never a constraint, so a new make can still be typed in. The values come
+  from `state.listings` in the browser (the frontend already holds every listing) rather than a new
+  endpoint, and are rebuilt each time the drawer or the manual form opens. Custom properties don't
+  get this — a repeated-value custom field is what a `select` property is for.
 - **Custom property keys are slugified from the label and never change**, so renaming a column keeps
   existing values. Renaming to a label that collides with an existing key is rejected at creation time.
 - **`custom` merge**: `PATCH {"custom": {"k": v}}` merges; `{"custom": {"k": null}}` (or an empty
@@ -137,7 +146,18 @@ Choices the spec left open, resolved the simplest way:
   registry; `EDITABLE_FIELDS` is derived from it too. A startup check refuses to boot if a
   `listings` column is missing from the registry and from `UNMANAGED_COLUMNS`, so a new
   migration can't silently skip the UI.
-- **PATCH allowlist** covers only user-editable fields — `id`, `source`, `external_id` and all
+- **Visibility is opt-out, per surface.** A registry field with no `in_table` / `in_drawer` /
+  `section` shows up in *both* the table and the drawer's Details section — adding a field is
+  still a one-line change. Hiding it from one surface without hiding it from the other is
+  `in_table: False` or `in_drawer: False`. Currently hidden: `is_active` from the drawer (a
+  listing is active from the moment it's added; the column defaults to 1), `mot` from both (it
+  has nothing to show until milestone 5), `thumb` from the drawer (which has its own image
+  strip), and `url` / `image_urls` from the table (the title cell and thumbnail carry them).
+- **`source` is editable.** It was create-only originally — a listing's origin looked like a fact
+  about where it came from, not a preference — but a mis-set source on a manual entry was then
+  unfixable, so PATCH now accepts it, validated against `SOURCES` in `clean_listing_fields()`
+  like any other select. `POST` just defaults it to `facebook` when omitted.
+- **PATCH allowlist** covers only user-editable fields — `id`, `external_id` and all
   timestamps cannot be set through the API.
 - **Reg extraction on manual add** runs server-side only (one implementation, not two): if `reg` is
   left blank, the regex runs over title + notes and stores a match only if exactly one distinct
