@@ -306,6 +306,16 @@ Choices the spec left open, resolved the simplest way:
   on top of §D's fields, because the point of the button is to type as little as possible.
   `euro_status` is not in it (that field is gone from the app). Both surfaces fill *only* empty
   inputs, so `mot_due` prefills on a new listing but never overwrites a date the user set.
+- **The drawer's MOT panel has no "Check MOT" button — only "Refresh"** (deviates from spec §8.3's
+  "Check MOT / Refresh"). Amendment 01 §D's **Look up plate** button was layered onto a drawer that
+  already had milestone 5's MOT panel, and the two ended up making the same DVSA call: the lookup
+  warms `mot_cache`, so `renderDrawer()` then pulls the full report in for free over
+  `GET /api/listings/{id}/mot` and paints it without spending a second call. Pressing Check MOT
+  afterwards only re-requested what was already on screen, so the panel now shows the report plus a
+  **Refresh** (always `force=true`, the one job the lookup can't do — re-pulling past the 7-day
+  cache), hidden until there's a cached check to re-pull. With nothing cached the panel points at
+  the lookup button instead. The *table's* MOT column keeps its own Check button: there's no reg
+  field out there to hang a lookup off.
 - **L/H autofill only works for makes that spell the codes out** — the regexes from §C run over
   the MOT model string, which is `RELAY 35 HVY L4H2 ENT BHDI SS` for Citroën/Peugeot but a bare
   `DUCATO` for Fiat. No match leaves both dropdowns blank rather than guessing.

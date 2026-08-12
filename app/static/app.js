@@ -443,40 +443,46 @@ function motCheckButton(listing) {
   return btn;
 }
 
-/** Drawer MOT panel: the Check/Refresh button and the report it produces. */
+/** Drawer MOT panel: the report, plus a Refresh once there is something to refresh.
+ *
+ *  There is deliberately no "Check MOT" button here. Fetching is "Look up plate"
+ *  up in the reg field: it makes the same DVSA call, warms the same cache and
+ *  fills the listing's fields in as well, and the report below then loads itself
+ *  for free. A second button to fetch would only re-request what is already on
+ *  screen. The one job left over is forcing a re-pull past the 7-day cache. */
 function motPanel(listing) {
   const body = el('div', { class: 'mot-report' });
   const msg = el('p', { class: 'hint' });
-  const button = el('button', {
-    class: 'btn', text: listing.reg ? 'Check MOT' : 'Add a reg first', disabled: !listing.reg,
-  });
+  const button = el('button', { class: 'btn', text: 'Refresh' });
+  // Hidden until there is a cached check to re-pull — the report may still be in
+  // flight, but listing.mot proves DVSA has answered for this reg at some point.
+  if (!listing.mot && !motDetails.has(listing.id)) button.classList.add('hidden');
 
   const show = (derived, fetchedAt) => {
     motDetails.set(listing.id, derived);
     body.replaceChildren(...motReport(derived));
-    button.textContent = 'Refresh';
+    button.classList.remove('hidden');
     msg.className = 'hint';
     msg.textContent = fetchedAt ? 'Checked ' + formatStamp(fetchedAt) : '';
   };
 
   button.addEventListener('click', async () => {
-    // Anything already on screen came from the cache, so the button is a Refresh.
-    const force = motDetails.has(listing.id) || Boolean(listing.mot);
+    // Whatever is on screen came from the cache, so this is always a forced re-pull.
     button.disabled = true;
-    button.textContent = force ? 'Refreshing…' : 'Checking…';
+    button.textContent = 'Refreshing…';
     msg.className = 'hint';
     msg.textContent = '';
     try {
-      const result = await post(`/api/listings/${listing.id}/mot?force=${force}`);
+      const result = await post(`/api/listings/${listing.id}/mot?force=true`);
       listing.mot = result.summary;
       show(result.derived, result.fetched_at);
       renderRows();
     } catch (err) {
       msg.className = 'hint error';
       msg.textContent = errorMessage(err);
-      button.textContent = force ? 'Refresh' : 'Check MOT';
     } finally {
       button.disabled = false;
+      button.textContent = 'Refresh';
     }
   });
 
@@ -486,11 +492,21 @@ function motPanel(listing) {
   } else if (listing.mot) {
     // Cached on the server but not pulled into this page yet: fetch the full
     // report quietly, without spending a DVSA call.
+    msg.textContent = 'Loading the report…';
     get(`/api/listings/${listing.id}/mot`)
       .then((result) => {
         if (result.cached && state.selectedId === listing.id) show(result.derived, result.fetched_at);
       })
-      .catch(() => { /* the button is still there to try again */ });
+      .catch(() => {
+        msg.className = 'hint error';
+        msg.textContent = 'Could not load the cached report — Refresh re-fetches it.';
+      });
+  } else {
+    // Nothing cached for this reg yet, so point at the button that fetches.
+    msg.className = 'hint muted';
+    msg.textContent = listing.reg
+      ? 'Press Look up plate above to fetch the MOT history.'
+      : 'Add a number plate above to see the MOT history.';
   }
 
   return el('div', { class: 'field mot-panel' }, el('div', { class: 'row' }, button), msg, body);
@@ -694,7 +710,9 @@ function drawerRegField(listing, spec) {
   return el('div', { class: 'field' },
     el('label', { text: 'Number plate' }),
     el('div', { class: 'row' }, regInput, el('button', {
-      class: 'btn', text: 'Look up plate', onclick: () => lookupPlate(regInput.value, lookupMsg, listing),
+      class: 'btn', text: 'Look up plate',
+      title: 'Fill in the empty fields from DVSA/DVLA and load the MOT history below',
+      onclick: () => lookupPlate(regInput.value, lookupMsg, listing),
     })),
     lookupMsg);
 }
