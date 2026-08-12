@@ -9,6 +9,7 @@ and only feeds /api/lookup/reg, so it doesn't earn a module of its own.
 
 import json
 import os
+import re
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -24,7 +25,24 @@ VES_URL = "https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicl
 TIMEOUT = 30.0
 CACHE_MAX_AGE = timedelta(days=7)
 # A token lasts an hour; refresh once under a minute is left.
+#
+# Timed against the wall clock, not time.monotonic(): the token's own expiry is
+# wall-clock, and macOS stops the monotonic clock while the machine sleeps. A
+# laptop shut overnight wakes with monotonic hours behind, so a monotonic
+# deadline would keep serving a token that expired during the night — DVSA then
+# answers 401 on every fetch until the process restarts.
 TOKEN_MARGIN_S = 60
+
+# The plate goes into the URL as a path segment, so it has to be checked before
+# it is interpolated. A slash reads as a new segment and the DVSA gateway answers
+# 403 MOTH-BR-01 for the unmatched path — indistinguishable, from the status code
+# alone, from a rejected API key. Verified against the live API on 2026-08-12.
+REG_CHARS = re.compile(r"\A[A-Z0-9]{1,15}\Z")
+
+# Spec §5.3's plate pattern, for pulling a reg out of free text (a listing title,
+# a pasted description). It lives here rather than in main.py because both the
+# manual-add route and the eBay importer need it and one regex is enough.
+REG_RE = re.compile(r"\b[A-Z]{2}[0-9]{2}\s?[A-Z]{3}\b", re.IGNORECASE)
 
 RECENT_YEARS = 3
 KEYWORDS = ("corrod", "rust", "oil leak", "excessively")
@@ -59,9 +77,9 @@ def ves_configured() -> bool:
 _token = {"value": None, "expires_at": 0.0}
 
 
-def _access_token() -> str:
-    now = time.monotonic()
-    if _token["value"] and _token["expires_at"] - now > TOKEN_MARGIN_S:
+def _access_token(force: bool = False) -> str:
+    now = time.time()
+    if not force and _token["value"] and _token["expires_at"] - now > TOKEN_MARGIN_S:
         return _token["value"]
 
     try:
@@ -90,17 +108,53 @@ def _access_token() -> str:
 
 # ---------------------------------------------------------------- fetch
 
+def clean_reg(reg) -> str:
+    """The plate as the API wants it in a path segment, or MotError(400)."""
+    cleaned = str(reg or "").replace(" ", "").upper()
+    if not cleaned:
+        raise MotError(400, "enter a number plate")
+    if not REG_CHARS.match(cleaned):
+        raise MotError(400, f"'{cleaned}' is not a number plate — letters and digits only")
+    return cleaned
+
+
+def extract_reg(*texts: str | None) -> str | None:
+    """The single distinct UK plate found across the given texts, else None.
+
+    Two different plates in one listing means the seller quoted someone else's van
+    (or a part number that looks like a plate), so ambiguity stores nothing.
+    """
+    found = set()
+    for text in texts:
+        if not text:
+            continue
+        for match in REG_RE.findall(text):
+            found.add(match.replace(" ", "").upper())
+    return found.pop() if len(found) == 1 else None
+
+
 def fetch_history(reg: str) -> dict:
     """The vehicle's full MOT history, verbatim. Raises MotError on anything else."""
-    headers = {
-        "Authorization": f"Bearer {_access_token()}",
-        "X-API-Key": os.environ["DVSA_API_KEY"],
-        "Accept": "application/json",
-    }
-    try:
-        response = httpx.get(HISTORY_URL.format(reg=reg), headers=headers, timeout=TIMEOUT)
-    except httpx.HTTPError:
-        raise MotError(502, "Could not reach the DVSA MOT History API — check your connection")
+    reg = clean_reg(reg)
+
+    def call(fresh_token: bool):
+        headers = {
+            "Authorization": f"Bearer {_access_token(force=fresh_token)}",
+            "X-API-Key": os.environ["DVSA_API_KEY"],
+            "Accept": "application/json",
+        }
+        try:
+            return httpx.get(HISTORY_URL.format(reg=reg), headers=headers, timeout=TIMEOUT)
+        except httpx.HTTPError:
+            raise MotError(502, "Could not reach the DVSA MOT History API — check your connection")
+
+    response = call(fresh_token=False)
+    if response.status_code in (401, 403):
+        # The cached token was refused. The gateway answers 403 for a token it
+        # cannot use and 401 for one it can read but won't accept, so neither
+        # status on its own means the credentials are wrong — retry once with a
+        # brand-new token, and only report a problem if that is refused too.
+        response = call(fresh_token=True)
 
     if response.status_code == 200:
         return response.json()
@@ -108,8 +162,13 @@ def fetch_history(reg: str) -> dict:
         raise MotError(404, f"No MOT record found for {reg}")
     if response.status_code == 400:
         raise MotError(400, f"'{reg}' is not a registration the DVSA API accepts")
-    if response.status_code in (401, 403):
-        raise MotError(502, "DVSA refused the request — check the DVSA_* credentials in .env")
+    # Reaching here means the token call already succeeded, so the client id and
+    # secret are good and only the two remaining credentials are suspects. Naming
+    # the likely one beats sending you back to re-check all five.
+    if response.status_code == 401:
+        raise MotError(502, "DVSA rejected the access token — check DVSA_SCOPE in .env")
+    if response.status_code == 403:
+        raise MotError(502, "DVSA rejected the API key — check DVSA_API_KEY in .env, or you may be over your daily quota")
     if response.status_code == 429:
         raise MotError(429, "DVSA rate limit reached — try again in a minute")
     raise MotError(502, f"The DVSA MOT History API returned {response.status_code}")

@@ -9,6 +9,7 @@ Single user, runs on localhost, no auth, no deployment.
 |---|---|
 | [van-crm-spec.md](van-crm-spec.md) | The v1.0 build specification — the source of truth |
 | [van-crm-spec-amendment-01.md](van-crm-spec-amendment-01.md) | Amendment 01 — **wins wherever it conflicts with v1.0** |
+| [van-crm-spec-amendment-02.md](van-crm-spec-amendment-02.md) | Amendment 02 — production eBay verification checklist + **milestone 4b (AI enrichment), the next piece of work**; wins over both docs above |
 | [README.md](README.md) | How to run, credential walkthrough, build status table, "Decisions made" log |
 
 Read the spec *and* the amendment before changing behaviour. The README's **Decisions made**
@@ -45,12 +46,35 @@ Amendment 01 sections A–C's schema and UI. See the README's status table for d
 **Milestone 5 (MOT / reg lookup)** is done: `app/mot.py` handles DVSA auth (cached token),
 fetch, 7-day cache and derived fields; `/api/lookup/reg` powers plate autofill in the manual
 form and drawer; listings carry a `mot` summary and the table has a live MOT column. The
-DVLA VES merge path exists but is dormant until `DVLA_VES_API_KEY` is set — its field names
-are unverified, re-check against live docs when a key lands.
+DVLA VES merge path exists but is dormant until `DVLA_VES_API_KEY` is set (the var is present
+in `.env` but empty, which reads as unconfigured). Its field names were verified against the
+live v1.2.0 docs on 2026-08-12 and are correct; the path itself is still untested end-to-end,
+since no key has been issued.
 
-**Milestone 4 (eBay)** is not started — blocked on the user's eBay developer account.
-`app/ebay.py` does not exist yet; the routes in `app/main.py` under the "not yet wired"
-heading return 503 and are the seams to fill in.
+Two DVSA failure modes are fixed and must not be regressed — both are written up in the
+README's **Decisions made**: the token deadline uses `time.time()` and *not* `time.monotonic()`
+(macOS freezes the monotonic clock during sleep, which silently served dead tokens for hours),
+and `mot.clean_reg()` validates the plate before it reaches the URL path (DVSA answers 403 for
+an unmatched path, which is indistinguishable from a rejected API key).
+
+**Milestone 4 (eBay)** is built: `app/ebay.py` handles OAuth (cached token), saved-search
+scrape + upsert, item detail, liveness and import-from-link; `/api/scrape`,
+`/api/import/ebay` and `/api/listings/{id}/check` are wired to it, and the Searches modal
+carries the new `year_min`/`year_max`. It is **verified against the eBay sandbox only**,
+but **production keys are now in `.env`** (`EBAY_ENV=PRODUCTION`, since 2026-08-12) —
+the immediate next task is running the production checks listed in the README build
+status and Amendment 02 §A (real scrape, import-from-link, shortener redirect, liveness
+on an ended item, spares/repairs skip, Taxonomy re-run).
+
+**Milestone 4b (AI enrichment via OpenRouter)** is specified in Amendment 02 §B and not
+yet built — it's the next milestone after the production checks pass.
+
+Three eBay behaviours are deliberate and must not be regressed (all written up in the
+README's **Decisions made**): the `buyingOptions` filter is always sent (without it eBay
+returns fixed-price listings only, hiding most vans), an unknown filter name comes back as
+a 200 with a `warnings[]` note rather than an error so warnings are surfaced as scrape
+errors, and "for parts or not working" items are skipped outright, never inserted. The
+eBay token deadline uses `time.time()` for the same reason DVSA's does.
 
 ## Conventions in this codebase
 

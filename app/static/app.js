@@ -31,7 +31,11 @@ async function api(method, path, body) {
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {
-    const err = new Error((data && data.detail) || res.statusText);
+    // `detail` is usually a string, but a few endpoints send an object so the
+    // caller can act on it (the import 409 carries the existing listing's id).
+    const detail = data && data.detail;
+    const message = (detail && typeof detail === 'object' ? detail.message : detail) || res.statusText;
+    const err = new Error(message);
     err.status = res.status;
     err.data = data;
     throw err;
@@ -280,11 +284,15 @@ function renderCell(listing, col) {
       return td;
     }
 
-    case 'badge':
+    case 'badge': {
+      // Source is free text now (suggest-only), so only the values we know about
+      // get a dedicated colour and a shortened label — anything else shows as-is.
+      const known = value === 'ebay' || value === 'facebook' || value === 'manual';
       return el('td', {}, el('span', {
-        class: 'badge ' + value,
-        text: value === 'ebay' ? 'eBay' : value === 'facebook' ? 'FB' : 'Manual',
+        class: 'badge' + (known ? ' ' + value : ''),
+        text: value === 'ebay' ? 'eBay' : value === 'facebook' ? 'FB' : value === 'manual' ? 'Manual' : value,
       }));
+    }
 
     case 'status_pill':
       return el('td', {}, el('span', {
@@ -773,13 +781,27 @@ function renderDrawer() {
 
   const actions = el('div', { class: 'drawer-actions' });
   if (listing.source === 'ebay') {
-    actions.append(el('button', {
+    const liveBtn = el('button', {
       class: 'btn', text: 'Check listing live',
       onclick: async () => {
-        try { await post(`/api/listings/${listing.id}/check`); }
-        catch (err) { toast(errorMessage(err), 'error'); }
+        liveBtn.disabled = true;
+        liveBtn.textContent = 'Checking…';
+        try {
+          // The row's price and active flag can both move, so re-render from the
+          // listing the check hands back rather than guessing what changed.
+          const result = await post(`/api/listings/${listing.id}/check`);
+          Object.assign(listing, result.listing);
+          renderDrawer();
+          renderRows();
+          toast(result.message, result.active ? '' : 'error');
+        } catch (err) {
+          toast(errorMessage(err), 'error');
+          liveBtn.disabled = false;
+          liveBtn.textContent = 'Check listing live';
+        }
       },
-    }));
+    });
+    actions.append(liveBtn);
   }
   actions.append(el('button', {
     class: 'btn danger', text: 'Delete',
@@ -852,6 +874,10 @@ function showLookupResult(msgNode, result) {
   msgNode.replaceChildren(...[
     el('span', { class: 'lookup-line', text: headline }),
     detail ? el('span', { class: 'lookup-line muted', text: detail }) : null,
+    // A lookup can half-succeed. Say so, rather than letting the missing half
+    // pass for a plate that simply has no tax record.
+    ...(result.warnings || []).map((text) =>
+      el('span', { class: 'lookup-line lookup-warn', text })),
   ].filter(Boolean));
 }
 
@@ -939,6 +965,7 @@ function manualField(spec) {
       list: spec.suggest ? suggestId(spec.key) : null,
       step: NUMERIC_TYPES.includes(spec.type) ? '1' : null,
       required: spec.required || null,
+      value: spec.form_default || null,
     });
   }
   return el('div', { class: 'field' }, el('label', { text: label }), input);
@@ -1014,10 +1041,15 @@ function setupImportForm() {
       const listing = await post('/api/import/ebay', { url: form.url.value.trim() });
       state.listings.unshift(listing);
       form.reset();
+      msg.textContent = '';
       closeAllModals();
       render();
       openDrawer(listing.id);
       toast('Imported from eBay');
+      // Amendment §E step 5: the importer reads a plate out of the title and
+      // description when there's exactly one, and the drawer is already open on
+      // the row — so point at the Look up button rather than pressing it.
+      if (listing.reg) toast(`Reg found: ${formatReg(listing.reg)} — Look up plate to fill the rest`);
     } catch (err) {
       if (err.status === 409 && err.data && err.data.detail && err.data.detail.listing_id) {
         closeAllModals();
@@ -1047,10 +1079,16 @@ function renderSearches() {
         Object.assign(search, updated);
       } catch (err) { toast(errorMessage(err), 'error'); renderSearches(); }
     };
+    const numberCell = (field) => el('td', {}, el('input', {
+      type: 'number', class: 'narrow-input', value: search[field] ?? '',
+      onchange: (e) => save(field, e.target.value === '' ? null : Number(e.target.value)),
+    }));
     return el('tr', {},
       el('td', {}, el('input', { value: search.label, onchange: (e) => save('label', e.target.value) })),
       el('td', {}, el('input', { value: search.query, onchange: (e) => save('query', e.target.value) })),
-      el('td', {}, el('input', { type: 'number', value: search.max_price ?? '', onchange: (e) => save('max_price', e.target.value === '' ? null : Number(e.target.value)) })),
+      numberCell('max_price'),
+      numberCell('year_min'),
+      numberCell('year_max'),
       el('td', {}, el('input', { type: 'checkbox', checked: search.enabled, onchange: (e) => save('enabled', e.target.checked) })),
       el('td', {}, el('button', {
         class: 'icon-btn', text: '🗑', title: 'Delete',
@@ -1071,7 +1109,9 @@ function setupSearchesForm() {
     e.preventDefault();
     const form = e.target;
     const data = Object.fromEntries(new FormData(form).entries());
-    if (data.max_price === '') delete data.max_price;
+    for (const field of ['max_price', 'year_min', 'year_max']) {
+      if (data[field] === '') delete data[field];
+    }
     try {
       state.searches.push(await post('/api/searches', data));
       form.reset();

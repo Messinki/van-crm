@@ -282,6 +282,8 @@ td.mot-cell { white-space: nowrap; }
 .reg-field input[name="reg"] { text-transform: uppercase; }
 /* The plate-lookup result: what it is, then the read-only fuel/colour/engine line. */
 .lookup-line { display: block; }
+/* Amber, not red: the lookup did succeed, one of its two sources just didn't. */
+.lookup-warn { color: #a16207; }
 
 .mini-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .mini-table th {
@@ -290,7 +292,10 @@ td.mot-cell { white-space: nowrap; }
 }
 .mini-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
 .mini-table input, .mini-table select { padding: 3px 5px; }
+/* Max price and the two year bounds: four digits, so they don't need a full cell. */
+.mini-table input.narrow-input { width: 72px; }
 .add-row { margin-top: 12px; }
+.add-row input[type="number"] { width: 90px; flex: 0 0 auto; }
 
 /* ---------------------------------------------------------------- toasts */
 

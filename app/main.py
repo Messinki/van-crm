@@ -12,7 +12,7 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import db, mot
+from app import db, ebay, mot
 
 load_dotenv()
 
@@ -28,7 +28,6 @@ STATUS_LABELS = {
     "purchased": "Purchased",
 }
 SOURCES = ("ebay", "facebook", "manual")
-SOURCE_LABELS = {"ebay": "eBay", "facebook": "Facebook", "manual": "Manual / other"}
 PROPERTY_TYPES = ("text", "number", "checkbox", "select", "date")
 HEIGHT_CODES = ("H1", "H2", "H3")
 LENGTH_CODES = ("L1", "L2", "L3", "L4")
@@ -127,11 +126,11 @@ FIELD_SPECS = [
         "in_table": False, "in_form": True, "section": "Details",
     },
     {
-        "key": "source", "label": "Source", "type": "select", "options": list(SOURCES),
-        "labels": SOURCE_LABELS, "editable": True,
+        "key": "source", "label": "Source", "type": "text", "editable": True,
         "in_table": True, "in_form": True, "section": "Details", "cell": "badge",
-        # The form offers no blank option for source; this is what it preselects,
-        # and it matches the fallback create_listing() applies when it's omitted.
+        "suggest": True,
+        # Prefills the manual form same as before, but it's just a starting value
+        # now — matches the fallback create_listing() applies when it's omitted.
         "form_default": "facebook",
     },
     {
@@ -185,7 +184,6 @@ UNMANAGED_COLUMNS = frozenset({
 # field — custom properties are defined at runtime, so they're allowed separately.
 EDITABLE_FIELDS = {f["key"] for f in FIELD_SPECS if f.get("editable")} | {"custom"}
 
-REG_RE = re.compile(r"\b[A-Z]{2}[0-9]{2}\s?[A-Z]{3}\b", re.IGNORECASE)
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # Amendment 01 §C: van size codes as they appear in an MOT model string, e.g.
@@ -234,17 +232,6 @@ app = FastAPI(title="VanCRM", lifespan=lifespan)
 
 
 # ---------------------------------------------------------------- helpers
-
-def extract_reg(*texts: str | None) -> str | None:
-    """Return the single distinct UK reg found across the given texts, else None."""
-    found = set()
-    for text in texts:
-        if not text:
-            continue
-        for match in REG_RE.findall(text):
-            found.add(match.replace(" ", "").upper())
-    return found.pop() if len(found) == 1 else None
-
 
 def normalise_reg(value) -> str | None:
     if value is None:
@@ -344,10 +331,6 @@ def clean_listing_fields(payload: dict, existing: dict | None = None) -> dict:
         elif field == "status":
             if value not in STATUSES:
                 raise HTTPException(400, f"invalid status '{value}'")
-            out[field] = value
-        elif field == "source":
-            if value not in SOURCES:
-                raise HTTPException(400, f"invalid source '{value}'")
             out[field] = value
         elif field == "height_code":
             code = (_as_text(value) or "").upper() or None
@@ -493,7 +476,7 @@ def create_listing(payload: dict = Body(...)):
 
     fields = clean_listing_fields(payload)
     if not fields.get("reg"):
-        fields["reg"] = extract_reg(fields.get("title"), fields.get("notes"))
+        fields["reg"] = mot.extract_reg(fields.get("title"), fields.get("notes"))
 
     now = db.now_iso()
     fields.update(
@@ -551,13 +534,16 @@ def create_search(payload: dict = Body(...)):
         raise HTTPException(400, "label and query are required")
     with db.connect() as conn:
         cursor = conn.execute(
-            "INSERT INTO searches (label, query, max_price, category_id, enabled) VALUES (?,?,?,?,?)",
+            "INSERT INTO searches (label, query, max_price, category_id, enabled, year_min, year_max)"
+            " VALUES (?,?,?,?,?,?,?)",
             (
                 label,
                 query,
                 _as_number(payload.get("max_price"), "max_price", integer=False),
                 _as_text(payload.get("category_id")),
                 0 if payload.get("enabled") in (False, 0, "false") else 1,
+                _as_number(payload.get("year_min"), "year_min", integer=True),
+                _as_number(payload.get("year_max"), "year_max", integer=True),
             ),
         )
         row = conn.execute("SELECT * FROM searches WHERE id = ?", (cursor.lastrowid,)).fetchone()
@@ -566,7 +552,7 @@ def create_search(payload: dict = Body(...)):
 
 @app.patch("/api/searches/{search_id}")
 def update_search(search_id: int, payload: dict = Body(...)):
-    allowed = {"label", "query", "max_price", "category_id", "enabled"}
+    allowed = {"label", "query", "max_price", "category_id", "enabled", "year_min", "year_max"}
     unknown = set(payload) - allowed
     if unknown:
         raise HTTPException(400, f"cannot set field(s): {', '.join(sorted(unknown))}")
@@ -574,6 +560,8 @@ def update_search(search_id: int, payload: dict = Body(...)):
     for field, value in payload.items():
         if field == "max_price":
             fields[field] = _as_number(value, field, integer=False)
+        elif field in ("year_min", "year_max"):
+            fields[field] = _as_number(value, field, integer=True)
         elif field == "enabled":
             fields[field] = 0 if value in (False, 0, "false") else 1
         else:
@@ -752,6 +740,11 @@ def lookup_reg(payload: dict = Body(...)):
         "tax_status": ves.get("taxStatus"),
         "mot_cached": raw is not None,
         "sources": {"mot": raw is not None, "ves": bool(ves)},
+        # When one source answers and the other doesn't, the call still succeeds
+        # with the half that worked — so why the other half is missing has to
+        # travel with the result. Without this a broken key, a rate limit and a
+        # source that was never configured all look identical from the UI.
+        "warnings": reasons,
     }
 
 
@@ -796,21 +789,76 @@ def fetch_mot(listing_id: int, force: bool = Query(False)):
     return mot_response(raw, fetched_at, from_cache)
 
 
-# ---------------------------------------------------------------- not yet wired
+# ---------------------------------------------------------------- eBay
+
+EBAY_UNCONFIGURED = "add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env"
+
+
+def require_ebay() -> None:
+    if not ebay.configured():
+        not_configured("eBay", EBAY_UNCONFIGURED)
+
 
 @app.post("/api/scrape")
 def scrape():
-    not_configured("eBay", "add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env (milestone 4)")
+    """Run every enabled saved search and upsert what comes back (spec §5.2-5.3)."""
+    require_ebay()
+    with db.connect() as conn:
+        try:
+            return ebay.scrape(conn)
+        except ebay.EbayError as err:
+            raise HTTPException(err.status, err.message)
 
 
-@app.post("/api/import/ebay")
+@app.post("/api/import/ebay", status_code=201)
 def import_ebay(payload: dict = Body(...)):
-    not_configured("eBay", "add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env (milestone 4)")
+    """Amendment 01 §E: one eBay URL in, one listing out (409 if it's already here)."""
+    require_ebay()
+    url = _as_text(payload.get("url"))
+    if not url:
+        raise HTTPException(422, "paste an eBay listing URL")
+    with db.connect() as conn:
+        try:
+            listing_id, created = ebay.import_from_url(conn, url)
+        except ebay.EbayError as err:
+            raise HTTPException(err.status, err.message)
+        if not created:
+            # A dict detail so the frontend can open the row it already has.
+            raise HTTPException(
+                409, {"message": "That listing is already in the table", "listing_id": listing_id}
+            )
+        return attach_mot(conn, [get_listing_or_404(conn, listing_id)])[0]
 
 
 @app.post("/api/listings/{listing_id}/check")
 def check_listing(listing_id: int):
-    not_configured("eBay", "add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env (milestone 4)")
+    """Spec §5.4: is this eBay listing still live? Refreshes price either way."""
+    require_ebay()
+    with db.connect() as conn:
+        listing = get_listing_or_404(conn, listing_id)
+        if listing["source"] != "ebay" or not listing["external_id"]:
+            raise HTTPException(422, "only listings that came from eBay can be checked")
+        try:
+            result = ebay.check_item(listing["external_id"])
+        except ebay.EbayError as err:
+            raise HTTPException(err.status, err.message)
+
+        fields = {
+            "is_active": 1 if result["active"] else 0,
+            "last_seen_at": db.now_iso(),
+            "updated_at": db.now_iso(),
+        }
+        if result["price_gbp"] is not None:
+            fields["price_gbp"] = result["price_gbp"]
+        assignments = ", ".join(f"{f} = ?" for f in fields)
+        conn.execute(
+            f"UPDATE listings SET {assignments} WHERE id = ?", [*fields.values(), listing_id]
+        )
+        return {
+            "active": result["active"],
+            "message": result["message"],
+            "listing": attach_mot(conn, [get_listing_or_404(conn, listing_id)])[0],
+        }
 
 
 # ---------------------------------------------------------------- static

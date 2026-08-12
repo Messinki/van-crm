@@ -4,7 +4,8 @@ A personal, local-only web app for tracking vans for sale while shopping for a c
 Single user, runs on your own machine, no auth, no deployment.
 
 Spec: [van-crm-spec.md](van-crm-spec.md) + [van-crm-spec-amendment-01.md](van-crm-spec-amendment-01.md)
-(the amendment wins where they conflict).
++ [van-crm-spec-amendment-02.md](van-crm-spec-amendment-02.md)
+(later amendments win where they conflict).
 
 ---
 
@@ -31,20 +32,63 @@ searches. Deleting that file resets everything.
 | 1. Skeleton — structure, `.env`, schema + migrations + seeds | done |
 | 2. Listings CRUD, read-only table, drawer editor, filters, sorting, Add dropdown | done |
 | 3. Custom properties — typed columns, Columns modal | done |
-| 4. eBay — auth, scrape, upsert, import-from-link, liveness | **not started** (waiting on dev account) |
+| 4. eBay — auth, scrape, upsert, import-from-link, liveness | done, **verified against the sandbox** (see below); production keys in since 2026-08-12, production checks not yet run |
+| 4b. AI enrichment — size/VAT/mileage/flags from descriptions | **not built** — spec'd in [amendment 02](van-crm-spec-amendment-02.md) §B |
 | 5. MOT + reg lookup — DVSA, `/api/lookup/reg`, MOT column and drawer panel | done (DVLA VES sub-step dormant until a key is set) |
 | 6. Polish — inactive strikethrough, error toasts, README | mostly done |
 
-The eBay endpoints exist and are wired to the UI, but return **HTTP 503 with a
-plain-English message** ("eBay is not configured yet — …"), which the frontend surfaces
-as an error toast or inline hint. Nothing crashes; every other part of the app works.
-Filling in `.env` is not enough on its own — `app/ebay.py` still needs writing in
-milestone 4.
+### eBay: what is tested, and what is waiting on production keys
+
+`app/ebay.py` is written and wired. It was verified against the **sandbox** (eBay's
+sandbox holds almost no inventory — one stray listing answers a search for "van", and it
+is a packet of fuses — so the plumbing is proven and the *yield* is not). A **production**
+keyset replaced the sandbox one in `.env` on 2026-08-12 (`EBAY_ENV=PRODUCTION`); the
+deferred checks below are now runnable and are the next task — see
+[amendment 02](van-crm-spec-amendment-02.md) §A.
+
+**Verified for real against the sandbox on 2026-08-12** (whole app running, real
+credentials, a scratch copy of the database so none of this reached `data/`):
+
+- OAuth client-credentials token against the sandbox endpoint, cached and reused.
+- `POST /api/scrape` → `{"new": 1, "updated": 0, "skipped": 0, "errors": []}`; the row
+  arrives with title, GBP price, location, seller, 15 images and a 3.4k-character
+  description in `notes`.
+- A second scrape immediately after → `{"new": 0, "updated": 1}`. A third, after
+  hand-editing status, notes, reg, year and mileage → still `0 new`, and **every edit
+  survived** with only `last_seen_at`/`updated_at` moving.
+- `POST /api/listings/{id}/check` → `{"active": true, "message": "Still live on eBay"}`.
+- `POST /api/import/ebay` with a full listing URL (title slug *and* query string) →
+  201 with photos and description; pasting it again → 409 carrying the existing row's
+  id, which the frontend turns into "opened it" rather than a duplicate. A search URL
+  → 422 "Couldn't find an item id in that URL". An item already found by a scrape is
+  recognised by the importer (and vice versa) — both key on the same `itemId`.
+- With `EBAY_CLIENT_ID` blanked in the environment, the app still boots, `/` and
+  `/api/listings` are fine, and all three eBay endpoints answer **503** with
+  "eBay is not configured yet — add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env".
+- URL parsing, the spares-or-repairs skip, aspect mapping, HTML→notes, the year filter
+  and price/currency handling have unit-style coverage (≈50 assertions, all passing).
+
+**Deferred while on sandbox keys — now unblocked, not yet run:**
+
+- A scrape that actually finds vans: real result volume, pagination past one page, and
+  whether the saved searches' wording is any good.
+- Import-from-link against a live `ebay.co.uk` URL (sandbox item ids do not exist in
+  production, and vice versa).
+- The `ebay.us` / `ebay.to` shortener path — resolvable only against real short links.
+  The id-extraction half is unit-tested; only the redirect-following is untried.
+- A liveness check that returns *not* live (nothing in sandbox ends).
+- The spares-or-repairs skip firing on a real listing (unit-tested only).
+- Re-running the Taxonomy category lookup on production (see Decisions made — the ids
+  below came from the sandbox Taxonomy service, which did work).
+
+Switching over is `EBAY_ENV=PRODUCTION` plus the production keyset; no code change.
 
 MOT is live: with the `DVSA_*` values in `.env`, the table's MOT column, the drawer's
 MOT panel and the plate lookup all work. Without them they return the same 503s.
 `DVLA_VES_API_KEY` is still optional and still unset — the lookup runs MOT-only and
-`tax_status` comes back `null` until a key is added; no code change is needed then.
+`tax_status` comes back `null` until a key is added; no code change is needed then. When VES
+*is* configured and then fails, the lookup still succeeds on the MOT half and explains the
+missing half in the response's `warnings` list rather than staying silent.
 
 ---
 
@@ -54,9 +98,17 @@ MOT panel and the plate lookup all work. Without them they return the same 503s.
 1. Sign up at <https://developer.ebay.com> and create an application.
 2. Use the **Production** keyset's App ID as `EBAY_CLIENT_ID` and Cert ID as `EBAY_CLIENT_SECRET`.
 3. Sandbox keys are issued immediately and work against the same code — set `EBAY_ENV=SANDBOX`
-   to point at `api.sandbox.ebay.com` while production approval is pending.
-4. Category IDs are deliberately not hardcoded. During milestone 4 they will be resolved via the
-   Taxonomy API (`getCategorySuggestions` for "vans", marketplace `EBAY_GB`) and documented here.
+   to point at `api.sandbox.ebay.com` while production approval is pending. `EBAY_ENV` switches
+   the token endpoint and the Browse API base together, and the cached token remembers which
+   environment issued it, so flipping the value mid-session cannot reuse the wrong one.
+4. Category IDs are not hardcoded — see "eBay category ids" under Decisions made for the two
+   the Taxonomy API returned for `EBAY_GB`, and how to use them.
+
+**Verified against the live API on 2026-08-12** with the sandbox keyset: the token call, the
+search filters, the item detail and legacy-id endpoints, and the 404 shapes all behave as
+documented below. Note eBay's own docs site (`developer.ebay.com`) refuses automated fetches,
+so the contract was read from eBay's published OpenAPI description for Browse (`buy_browse_v1_oas3`,
+v1.20.4) and everything load-bearing was then confirmed by calling the API.
 
 ### DVSA MOT History API (milestone 5)
 Apply via the registration form linked from <https://documentation.history.mot.api.gov.uk>.
@@ -77,6 +129,14 @@ Request a free key from <https://developer-portal.driver-vehicle-licensing.api.g
 still returns make/model/year from the MOT source. (`euroStatus` is also available but the app
 no longer tracks it — see Decisions made.)
 
+**Field names verified against the live docs 2026-08-12** (the VES path itself is still
+untested against a real key — no key has been issued yet). Request body is `registrationNumber`,
+auth header is `x-api-key`, and the six fields the app reads back — `make`, `yearOfManufacture`,
+`fuelType`, `colour`, `engineCapacity`, `taxStatus` — all match v1.2.0 of the published schema.
+Note `DVLA_VES_API_KEY=` currently exists in `.env` but is **empty**, which reads as unconfigured:
+`mot.ves_configured()` is a truthiness check, so the lookup skips VES rather than failing. Set a
+real value and it starts contributing with no code change.
+
 ---
 
 ## What works right now
@@ -91,8 +151,8 @@ no longer tracks it — see Decisions made.)
 - **Sorting** — click a header; numeric columns sort numerically, blanks always sink to the bottom.
 - **Filters** — status chips (multi-select), source, title search, max price, show-inactive.
 - **Add listing ▾** — Manual entry (with a Look up button on the plate field) or From eBay link.
-  Manual entry's Source can be Facebook, eBay or Manual/other, so an eBay listing can be typed
-  in by hand before milestone 4's importer exists.
+  Manual entry's Source can be Facebook, eBay or Manual/other, so an eBay listing can still be
+  typed in by hand when the importer can't reach it.
 - **Detail drawer** — click a row; all fields editable, notes autosave 800ms after you stop typing,
   image strip, delete with confirm.
 - **MOT column** — expiry date (red once it's inside 30 days or past), then small badges: `D3`
@@ -111,13 +171,102 @@ no longer tracks it — see Decisions made.)
   values already used on other listings (drawer and manual entry both). Free text either way.
 - **Columns modal** — add/rename/reorder/delete custom properties of any type. Deleting a property
   strips its values from every listing.
-- **Searches modal** — edit the saved eBay searches now, so they're ready when scraping goes live.
+- **Searches modal** — label, query, max price, **year from / year to**, enabled, delete. Only
+  enabled searches run.
+- **Scrape eBay** — runs every enabled search, upserts, and toasts "X new · Y updated". Anything
+  that went wrong (a failed search, an eBay warning about a filter) comes back as its own error
+  toast rather than being swallowed.
+- **From eBay link** — paste any listing URL; it imports with photos, description and the
+  make/model/year/mileage eBay holds as item aspects. A URL already in the table opens that row
+  instead of duplicating it. If exactly one number plate appears in the title or description it
+  is filled in, and a toast points at the Look up button.
+- **Check listing live** — in the drawer on eBay rows: refreshes the price, and marks the row
+  inactive (strikethrough) once eBay says the listing has gone or ended.
 
 ---
 
 ## Decisions made
 
 Choices the spec left open, resolved the simplest way:
+
+- **The `buyingOptions` filter is mandatory, not optional garnish** — eBay's Browse contract
+  states that search returns listings with `FIXED_PRICE` as a buying option *and nothing else*
+  unless `buyingOptions` is filtered explicitly. Since most UK vans are auctions or classified
+  ads, omitting the filter (the obvious fallback if `CLASSIFIED_AD` had turned out unsupported)
+  would have quietly hidden the majority of them. It is supported: the live API accepts
+  `filter=buyingOptions:{FIXED_PRICE|AUCTION|CLASSIFIED_AD}` without complaint, and that is what
+  every search sends, alongside `itemLocationCountry:GB` and — when the search has a cap —
+  `price:[..8000],priceCurrency:GBP`. All spec §5.2 syntax confirmed live; no deviations.
+- **A wrong filter name is not an error, so warnings are treated as errors** — an unknown filter
+  comes back as HTTP 200 with the filter silently ignored and a note in the response's
+  `warnings[]`. A typo would therefore look exactly like a search that found nothing. Every
+  warning eBay returns is prefixed with the search's label and added to the scrape summary's
+  `errors` list, which the frontend shows as toasts.
+- **eBay category ids: 122202 and 14256, but the searches leave `category_id` NULL** —
+  `getCategorySuggestions` on the `EBAY_GB` tree (tree id `3`, version 125) returns **122202
+  "Vans/Pickups"** (Cars, Motorcycles & Vehicles → Commercial Vehicles) for "vans", "van",
+  "commercial vehicles" and "citroen relay van", and **14256 "Campervans & Motorhomes"** for
+  "campervan". The seeded searches still carry no category, because a category plus a keyword
+  narrows to the intersection and the keywords already do the job; the ids are recorded here so
+  a search can be pinned to one from the Searches modal if keyword noise ever becomes a problem.
+  These came from the *sandbox* Taxonomy service (which works, and shares the production
+  category tree) — worth re-running once production keys land.
+- **"For parts or not working" listings are dropped, never stored** — the user is buying a van to
+  convert, so a spares-or-repairs listing is noise however cheap it is. The skip tests eBay's
+  condition id `7000` *and* the condition text (`for parts`, `not working`, `spares or repair`),
+  because vehicle categories do not always carry the id. It is a Python-side skip rather than a
+  `conditionIds` filter on the search: a filter would have to enumerate the allowed conditions,
+  and any van listed with no condition at all would vanish with it. Skipped items are counted in
+  the scrape summary's `skipped` so they are not simply invisible.
+- **The year range is filtered in Python, not by `aspect_filter`** — server-side aspect filtering
+  needs `category_ids` set on the request *and* the same category repeated inside the filter, and
+  it only matches sellers who actually filled the "Year" aspect in. Keyword searches with no
+  category (see above) cannot use it at all. So `searches.year_min` / `year_max` are applied
+  locally: from the item's `Year` / `Year of Manufacture` aspect where the seller supplied one,
+  otherwise from a 4-digit year in the title. **A listing whose year cannot be determined is
+  kept** — under-filtering shows one extra van, over-filtering hides the right one. The title
+  check runs first so an obviously out-of-range van never costs a detail call.
+- **The eBay description becomes `notes`, stripped and capped** — this app has no `description`
+  column (notes absorbed it, see below), so the importer converts eBay's HTML to plain text:
+  scripts and styles dropped, block tags to line breaks, entities unescaped, blank lines
+  collapsed, and a 4,000-character cap with a "(description truncated)" marker. Seller templates
+  are frequently tens of kilobytes of markup and none of it is worth storing. Notes stay
+  editable, so the pasted text is a starting point, not a fixture.
+- **A detail call is spent only on genuinely new items** — spec §5.3's rule, kept: a re-seen item
+  updates from the search summary alone. New items get one `GET /item/{itemId}` for the
+  description and item aspects, and the aspect mapping (make / model / year / mileage) that
+  Amendment 01 §E specifies for the importer is used by the scrape too — the data is already
+  in the response, so ignoring it would be perverse.
+- **A rescrape touches three columns and no others** — `price_gbp` (only when eBay quotes GBP),
+  `last_seen_at`, `updated_at`. Status, notes, custom values, reg, year and mileage are never
+  written on an update, which is what makes the Scrape button safe to press at any time. Verified
+  by hand-editing all five and rescraping twice.
+- **The same van in two searches counts once** — a scrape keeps the item ids it has already
+  processed for the run, so a Ducato that matches three saved searches is one `new`, not one
+  `new` and two `updated`. Each item commits as it goes, so an interrupted scrape keeps what it
+  had already found.
+- **Reg extraction lives in `mot.py` now** — it was in `main.py`, and the eBay importer needed the
+  same regex. Rather than a second copy (or a new module), `extract_reg()` moved next to
+  `clean_reg()` in the module that already owns everything plate-shaped. `main.create_listing`
+  and `ebay._finalise_new` both call it, and a newly imported listing with exactly one plate gets
+  its MOT cache warmed in the same breath — a DVSA failure there is swallowed, because a listing
+  that saved fine must not report as a failed scrape.
+- **The importer also accepts a bare item id**, on top of Amendment 01 §E's URL shapes — if the
+  pasted text is nothing but 9–13 digits it is treated as the id. Costless, and it saves a
+  round-trip when copying an id out of a spreadsheet.
+- **The import 409's `detail` is an object, not a string** — `{"message": …, "listing_id": …}`,
+  because the frontend has to open the row that already exists. `api()` in app.js unwraps
+  `detail.message` for display, so an object detail still reads properly in a toast.
+- **A liveness check returns the whole listing** (`{active, message, listing}`) rather than a bare
+  flag: the price and the active state can both move, and handing back the row lets the drawer and
+  the table re-render from fact instead of guessing what changed. Missing `itemEndDate` counts as
+  live — good-till-cancelled listings simply have no end date.
+- **The eBay OAuth token is cached with a wall-clock deadline and remembers its environment** —
+  same `time.time()` rule as DVSA and for the same reason (macOS freezes the monotonic clock
+  during sleep, which served dead tokens for hours). The cache also stores which base URL issued
+  the token, so changing `EBAY_ENV` can never reuse the other environment's token, which would
+  surface as an inscrutable credentials error. A 401/403 retries once with a forced-fresh token
+  before blaming the keyset, and the failure message names the environment it tried.
 
 - **The table is read-only; the drawer is the editor** — this replaces Amendment 01 §A's
   inline-editable cells. The Title link is the only clickable element in a row (it opens the
@@ -154,6 +303,25 @@ Choices the spec left open, resolved the simplest way:
   `mot_cache` row alone, and the message is surfaced inline (drawer, manual form) or as a toast
   (the table's Check button). The DVSA access token is cached module-level and reused until a
   minute before it expires, so a run of checks costs one token request.
+- **The token deadline is wall-clock (`time.time()`), never `time.monotonic()`** — and there is a
+  one-shot retry with a forced-fresh token on 401/403. This looks like the wrong choice and is
+  not: macOS stops the monotonic clock while the machine sleeps, so a laptop left running
+  overnight woke with monotonic hours behind wall clock, believed its long-dead token was still
+  valid, and returned an auth error on *every* new plate until the process was restarted. Cached
+  plates kept working throughout, which is what made it look like a credentials problem. The
+  token's own expiry is wall-clock, so the deadline that guards it has to be too. NTP steps are
+  the tradeoff and they cost at most one extra token fetch; the retry covers them anyway.
+- **A 4xx from DVSA does not imply bad credentials** — the gateway returns 403 both for a
+  rejected API key *and* for a path it cannot match, so an empty or slash-containing plate
+  (`N/A`) used to surface as "check the DVSA_* credentials in .env". `mot.clean_reg()` now
+  rejects anything outside `[A-Z0-9]{1,15}` before it reaches the URL, and because the token
+  call has already succeeded by the time a fetch runs, the messages name the one credential
+  actually in question (401 → `DVSA_SCOPE`, 403 → `DVSA_API_KEY` or quota) instead of all five.
+- **A half-failed reg lookup still returns 200, with `warnings`** — MOT and VES are queried
+  independently and either can fail alone. The response carries the surviving half plus a
+  `warnings` list explaining the missing one, rendered amber under the lookup result. Previously
+  those reasons were only used when *both* sources failed and were otherwise discarded, so a
+  broken `DVLA_VES_API_KEY` was indistinguishable from one that was never configured.
 - **`mot_due` is hand-entered, separate from the MOT lookup** — a `date` input in the drawer's MOT
   section and on manual entry, stored as an ISO `YYYY-MM-DD` string in `listings.mot_due` and
   validated server-side (a real calendar date, or null). It gets its own sortable **MOT due**
@@ -165,8 +333,8 @@ Choices the spec left open, resolved the simplest way:
   straight to `notes`, the drawer's Description panel is deleted, `description` is out of
   `EDITABLE_FIELDS` (a payload containing it 400s), reg extraction on create scans title + notes,
   and the column is dropped from `SCHEMA` and from `data/vancrm.db`. Existing descriptions were
-  merged into notes first. Milestone 4's eBay importer should write the item description into
-  `notes`.
+  merged into notes first. The eBay importer follows the same rule — it writes the item
+  description into `notes` (stripped of HTML and capped; see above).
 - **Notes autosave flushes rather than drops** — `debounce()` exposes `.flush()`, and the notes
   textarea flushes on blur, on drawer close and on `beforeunload` (that last one with
   `fetch(keepalive)`). Before this, a refresh within 800ms of the last keystroke lost the note.
@@ -199,14 +367,23 @@ Choices the spec left open, resolved the simplest way:
   `url` / `image_urls` from the table (the title cell and thumbnail carry them).
 - **`source` is editable.** It was create-only originally — a listing's origin looked like a fact
   about where it came from, not a preference — but a mis-set source on a manual entry was then
-  unfixable, so PATCH now accepts it, validated against `SOURCES` in `clean_listing_fields()`
-  like any other select. `POST` just defaults it to `facebook` when omitted.
+  unfixable, so PATCH now accepts it. `POST` still defaults it to `facebook` when omitted.
+- **`source` is free text with suggestions, not a fixed `ebay`/`facebook`/`manual` enum.** It's
+  the same `suggest: True` pattern as Make/Model/Location/Seller: a `<datalist>` of values already
+  used, still accepting anything typed, so a real source like "Gumtree" or "Autotrader" doesn't
+  get forced into "manual". The table badge keeps its dedicated colour and shortened label
+  (`eBay`/`FB`/`Manual`) for the three known values and just shows the raw text for anything else.
+  `listings.source` used to have a `CHECK (source IN (...))` at the DB level; `db._migrate_drop_source_check`
+  rebuilds the table (SQLite can't drop a CHECK via `ALTER TABLE`) the first time an existing
+  `data/vancrm.db` boots against this code, copying every row across in one transaction.
 - **PATCH allowlist** covers only user-editable fields — `id`, `external_id` and all
   timestamps cannot be set through the API.
 - **Reg extraction on manual add** runs server-side only (one implementation, not two): if `reg` is
   left blank, the regex runs over title + notes and stores a match only if exactly one distinct
   plate is found.
-- **Sandbox/production eBay switching** is via `EBAY_ENV`; both base URLs will be derived from it.
+- **Sandbox/production eBay switching** is via `EBAY_ENV`: it selects the token endpoint and the
+  Browse API base together, and an unrecognised value falls back to production rather than
+  failing to start.
 
 ## Notes
 
