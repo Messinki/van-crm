@@ -1086,6 +1086,7 @@ function renderSearches() {
     return el('tr', {},
       el('td', {}, el('input', { value: search.label, onchange: (e) => save('label', e.target.value) })),
       el('td', {}, el('input', { value: search.query, onchange: (e) => save('query', e.target.value) })),
+      numberCell('min_price'),
       numberCell('max_price'),
       numberCell('year_min'),
       numberCell('year_max'),
@@ -1109,7 +1110,7 @@ function setupSearchesForm() {
     e.preventDefault();
     const form = e.target;
     const data = Object.fromEntries(new FormData(form).entries());
-    for (const field of ['max_price', 'year_min', 'year_max']) {
+    for (const field of ['min_price', 'max_price', 'year_min', 'year_max']) {
       if (data[field] === '') delete data[field];
     }
     try {
@@ -1225,6 +1226,16 @@ function setupTopbar() {
     const btn = e.target;
     btn.disabled = true;
     btn.textContent = 'Scraping…';
+    // One eBay detail call per new item, so a big scrape can run for minutes —
+    // poll for progress so the button doesn't just sit there looking frozen.
+    const poll = setInterval(async () => {
+      try {
+        const p = await get('/api/scrape/progress');
+        if (!p.running) return;
+        const secs = Math.round((Date.now() / 1000) - p.started_at);
+        btn.textContent = `Scraping… (${p.processed} processed, ${secs}s)`;
+      } catch { /* keep showing the last known text */ }
+    }, 1000);
     try {
       const result = await post('/api/scrape');
       await loadListings();
@@ -1234,6 +1245,7 @@ function setupTopbar() {
     } catch (err) {
       toast(errorMessage(err), 'error');
     } finally {
+      clearInterval(poll);
       btn.disabled = false;
       btn.textContent = 'Scrape eBay';
     }

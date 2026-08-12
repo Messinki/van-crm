@@ -32,7 +32,7 @@ searches. Deleting that file resets everything.
 | 1. Skeleton — structure, `.env`, schema + migrations + seeds | done |
 | 2. Listings CRUD, read-only table, drawer editor, filters, sorting, Add dropdown | done |
 | 3. Custom properties — typed columns, Columns modal | done |
-| 4. eBay — auth, scrape, upsert, import-from-link, liveness | done, **verified against the sandbox** (see below); production keys in since 2026-08-12, production checks not yet run |
+| 4. eBay — auth, scrape, upsert, import-from-link, liveness | done, **verified against the sandbox** (see below); production keys in since 2026-08-12, and a real production scrape is now verified too (see below) — import-from-link, the shortener redirect, liveness-on-an-ended-item, the spares/repairs skip and the Taxonomy re-run are still unchecked |
 | 4b. AI enrichment — size/VAT/mileage/flags from descriptions | **not built** — spec'd in [amendment 02](van-crm-spec-amendment-02.md) §B |
 | 5. MOT + reg lookup — DVSA, `/api/lookup/reg`, MOT column and drawer panel | done (DVLA VES sub-step dormant until a key is set) |
 | 6. Polish — inactive strikethrough, error toasts, README | mostly done |
@@ -82,6 +82,16 @@ credentials, a scratch copy of the database so none of this reached `data/`):
   below came from the sandbox Taxonomy service, which did work).
 
 Switching over is `EBAY_ENV=PRODUCTION` plus the production keyset; no code change.
+
+**Verified for real against production on 2026-08-12:** a live scrape across all 5 saved
+searches returned real result volume with pagination past one page, confirming the
+searches' wording finds actual vans. It also surfaced two data-quality problems, both now
+fixed (see Decisions made): with no price floor, keyword search matched cheap parts and
+even unrelated items (trading cards, brochures) that happened to contain a search term or
+a surname like "van Dijk"; with no year floor enforced, vans back to 1994 came through.
+Still deferred: import-from-link against a live URL, the `ebay.us`/`ebay.to` shortener
+redirect, a liveness check on an item that has actually ended, the spares-or-repairs skip
+firing on a real listing, and re-running the Taxonomy category lookup on production.
 
 MOT is live: with the `DVSA_*` values in `.env`, the table's MOT column, the drawer's
 MOT panel and the plate lookup all work. Without them they return the same 503s.
@@ -384,6 +394,34 @@ Choices the spec left open, resolved the simplest way:
 - **Sandbox/production eBay switching** is via `EBAY_ENV`: it selects the token endpoint and the
   Browse API base together, and an unrecognised value falls back to production rather than
   failing to start.
+- **Saved searches carry a price floor (`min_price`) as well as a cap** — the first real
+  production scrape (2026-08-12) showed keyword search alone is not enough: "peugeot boxer van"
+  matches a £29 heater resistor as readily as an actual van, and "renault master van" pulled in
+  football cards and CDs on the strength of a surname ("van Dijk", "van Persie") or an album title
+  containing the word. All under a few hundred pounds, so a floor screens them out at the API
+  level rather than in Python. `_filters()` now builds `price:[min..max]` (either end optional,
+  same as before) instead of always anchoring at zero; all 5 seeded searches run with
+  `min_price=3000, max_price=7000`. This mirrors the existing max-price design exactly — same
+  column pattern, same migration, same UI row — so see the `buyingOptions` entry above for why the
+  filter is sent as `,`-joined `filter=` terms rather than several query params.
+- **`year_min`/`year_max` are enforced now, not just plumbed** — the columns and the Python-side
+  filter (see above) shipped with milestone 4, but no saved search actually set a floor, so
+  listings back to 1994 were coming through undetected until a manual audit of `year` values
+  turned them up. All 5 seeded searches now run with `year_min=2016`. Worth remembering: setting
+  a floor only affects *new* items in future scrapes (`upsert_item` only checks `_year_allowed` on
+  the not-already-seen path) — it does not retroactively touch what's already in `data/vancrm.db`,
+  so a tightened filter needs a manual `DELETE ... WHERE year < N` alongside it if the backlog
+  should shrink too, same as the min_price cleanup above.
+- **The Scrape button polls for progress instead of just showing a static label** —
+  `upsert_item` spends one eBay detail call per genuinely new item, so a large scrape (hundreds of
+  new listings) can run for several minutes with the button simply disabled and reading
+  "Scraping…" the whole time, which reads as hung. `ebay.PROGRESS` is a plain module-level dict
+  (`running`/`processed`/`label`/`started_at` — one user, one scrape at a time, so no locking)
+  updated as each item is processed; `GET /api/scrape/progress` exposes it, and the button polls
+  it every second while a scrape is in flight, showing `Scraping… (N processed, Ns)`. Killing the
+  server (or the browser navigating away) mid-scrape still aborts the in-flight request — the
+  per-item commits mean whatever was already processed survives, but a search that was mid-page
+  does not resume; it needs a fresh scrape.
 
 ## Notes
 

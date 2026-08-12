@@ -29,6 +29,11 @@ from app import db, mot
 
 EBAY_VARS = ("EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET")
 
+# A scrape does one detail HTTP call per new item and can run for minutes, so the
+# UI polls this for feedback rather than sitting on a silent spinner. Plain module
+# state is enough here — one user, one scrape at a time.
+PROGRESS = {"running": False, "processed": 0, "label": None, "started_at": None}
+
 BASES = {
     "PRODUCTION": "https://api.ebay.com",
     "SANDBOX": "https://api.sandbox.ebay.com",
@@ -326,9 +331,12 @@ def _listing_fields(item: dict, detail: dict | None) -> dict:
 
 def _filters(search: dict) -> str:
     filters = ["itemLocationCountry:GB"]
+    min_price = search.get("min_price")
     max_price = search.get("max_price")
-    if max_price:
-        filters.append(f"price:[..{float(max_price):g}]")
+    if min_price or max_price:
+        lo = f"{float(min_price):g}" if min_price else ""
+        hi = f"{float(max_price):g}" if max_price else ""
+        filters.append(f"price:[{lo}..{hi}]")
         filters.append("priceCurrency:GBP")
     # Not optional: without it eBay returns FIXED_PRICE listings only, and most
     # UK vans are auctions or classified ads.
@@ -503,35 +511,42 @@ def scrape(conn) -> dict:
         summary["errors"].append("No searches are enabled — add one under Searches")
         return summary
 
-    seen: set[str] = set()
-    for row in rows:
-        search = db.row_to_search(row)
-        warnings: list[str] = []
-        try:
-            items = search_items(search, warnings)
-        except EbayError as err:
-            summary["errors"].append(f"{search['label']}: {err.message}")
-            continue
-        finally:
-            summary["errors"].extend(f"{search['label']}: {w}" for w in warnings)
-
-        for item in items:
-            item_id = item.get("itemId")
-            if item_id in seen:
-                # The same van matches several searches; count and process it once.
-                continue
-            if item_id:
-                seen.add(item_id)
+    PROGRESS.update(running=True, processed=0, label=None, started_at=time.time())
+    try:
+        seen: set[str] = set()
+        for row in rows:
+            search = db.row_to_search(row)
+            PROGRESS["label"] = search["label"]
+            warnings: list[str] = []
             try:
-                summary[upsert_item(conn, item, search)] += 1
+                items = search_items(search, warnings)
             except EbayError as err:
                 summary["errors"].append(f"{search['label']}: {err.message}")
-            except Exception as err:  # one bad item must not end the scrape
-                summary["errors"].append(f"{search['label']}: could not save an item ({err})")
-            else:
-                # Commit per item so an interruption keeps what it already found.
-                conn.commit()
-    return summary
+                continue
+            finally:
+                summary["errors"].extend(f"{search['label']}: {w}" for w in warnings)
+
+            for item in items:
+                item_id = item.get("itemId")
+                if item_id in seen:
+                    # The same van matches several searches; count and process it once.
+                    continue
+                if item_id:
+                    seen.add(item_id)
+                try:
+                    summary[upsert_item(conn, item, search)] += 1
+                except EbayError as err:
+                    summary["errors"].append(f"{search['label']}: {err.message}")
+                except Exception as err:  # one bad item must not end the scrape
+                    summary["errors"].append(f"{search['label']}: could not save an item ({err})")
+                else:
+                    # Commit per item so an interruption keeps what it already found.
+                    conn.commit()
+                finally:
+                    PROGRESS["processed"] += 1
+        return summary
+    finally:
+        PROGRESS["running"] = False
 
 
 # ---------------------------------------------------------------- liveness (spec §5.4)

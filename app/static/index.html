@@ -101,19 +101,21 @@
     <div class="modal-header"><h2>Saved eBay searches</h2><button class="icon-btn modal-close">✕</button></div>
     <div class="modal-body">
       <table class="mini-table">
-        <thead><tr><th>Label</th><th>Query</th><th>Max £</th><th>Year from</th><th>Year to</th><th>On</th><th></th></tr></thead>
+        <thead><tr><th>Label</th><th>Query</th><th>Min £</th><th>Max £</th><th>Year from</th><th>Year to</th><th>On</th><th></th></tr></thead>
         <tbody id="searches-body"></tbody>
       </table>
       <form id="form-search-add" class="row add-row">
         <input name="label" placeholder="Label" required>
         <input name="query" placeholder="eBay query" required>
+        <input name="min_price" type="number" placeholder="Min £">
         <input name="max_price" type="number" placeholder="Max £">
         <input name="year_min" type="number" placeholder="Year from" min="1950" max="2050">
         <input name="year_max" type="number" placeholder="Year to" min="1950" max="2050">
         <button type="submit" class="btn">Add</button>
       </form>
       <p class="hint">Only enabled searches run. The year range is applied to what eBay
-        returns; a listing whose year can't be read from its title or aspects is kept.</p>
+        returns; a listing whose year can't be read from its title or aspects is kept.
+        Min £ filters out cheap parts/accessories that match the query text.</p>
     </div>
   </div>
 </div>

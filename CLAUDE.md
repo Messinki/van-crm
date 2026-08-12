@@ -60,21 +60,31 @@ an unmatched path, which is indistinguishable from a rejected API key).
 **Milestone 4 (eBay)** is built: `app/ebay.py` handles OAuth (cached token), saved-search
 scrape + upsert, item detail, liveness and import-from-link; `/api/scrape`,
 `/api/import/ebay` and `/api/listings/{id}/check` are wired to it, and the Searches modal
-carries the new `year_min`/`year_max`. It is **verified against the eBay sandbox only**,
-but **production keys are now in `.env`** (`EBAY_ENV=PRODUCTION`, since 2026-08-12) —
-the immediate next task is running the production checks listed in the README build
-status and Amendment 02 §A (real scrape, import-from-link, shortener redirect, liveness
-on an ended item, spares/repairs skip, Taxonomy re-run).
+carries `min_price`/`max_price`/`year_min`/`year_max`. It's verified against the eBay
+sandbox, and **a real production scrape now ran successfully too** (2026-08-12, all 5
+saved searches, pagination past one page). Still unchecked from Amendment 02 §A:
+import-from-link against a live URL, the shortener redirect, liveness on an ended item,
+the spares/repairs skip on a real listing, and the Taxonomy re-run.
+
+That first production scrape surfaced a real gap: keyword search with no price/year floor
+pulls in cheap parts and unrelated items (a £29 heater resistor, football trading cards
+matching "van Dijk") and vans back to 1994. All 5 seeded searches now run with
+`min_price=3000, max_price=7000, year_min=2016`. Both floors are enforced only on *new*
+items in future scrapes — tightening a search's range does not retroactively touch what's
+already in `data/vancrm.db`; that needs a manual cleanup pass alongside it. Full writeup
+in the README's **Decisions made**.
 
 **Milestone 4b (AI enrichment via OpenRouter)** is specified in Amendment 02 §B and not
-yet built — it's the next milestone after the production checks pass.
+yet built — it's the next milestone after the remaining production checks pass.
 
-Three eBay behaviours are deliberate and must not be regressed (all written up in the
+Four eBay behaviours are deliberate and must not be regressed (all written up in the
 README's **Decisions made**): the `buyingOptions` filter is always sent (without it eBay
 returns fixed-price listings only, hiding most vans), an unknown filter name comes back as
 a 200 with a `warnings[]` note rather than an error so warnings are surfaced as scrape
-errors, and "for parts or not working" items are skipped outright, never inserted. The
-eBay token deadline uses `time.time()` for the same reason DVSA's does.
+errors, "for parts or not working" items are skipped outright, never inserted, and a scrape
+can run for minutes (one detail call per new item) so the Scrape button polls
+`GET /api/scrape/progress` rather than sitting on a static label. The eBay token deadline
+uses `time.time()` for the same reason DVSA's does.
 
 ## Conventions in this codebase
 

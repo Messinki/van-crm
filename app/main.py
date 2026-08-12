@@ -534,11 +534,12 @@ def create_search(payload: dict = Body(...)):
         raise HTTPException(400, "label and query are required")
     with db.connect() as conn:
         cursor = conn.execute(
-            "INSERT INTO searches (label, query, max_price, category_id, enabled, year_min, year_max)"
-            " VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO searches (label, query, min_price, max_price, category_id, enabled, year_min, year_max)"
+            " VALUES (?,?,?,?,?,?,?,?)",
             (
                 label,
                 query,
+                _as_number(payload.get("min_price"), "min_price", integer=False),
                 _as_number(payload.get("max_price"), "max_price", integer=False),
                 _as_text(payload.get("category_id")),
                 0 if payload.get("enabled") in (False, 0, "false") else 1,
@@ -552,13 +553,13 @@ def create_search(payload: dict = Body(...)):
 
 @app.patch("/api/searches/{search_id}")
 def update_search(search_id: int, payload: dict = Body(...)):
-    allowed = {"label", "query", "max_price", "category_id", "enabled", "year_min", "year_max"}
+    allowed = {"label", "query", "min_price", "max_price", "category_id", "enabled", "year_min", "year_max"}
     unknown = set(payload) - allowed
     if unknown:
         raise HTTPException(400, f"cannot set field(s): {', '.join(sorted(unknown))}")
     fields = {}
     for field, value in payload.items():
-        if field == "max_price":
+        if field in ("min_price", "max_price"):
             fields[field] = _as_number(value, field, integer=False)
         elif field in ("year_min", "year_max"):
             fields[field] = _as_number(value, field, integer=True)
@@ -808,6 +809,13 @@ def scrape():
             return ebay.scrape(conn)
         except ebay.EbayError as err:
             raise HTTPException(err.status, err.message)
+
+
+@app.get("/api/scrape/progress")
+def scrape_progress():
+    """Polled by the UI while a scrape is in flight — one detail call per new
+    item means a large scrape can run for minutes with nothing else to show."""
+    return ebay.PROGRESS
 
 
 @app.post("/api/import/ebay", status_code=201)

@@ -76,14 +76,18 @@ MIGRATIONS = [
     # the scrape rather than as an eBay aspect filter — see the README.
     ("searches", "year_min", "INTEGER"),
     ("searches", "year_max", "INTEGER"),
+    # A price floor to keep parts/accessories out: eBay keyword search matches
+    # "peugeot boxer" against a £30 heater resistor as readily as an actual van,
+    # and those are far cheaper than any base vehicle worth considering.
+    ("searches", "min_price", "REAL"),
 ]
 
 SEED_SEARCHES = [
-    ("Relay/Boxer/Ducato", "citroen relay van", 8000),
-    ("Peugeot Boxer", "peugeot boxer van", 8000),
-    ("Fiat Ducato", "fiat ducato van", 8000),
-    ("Transit MWB", "ford transit mwb medium roof", 8000),
-    ("Renault Master", "renault master van", 8000),
+    ("Relay/Boxer/Ducato", "citroen relay van", 3000, 8000),
+    ("Peugeot Boxer", "peugeot boxer van", 3000, 8000),
+    ("Fiat Ducato", "fiat ducato van", 3000, 8000),
+    ("Transit MWB", "ford transit mwb medium roof", 3000, 8000),
+    ("Renault Master", "renault master van", 3000, 8000),
 ]
 
 
@@ -157,7 +161,7 @@ def _migrate_drop_source_check(conn: sqlite3.Connection) -> None:
 def _seed(conn: sqlite3.Connection) -> None:
     if conn.execute("SELECT COUNT(*) AS n FROM searches").fetchone()["n"] == 0:
         conn.executemany(
-            "INSERT INTO searches (label, query, max_price) VALUES (?, ?, ?)",
+            "INSERT INTO searches (label, query, min_price, max_price) VALUES (?, ?, ?, ?)",
             SEED_SEARCHES,
         )
 
