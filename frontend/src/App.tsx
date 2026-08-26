@@ -1,33 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useListings, useProperties, useSchema } from '@/api/queries'
 
-// Phase 1 hello page: proves the toolchain and the /api proxy work.
-// Replaced by the real app from Phase 3 onward.
+// Phase 2 throwaway page: raw listing titles straight from the data layer.
+// Replaced by the real table in Phase 3.
 function App() {
-  const [fieldCount, setFieldCount] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch('/api/schema')
-      .then((res) => {
-        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-        return res.json()
-      })
-      .then((schema: { fields: unknown[] }) => setFieldCount(schema.fields.length))
-      .catch((err: Error) => setError(err.message))
-  }, [])
+  const schema = useSchema()
+  const listings = useListings()
+  const properties = useProperties()
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-2">
-      <h1 className="text-2xl font-semibold">VanCRM</h1>
-      {error ? (
-        <p className="text-destructive">Could not reach the API: {error}</p>
-      ) : fieldCount === null ? (
-        <p className="text-muted-foreground">Loading schema…</p>
-      ) : (
-        <p className="text-muted-foreground">
-          API connected — {fieldCount} fields in the schema registry.
-        </p>
-      )}
+    <div className="mx-auto max-w-2xl p-8">
+      <h1 className="mb-4 text-2xl font-semibold">VanCRM</h1>
+      <p className="mb-4 text-muted-foreground">
+        {schema.data ? `${schema.data.fields.length} fields` : 'schema…'} ·{' '}
+        {properties.data ? `${properties.data.length} custom properties` : 'properties…'} ·{' '}
+        {listings.data ? `${listings.data.length} listings` : 'listings…'}
+      </p>
+      <ul className="list-disc space-y-1 pl-6" data-testid="titles">
+        {listings.data?.map((l) => (
+          <li key={l.id}>{l.title}</li>
+        ))}
+      </ul>
     </div>
   )
 }
