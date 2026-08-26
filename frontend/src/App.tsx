@@ -3,6 +3,7 @@ import type { VisibilityState } from '@tanstack/react-table'
 
 import { useListings, useProperties, useSchema } from '@/api/queries'
 import { FilterBar } from '@/components/filters/FilterBar'
+import { RankPanel } from '@/components/filters/RankPanel'
 import { TableControls } from '@/components/filters/TableControls'
 import { ListingsTable } from '@/components/table/ListingsTable'
 import { BLANK_FILTERS, filterableProps, type Filters } from '@/lib/filtering'
@@ -70,13 +71,16 @@ function VanCrm({
         onColumnVisibilityChange={setColumnVisibility}
       />
 
-      <FilterBar
-        schema={schema}
-        properties={properties}
-        listings={listings}
-        filters={filters}
-        onFiltersChange={setFilters}
-      />
+      <div className="flex flex-wrap items-center gap-1.5">
+        <FilterBar
+          schema={schema}
+          properties={properties}
+          listings={listings}
+          filters={filters}
+          onFiltersChange={setFilters}
+        />
+        <RankPanel rank={rank} onRankChange={setRank} />
+      </div>
 
       <ListingsTable
         listings={listings}
