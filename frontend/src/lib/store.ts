@@ -3,13 +3,7 @@
 // an old version's keys, a property that's since been deleted, hand-edited
 // nonsense. Every restore validates and silently drops what it can't use.
 
-import {
-  blankCondition,
-  editorKind,
-  STORED_KIND,
-  type Condition,
-  type FilterableProp,
-} from './filtering'
+import { editorKind, STORED_KIND, type Condition, type FilterableProp } from './filtering'
 import { DEFAULT_RANK, RANK_FACTORS, type Rank } from './ranking'
 
 const LS_FILTERS = 'vancrm.filters'
@@ -112,5 +106,3 @@ export function restoreColumnVisibility(): Record<string, boolean> {
   }
   return out
 }
-
-export { blankCondition }

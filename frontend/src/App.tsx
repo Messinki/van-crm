@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { VisibilityState } from '@tanstack/react-table'
 
 import { useListings, useProperties, useSchema } from '@/api/queries'
+import { FilterBar } from '@/components/filters/FilterBar'
 import { TableControls } from '@/components/filters/TableControls'
 import { ListingsTable } from '@/components/table/ListingsTable'
 import { BLANK_FILTERS, filterableProps, type Filters } from '@/lib/filtering'
@@ -67,6 +68,14 @@ function VanCrm({
         onFiltersChange={setFilters}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+      />
+
+      <FilterBar
+        schema={schema}
+        properties={properties}
+        listings={listings}
+        filters={filters}
+        onFiltersChange={setFilters}
       />
 
       <ListingsTable

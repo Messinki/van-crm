@@ -1,6 +1,7 @@
 // The filter model, ported from app.js (D-039). A filter's key follows the
 // column convention: a bare registry field key, or `custom:<slug>`.
 
+import { formatDate, money, number } from './format'
 import type { FieldSpec, Listing, PropertyDef, Schema } from './schema'
 
 export const NUMERIC_TYPES = ['number', 'integer', 'money']
@@ -162,4 +163,30 @@ export function activeFilters(
   return Object.entries(filters.props)
     .map(([key, cond]) => ({ prop: byKey.get(key), cond }))
     .filter((f): f is { prop: FilterableProp; cond: Condition } => Boolean(f.prop))
+}
+
+/** A property filter's condition in a few characters, for its chip. */
+export function conditionSummary(prop: FilterableProp, cond: Condition): string {
+  if (cond.kind === 'bool') return cond.value ? 'Checked' : 'Unchecked'
+
+  if (cond.kind === 'set') {
+    if (!cond.values.length) return 'any'
+    const labels = cond.values.map((v) => (v === EMPTY_TOKEN ? '(empty)' : specLabel(prop.spec, v)))
+    return labels.length <= 3 ? labels.join(', ') : labels.slice(0, 2).join(', ') + ' +' + (labels.length - 2)
+  }
+
+  const fmt = (v: string | number) =>
+    prop.type === 'date'
+      ? formatDate(String(v))
+      : prop.type === 'money'
+        ? money(Number(v))
+        : prop.spec && prop.spec.grouped === false
+          ? String(v)
+          : number(Number(v))
+  const lo = cond.min ?? ''
+  const hi = cond.max ?? ''
+  if (lo !== '' && hi !== '') return fmt(lo) + '–' + fmt(hi)
+  if (lo !== '') return '≥ ' + fmt(lo)
+  if (hi !== '') return '≤ ' + fmt(hi)
+  return 'any'
 }
