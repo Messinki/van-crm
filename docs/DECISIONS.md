@@ -304,3 +304,18 @@ serves at `/`. The directory is build output and is gitignored; dev uses Vite's 
 server on :5173 proxying `/api` to :8321.
 Why: keeps the single-process, single-port usage identical to today while keeping
 generated files out of history.
+
+## D-039 — Filtering and ranking are a plain selector, not TanStack filter fns (2026-08-26)
+Context: the refactor plan sketched porting `matchesCondition`/`distinctValues` into
+TanStack Table custom filter fns. But rank scores are min–max normalised over the
+rows currently on screen, so the sort order depends on the filtered set — inside
+TanStack's pipeline that is a circular dependency (sortingFn needs the filtered
+row model that is being built).
+Decision: the ported `visibleListings()` logic (property conditions, status chips,
+title search, show-inactive, rank scoring and ordering) lives in plain typed
+functions (`lib/filtering.ts`, `lib/ranking.ts`) selected via `useMemo`; TanStack
+Table receives the final rows and owns the column model, column visibility, header
+and cell rendering. Behaviour parity with the old UI is the phase's acceptance
+test, and this keeps the ported logic byte-comparable to app.js.
+Why: parity beats framework idiom; rejected wedging relative scoring into
+sortingFns (hidden cache, render-order coupling).
