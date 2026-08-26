@@ -86,8 +86,11 @@ body {
   font: inherit; padding: 4px 7px;
   border: 1px solid var(--border-strong); border-radius: 6px;
 }
-#filter-max-price { width: 90px; }
 .inline { display: flex; align-items: center; gap: 5px; }
+/* Rank and the row count are pushed to the far end of the bar, so the filter chips
+   can grow along it without shunting them about. */
+.rank-btn { margin-left: auto; }
+.rank-btn.on { background: var(--text); border-color: var(--text); color: #fff; }
 
 .chips { display: flex; gap: 5px; flex-wrap: wrap; }
 .chip {
@@ -95,6 +98,64 @@ body {
   border: 1px solid var(--border-strong); background: #fff; cursor: pointer; color: var(--muted);
 }
 .chip.on { background: var(--text); border-color: var(--text); color: #fff; }
+.chip.add-filter { border-style: dashed; }
+.chip.add-filter:hover { color: var(--text); border-color: var(--muted); }
+
+/* An active property filter: the property name muted, its condition in full black,
+   and an ✕ that drops the filter. The whole left half reopens the editor. */
+.filter-chip {
+  display: inline-flex; align-items: stretch; font-size: 12px;
+  border: 1px solid var(--border-strong); border-radius: 999px; background: #f4f6fb;
+  overflow: hidden;
+}
+.filter-chip-body, .filter-chip-x {
+  font: inherit; font-size: 12px; border: none; background: none; cursor: pointer; color: var(--text);
+}
+.filter-chip-body { padding: 3px 4px 3px 9px; display: flex; gap: 5px; }
+.filter-chip-body:hover, .filter-chip-x:hover { background: #e6ebf7; }
+.filter-chip .fc-label { color: var(--muted); }
+.filter-chip-x { padding: 3px 8px 3px 4px; color: var(--muted); }
+
+/* --------------------------------------------------------------- popovers */
+
+/* Positioned by positionPopover() against the [data-pop] anchor it belongs to;
+   fixed, because the bar it hangs off never scrolls. */
+.popover {
+  position: fixed; z-index: 70; background: #fff;
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+  padding: 8px; font-size: 13px;
+  min-width: 190px; max-width: 300px; max-height: 60vh; overflow-y: auto;
+}
+.pop-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); padding: 4px 4px 6px;
+}
+.pop-title + .pop-title, .pop-check + .pop-title, .rank-row + .pop-title { padding-top: 10px; }
+.pop-list { display: flex; flex-direction: column; }
+.pop-item {
+  font: inherit; text-align: left; border: none; background: none; cursor: pointer;
+  padding: 5px 8px; border-radius: 4px; color: var(--text);
+}
+.pop-item:hover { background: var(--bg-hover); }
+.pop-check { display: flex; align-items: center; gap: 7px; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+.pop-check:hover { background: var(--bg-hover); }
+.pop-check input { width: auto; margin: 0; }
+.pop-field { display: flex; align-items: center; gap: 8px; padding: 3px 8px; }
+.pop-field span { color: var(--muted); width: 42px; flex: none; }
+.pop-field input {
+  font: inherit; flex: 1; min-width: 0; padding: 3px 6px;
+  border: 1px solid var(--border-strong); border-radius: 5px;
+}
+
+/* -------------------------------------------------------------- rank panel */
+
+.rank-panel { min-width: 250px; }
+.rank-row { display: flex; align-items: center; gap: 8px; padding: 2px 8px; }
+.rank-label { color: var(--muted); width: 62px; flex: none; }
+.rank-row input[type="range"] { flex: 1; min-width: 0; }
+.rank-spacer { flex: 1; }
+.rank-value { width: 26px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ---------------------------------------------------------------- table */
 
@@ -128,6 +189,19 @@ tr.inactive td.title-cell a { text-decoration: line-through; }
 
 .thumb { width: 48px; height: 36px; object-fit: cover; border-radius: 4px; display: block; }
 .thumb-empty { width: 48px; height: 36px; border-radius: 4px; background: #f0f0f0; }
+
+/* Rank score: the number does the reading, the bar does the scanning. */
+th.score-head { color: var(--text); cursor: default; }
+td.score-cell { white-space: nowrap; width: 62px; cursor: pointer; }
+.score-num {
+  font-weight: 600; font-variant-numeric: tabular-nums;
+  display: inline-block; width: 22px; text-align: right;
+}
+.score-bar {
+  display: inline-block; width: 30px; height: 5px; margin-left: 6px;
+  border-radius: 3px; background: #ececec; overflow: hidden; vertical-align: middle;
+}
+.score-fill { display: block; height: 100%; background: var(--blue); border-radius: 3px; }
 
 .badge {
   font-size: 11px; padding: 2px 7px; border-radius: 4px;
@@ -177,6 +251,9 @@ td.mot-cell { white-space: nowrap; }
 .mini-btn:hover:not(:disabled) { background: #fff; color: var(--text); border-color: var(--muted); }
 .mini-btn:disabled { opacity: 0.6; cursor: default; }
 
+/* Reject column: "Un-reject" is the wider of the two labels — never wrap it. */
+td.reject-cell { white-space: nowrap; }
+
 /* ---------------------------------------------------------------- drawer */
 
 .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.12); z-index: 45; }
@@ -211,7 +288,12 @@ td.mot-cell { white-space: nowrap; }
   font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--muted); margin: 18px 0 8px; padding-top: 12px; border-top: 1px solid var(--border);
 }
-.drawer-actions { display: flex; gap: 8px; margin-top: 18px; }
+/* Row actions sit at the top of the drawer body, so the rule divides them from the
+   content below rather than the content above. */
+.drawer-actions {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border);
+}
 .save-hint { font-size: 12px; color: var(--muted); height: 14px; }
 
 /* ------------------------------------------------------- drawer MOT panel */

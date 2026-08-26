@@ -34,6 +34,11 @@ EBAY_VARS = ("EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET")
 # state is enough here — one user, one scrape at a time.
 PROGRESS = {"running": False, "processed": 0, "label": None, "started_at": None}
 
+# Same idea for the whole-table liveness sweep: one detail call per listing, so
+# the UI polls this while it runs. Separate from PROGRESS so a sweep and a scrape
+# never overwrite each other's counters.
+CHECK_PROGRESS = {"running": False, "processed": 0, "total": 0, "started_at": None}
+
 BASES = {
     "PRODUCTION": "https://api.ebay.com",
     "SANDBOX": "https://api.sandbox.ebay.com",
@@ -576,6 +581,65 @@ def check_item(external_id: str) -> dict:
     if _ended(item):
         return {"active": False, "price_gbp": _price_gbp(item), "message": "This listing has ended"}
     return {"active": True, "price_gbp": _price_gbp(item), "message": "Still live on eBay"}
+
+
+def apply_check(conn, listing_id: int, result: dict) -> None:
+    """Write one check's outcome onto a listing row (does not commit)."""
+    fields = {
+        "is_active": 1 if result["active"] else 0,
+        "last_seen_at": db.now_iso(),
+        "updated_at": db.now_iso(),
+    }
+    if result["price_gbp"] is not None:
+        fields["price_gbp"] = result["price_gbp"]
+    assignments = ", ".join(f"{f} = ?" for f in fields)
+    conn.execute(f"UPDATE listings SET {assignments} WHERE id = ?", [*fields.values(), listing_id])
+
+
+def check_all(conn) -> dict:
+    """Re-check every eBay listing currently marked active (spec §5.4, in bulk).
+
+    Ones already flagged inactive are left alone — they don't come back, and
+    re-fetching them would burn a call each on every sweep. Returns
+    {checked, ended, unchanged, errors}.
+    """
+    if not configured():
+        raise EbayError(503, "eBay is not configured yet — add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to .env")
+    if CHECK_PROGRESS["running"]:
+        raise EbayError(409, "A liveness check is already running")
+
+    rows = conn.execute(
+        "SELECT id, title, external_id FROM listings "
+        "WHERE source = 'ebay' AND external_id IS NOT NULL AND external_id != '' "
+        "AND is_active = 1 ORDER BY id"
+    ).fetchall()
+
+    summary = {"checked": 0, "ended": 0, "unchanged": 0, "errors": []}
+    CHECK_PROGRESS.update(running=True, processed=0, total=len(rows), started_at=time.time())
+    try:
+        for row in rows:
+            try:
+                result = check_item(row["external_id"])
+            except EbayError as err:
+                summary["errors"].append(f"{row['title'] or row['external_id']}: {err.message}")
+                continue
+            except Exception as err:  # one bad listing must not end the sweep
+                summary["errors"].append(f"{row['title'] or row['external_id']}: could not check ({err})")
+                continue
+            else:
+                apply_check(conn, row["id"], result)
+                # Commit per listing so an interruption keeps what it already learned.
+                conn.commit()
+                summary["checked"] += 1
+                if result["active"]:
+                    summary["unchanged"] += 1
+                else:
+                    summary["ended"] += 1
+            finally:
+                CHECK_PROGRESS["processed"] += 1
+        return summary
+    finally:
+        CHECK_PROGRESS["running"] = False
 
 
 # ---------------------------------------------------------------- import (amendment §E)

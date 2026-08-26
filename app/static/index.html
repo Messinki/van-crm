@@ -12,6 +12,7 @@
   <h1>VanCRM</h1>
   <div class="topbar-actions">
     <button id="btn-scrape" class="btn primary">Scrape eBay</button>
+    <button id="btn-check-all" class="btn" title="Re-check every active eBay listing — marks the ones that have ended inactive and refreshes prices">Check live</button>
     <div class="dropdown">
       <button id="btn-add" class="btn">Add listing ▾</button>
       <div id="add-menu" class="dropdown-menu hidden">
@@ -26,15 +27,13 @@
 
 <div class="filters">
   <div id="status-chips" class="chips"></div>
-  <select id="filter-source">
-    <option value="">All sources</option>
-    <option value="ebay">eBay</option>
-    <option value="facebook">Facebook</option>
-    <option value="manual">Manual</option>
-  </select>
+  <!-- One chip per active property filter, built by renderFilterBar(); the popovers
+       both buttons open are positioned against their data-pop anchor. -->
+  <div id="prop-filters" class="chips"></div>
+  <button id="btn-add-filter" class="chip add-filter" data-pop="add-filter">+ Filter</button>
   <input id="filter-q" type="search" placeholder="Search title…">
-  <input id="filter-max-price" type="number" placeholder="Max £" min="0" step="100">
   <label class="inline"><input id="filter-inactive" type="checkbox"> Show inactive</label>
+  <button id="btn-rank" class="btn rank-btn" data-pop="rank" title="Score and sort by price, mileage and length">Rank</button>
   <span id="row-count" class="muted"></span>
 </div>
 

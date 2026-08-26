@@ -167,10 +167,20 @@ FIELD_SPECS = [
         "sortable": False,
         "placeholder": "Paste the listing text here, plus anything you want to remember",
     },
+    {
+        # Not a column: a one-click Reject / Un-reject that writes `status`. It is
+        # exactly what picking "Rejected" in the drawer's Status select does, put
+        # where the scanning happens — rejecting junk from a scrape shouldn't cost
+        # a drawer open. Table only; the drawer gets its own button in the actions
+        # row rather than a registry field, alongside Delete.
+        "key": "reject", "label": "", "type": "text", "editable": False,
+        "in_table": True, "in_drawer": False, "in_form": False, "cell": "reject",
+        "sortable": False,
+    },
 ]
 
 # Registry keys that are not listings columns — computed for display only.
-DERIVED_KEYS = frozenset({"thumb", "mot"})
+DERIVED_KEYS = frozenset({"thumb", "mot", "reject"})
 
 # Listings columns deliberately kept out of the UI: identity, bookkeeping, the
 # JSON custom bag (it has its own /api/properties machinery), and the dead
@@ -851,22 +861,29 @@ def check_listing(listing_id: int):
         except ebay.EbayError as err:
             raise HTTPException(err.status, err.message)
 
-        fields = {
-            "is_active": 1 if result["active"] else 0,
-            "last_seen_at": db.now_iso(),
-            "updated_at": db.now_iso(),
-        }
-        if result["price_gbp"] is not None:
-            fields["price_gbp"] = result["price_gbp"]
-        assignments = ", ".join(f"{f} = ?" for f in fields)
-        conn.execute(
-            f"UPDATE listings SET {assignments} WHERE id = ?", [*fields.values(), listing_id]
-        )
+        ebay.apply_check(conn, listing_id, result)
         return {
             "active": result["active"],
             "message": result["message"],
             "listing": attach_mot(conn, [get_listing_or_404(conn, listing_id)])[0],
         }
+
+
+@app.post("/api/listings/check-all")
+def check_all_listings():
+    """Spec §5.4 in bulk: re-check every eBay listing still marked active."""
+    require_ebay()
+    with db.connect() as conn:
+        try:
+            return ebay.check_all(conn)
+        except ebay.EbayError as err:
+            raise HTTPException(err.status, err.message)
+
+
+@app.get("/api/listings/check-all/progress")
+def check_all_progress():
+    """Polled by the UI while a sweep is in flight — one eBay call per listing."""
+    return ebay.CHECK_PROGRESS
 
 
 # ---------------------------------------------------------------- static

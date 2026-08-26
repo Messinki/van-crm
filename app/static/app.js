@@ -10,7 +10,11 @@ const state = {
   properties: [],
   searches: [],
   schema: { fields: [], statuses: [], sources: [] },
-  filters: { statuses: new Set(), source: '', q: '', maxPrice: null, showInactive: false },
+  // `props` holds the per-property filters, keyed the way columns() keys columns
+  // (a bare field key, or `custom:<slug>`). Everything else in here is a control
+  // of its own in the filter bar.
+  filters: { statuses: new Set(), q: '', showInactive: false, props: {} },
+  rank: { enabled: false, weights: { price: 40, mileage: 30, length: 30 }, lengthOrder: ['L3', 'L2', 'L4', 'L1'] },
   sort: { key: 'id', dir: 'desc' },
   selectedId: null,
 };
@@ -68,6 +72,35 @@ function el(tag, attrs = {}, ...children) {
     node.append(child.nodeType ? child : document.createTextNode(String(child)));
   }
   return node;
+}
+
+/**
+ * Open a URL in a separate browser window rather than a tab. Passing any window
+ * feature at all is what makes the browser choose a popup window over a tab, so
+ * the size is load-bearing, not cosmetic — `window.open(url, '_blank')` with no
+ * features lands in a tab. Sized to most of the screen so listings stay readable.
+ */
+function openWindow(url) {
+  const width = Math.min(1280, Math.round(screen.availWidth * 0.8));
+  const height = Math.min(1000, Math.round(screen.availHeight * 0.9));
+  const left = Math.round(screen.availLeft + (screen.availWidth - width) / 2);
+  const top = Math.round(screen.availTop + (screen.availHeight - height) / 2);
+  window.open(url, '_blank', `noopener,popup=1,width=${width},height=${height},left=${left},top=${top}`);
+}
+
+/** Anchor attrs that open the link in a new window (with middle-click/⌘-click intact). */
+function windowLink(url) {
+  return {
+    href: url,
+    target: '_blank',
+    rel: 'noopener',
+    onclick: (ev) => {
+      // Let modified clicks through so the browser's own "new tab" gestures still work.
+      if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return;
+      ev.preventDefault();
+      openWindow(url);
+    },
+  };
 }
 
 function toast(message, kind) {
@@ -177,21 +210,39 @@ function columns() {
   const custom = state.properties.map((p) => ({
     key: 'custom:' + p.key, label: p.label, property: p, numeric: p.type === 'number',
   }));
-  return [...base, ...custom];
+  const cols = [...base, ...custom];
+  if (rankActive()) {
+    // Second column, right after the thumb — the score is the reason the rows are
+    // in the order they are, so it reads before anything else.
+    const at = cols.findIndex((c) => c.cell === 'thumb') + 1;
+    cols.splice(at, 0, { key: SCORE_KEY, label: 'Score', cell: 'score', numeric: true, sortable: false });
+  }
+  return cols;
 }
 
 /* ----------------------------------------------------------------- filters */
 
 function visibleListings() {
   const f = state.filters;
+  const props = activeFilters();
   let rows = state.listings.filter((l) => {
     if (!f.showInactive && !l.is_active) return false;
-    if (f.statuses.size && !f.statuses.has(l.status)) return false;
-    if (f.source && l.source !== f.source) return false;
+    // With no chip picked, rejected rows are out of the way entirely; picking the
+    // Rejected chip is how you get one back to un-reject it.
+    if (f.statuses.size ? !f.statuses.has(l.status) : l.status === 'rejected') return false;
     if (f.q && !(l.title || '').toLowerCase().includes(f.q.toLowerCase())) return false;
-    if (f.maxPrice !== null && l.price_gbp !== null && l.price_gbp > f.maxPrice) return false;
-    return true;
+    return props.every(({ prop, cond }) => matchesCondition(l, prop, cond));
   });
+
+  // Scores are relative to what's on screen, so they're computed after filtering
+  // and cached for the cells that render them in this same pass.
+  scores = rankActive() ? rankScores(rows) : null;
+  if (scores) {
+    rows.sort((a, b) => (scores.get(b.id).total - scores.get(a.id).total)
+      || ((a.price_gbp ?? Infinity) - (b.price_gbp ?? Infinity))
+      || (b.id - a.id));
+    return rows;
+  }
 
   const { key, dir } = state.sort;
   const col = columns().find((c) => c.key === key);
@@ -219,16 +270,244 @@ function sortValue(listing, key) {
   return value === undefined || value === '' ? null : value;
 }
 
+/* ------------------------------------------------------- property filters */
+
+// Registry fields that never get a property filter: the derived display-only
+// columns, the two that already own a control in the bar (status has the chips,
+// title has the search box), and the ones there is nothing useful to filter on.
+const UNFILTERABLE = new Set(['thumb', 'mot', 'reject', 'status', 'image_urls', 'notes', 'url', 'title']);
+
+// A set filter's stand-in for "this listing has no value here". Not a value any
+// field could hold, so it can share the selected-values list with real ones.
+const EMPTY_TOKEN = '\u0000empty';
+
+/** Every filterable property, registry fields first then the custom ones. `key`
+ *  follows the columns() convention: a bare field key, or `custom:<slug>`.
+ *  `spec` is the registry entry where there is one — a custom property has no
+ *  spec, so its select options and its labels have to come off the prop itself. */
+function filterableProps() {
+  const fields = state.schema.fields
+    .filter((f) => !UNFILTERABLE.has(f.key))
+    .map((f) => ({ key: f.key, label: f.label, type: f.type, options: f.options || [], spec: f }));
+  const custom = state.properties.map((p) => ({
+    key: 'custom:' + p.key, label: p.label, type: p.type, options: p.options || [], spec: null,
+  }));
+  return [...fields, ...custom];
+}
+
+/** The active filters, paired with their property. A filter whose property has
+ *  since been deleted is skipped rather than treated as unmatchable. */
+function activeFilters() {
+  const byKey = new Map(filterableProps().map((p) => [p.key, p]));
+  return Object.entries(state.filters.props)
+    .map(([key, cond]) => ({ prop: byKey.get(key), cond }))
+    .filter((f) => f.prop);
+}
+
+/** Which editor a property's filter uses. Three of these share a stored shape —
+ *  see STORED_KIND — because a date range is still a range. */
+function editorKind(prop) {
+  if (NUMERIC_TYPES.includes(prop.type)) return 'range';
+  if (prop.type === 'date') return 'date';
+  if (prop.type === 'select') return 'select';
+  if (prop.type === 'checkbox') return 'bool';
+  return 'text';
+}
+
+const STORED_KIND = { range: 'range', date: 'range', select: 'set', text: 'set', bool: 'bool' };
+
+function blankCondition(kind) {
+  if (kind === 'range') return { kind: 'range', min: null, max: null };
+  if (kind === 'set') return { kind: 'set', values: [] };
+  return { kind: 'bool', value: true };
+}
+
+function boundValue(raw, numeric) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (!numeric) return String(raw);
+  const n = Number(raw);
+  return Number.isNaN(n) ? null : n;
+}
+
+function matchesCondition(listing, prop, cond) {
+  const value = sortValue(listing, prop.key);   // null for missing or blank
+
+  if (cond.kind === 'range') {
+    const numeric = NUMERIC_TYPES.includes(prop.type);
+    const lo = boundValue(cond.min, numeric), hi = boundValue(cond.max, numeric);
+    if (lo === null && hi === null) return true;   // an unfilled range filters nothing
+    // Notion's rule: once a bound is set, a listing with no value can't satisfy it.
+    if (value === null) return false;
+    const v = numeric ? Number(value) : String(value);
+    if (numeric && Number.isNaN(v)) return false;
+    if (lo !== null && v < lo) return false;
+    if (hi !== null && v > hi) return false;
+    return true;
+  }
+
+  if (cond.kind === 'set') {
+    if (!cond.values.length) return true;
+    return cond.values.includes(value === null ? EMPTY_TOKEN : String(value));
+  }
+
+  return (value === true) === (cond.value === true);
+}
+
+/** The values a text property actually holds across the listings — same spirit as
+ *  refreshSuggestions(), rebuilt each time an editor opens. */
+function distinctValues(prop) {
+  const seen = new Set();
+  let hasEmpty = false;
+  for (const listing of state.listings) {
+    const value = sortValue(listing, prop.key);
+    if (value === null) hasEmpty = true;
+    else seen.add(String(value));
+  }
+  const values = Array.from(seen)
+    .sort((a, b) => a.localeCompare(b, 'en-GB', { numeric: true, sensitivity: 'base' }));
+  return { values, hasEmpty };
+}
+
+/* -------------------------------------------------------------- rank scores */
+
+const SCORE_KEY = '__score';
+const RANK_FACTORS = ['price', 'mileage', 'length'];
+
+// Scores for the rows currently on screen, keyed by listing id. Set by
+// visibleListings() (it needs them to sort) and read by the Score cell in the
+// same render pass — never trusted across passes.
+let scores = null;
+
+/** Rank mode only drives the order while it's on and something carries weight. */
+function rankActive() {
+  return state.rank.enabled && RANK_FACTORS.some((f) => state.rank.weights[f] > 0);
+}
+
+/** Min–max normaliser over `rows` for a numeric field, inverted so less is better.
+ *  A row with no value scores a neutral 0.5 rather than winning or losing by default. */
+function inverseNormaliser(rows, key) {
+  const nums = [];
+  for (const row of rows) {
+    const v = Number(sortValue(row, key));
+    if (Number.isFinite(v)) nums.push(v);
+  }
+  const min = Math.min(...nums), max = Math.max(...nums);
+  return (listing) => {
+    const v = Number(sortValue(listing, key));
+    if (!Number.isFinite(v)) return 0.5;
+    if (!nums.length || max === min) return 1;
+    return 1 - (v - min) / (max - min);
+  };
+}
+
+function lengthScore(listing) {
+  const order = state.rank.lengthOrder;
+  const index = order.indexOf(listing.length_code);
+  if (index < 0) return 0.5;
+  return order.length < 2 ? 1 : 1 - index / (order.length - 1);
+}
+
+function rankScores(rows) {
+  const w = state.rank.weights;
+  const sum = RANK_FACTORS.reduce((acc, f) => acc + w[f], 0);
+  const price = inverseNormaliser(rows, 'price_gbp');
+  const mileage = inverseNormaliser(rows, 'mileage');
+  const out = new Map();
+  for (const row of rows) {
+    const parts = { price: price(row), mileage: mileage(row), length: lengthScore(row) };
+    parts.total = RANK_FACTORS.reduce((acc, f) => acc + w[f] * parts[f], 0) / sum;
+    out.set(row.id, parts);
+  }
+  return out;
+}
+
+/* -------------------------------------------------------------- persistence */
+
+const LS_FILTERS = 'vancrm.filters';
+const LS_RANK = 'vancrm.rank';
+
+// Both of these are read back from a browser that may hold a stale shape — an old
+// version's keys, a property that's since been deleted, hand-edited nonsense. Every
+// restore validates and silently drops what it can't use; none of it is worth a toast.
+function readStore(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch { return null; }
+}
+
+function writeStore(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode, full quota */ }
+}
+
+function saveFilters() {
+  writeStore(LS_FILTERS, { props: state.filters.props });
+}
+
+/** Restore the property filters. Must run after the schema and the custom
+ *  properties are loaded — a filter is only kept if its property still exists
+ *  and still has the type the stored condition was written for. */
+function restoreFilters() {
+  const stored = readStore(LS_FILTERS);
+  const props = stored && stored.props;
+  if (!props || typeof props !== 'object') return;
+  const byKey = new Map(filterableProps().map((p) => [p.key, p]));
+  for (const [key, cond] of Object.entries(props)) {
+    const prop = byKey.get(key);
+    if (!prop || !cond || typeof cond !== 'object') continue;
+    if (cond.kind !== STORED_KIND[editorKind(prop)]) continue;
+    if (cond.kind === 'range') {
+      state.filters.props[key] = { kind: 'range', min: cond.min ?? null, max: cond.max ?? null };
+    } else if (cond.kind === 'set') {
+      if (!Array.isArray(cond.values)) continue;
+      state.filters.props[key] = { kind: 'set', values: cond.values.filter((v) => typeof v === 'string') };
+    } else {
+      state.filters.props[key] = { kind: 'bool', value: cond.value === true };
+    }
+  }
+}
+
+function saveRank() {
+  writeStore(LS_RANK, state.rank);
+}
+
+function restoreRank() {
+  const stored = readStore(LS_RANK);
+  if (!stored) return;
+  state.rank.enabled = stored.enabled === true;
+  const weights = stored.weights;
+  if (weights && typeof weights === 'object') {
+    for (const factor of RANK_FACTORS) {
+      const value = Number(weights[factor]);
+      if (Number.isFinite(value)) state.rank.weights[factor] = Math.min(100, Math.max(0, Math.round(value)));
+    }
+  }
+  // Only a genuine permutation of the codes is usable — a partial list would drop
+  // codes out of the scoring altogether.
+  const order = stored.lengthOrder;
+  const codes = state.rank.lengthOrder;
+  if (Array.isArray(order) && order.length === codes.length && codes.every((c) => order.includes(c))) {
+    state.rank.lengthOrder = order.slice();
+  }
+}
+
 /* ------------------------------------------------------------ table render */
 
 function renderHeader() {
   const row = $('#header-row');
   row.replaceChildren(...columns().map((col) => {
-    const active = state.sort.key === col.key;
-    const arrow = active ? (state.sort.dir === 'asc' ? ' ↑' : ' ↓') : '';
+    // In rank mode the score owns the order, so it carries the arrow instead of
+    // whichever column state.sort still remembers.
+    const active = col.key === SCORE_KEY ? true : !rankActive() && state.sort.key === col.key;
+    const arrow = !active ? '' : col.key === SCORE_KEY ? ' ↓' : (state.sort.dir === 'asc' ? ' ↑' : ' ↓');
     return el('th', {
+      class: col.key === SCORE_KEY ? 'score-head' : null,
       text: col.label + arrow,
       onclick: col.sortable === false ? null : () => {
+        // Rank mode and a column sort can't both drive the order — picking a column
+        // hands it back to the column, and the Rank button takes it again.
+        if (state.rank.enabled) { state.rank.enabled = false; saveRank(); }
         if (state.sort.key === col.key) state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
         else state.sort = { key: col.key, dir: 'asc' };
         render();
@@ -270,6 +549,9 @@ function renderCell(listing, col) {
   const plain = (text) => el('td', { class: 'val' + (col.numeric ? ' num' : ''), text });
 
   switch (col.cell) {
+    case 'score':
+      return scoreCell(listing);
+
     case 'thumb': {
       const src = listing.image_urls[0];
       return el('td', { class: 'open-cell', title: 'Open details' },
@@ -279,7 +561,7 @@ function renderCell(listing, col) {
     case 'title_link': {
       const td = el('td', { class: 'title-cell' });
       td.append(listing.url
-        ? el('a', { href: listing.url, target: '_blank', rel: 'noopener', text: listing.title, title: 'Open the original listing' })
+        ? el('a', { ...windowLink(listing.url), text: listing.title, title: 'Open the original listing' })
         : document.createTextNode(listing.title));
       return td;
     }
@@ -302,6 +584,9 @@ function renderCell(listing, col) {
 
     case 'mot':
       return motCell(listing);
+
+    case 'reject':
+      return el('td', { class: 'reject-cell' }, rejectButton(listing, 'mini-btn'));
 
     case 'mot_due': {
       // Stored as an ISO date; shown short, and flagged once it's in the past.
@@ -343,6 +628,19 @@ function renderCell(listing, col) {
     default:
       return plain(value === null || value === undefined ? '' : String(value));
   }
+}
+
+/** The rank score, 0–100, with the three factors behind it in the tooltip. */
+function scoreCell(listing) {
+  const parts = scores && scores.get(listing.id);
+  if (!parts) return el('td', { class: 'val num' });
+  const pct = Math.round(parts.total * 100);
+  return el('td', {
+    class: 'score-cell',
+    title: RANK_FACTORS.map((f) => `${f} ${parts[f].toFixed(2)}`).join(' · '),
+  },
+    el('span', { class: 'score-num', text: String(pct) }),
+    el('span', { class: 'score-bar' }, el('span', { class: 'score-fill', style: 'width:' + pct + '%' })));
 }
 
 function customCell(listing, col) {
@@ -594,6 +892,51 @@ async function saveField(listing, field, value) {
   return updated;
 }
 
+/* ----------------------------------------------------------------- reject */
+
+/** Flip a listing between 'rejected' and 'new'.
+ *
+ *  Un-rejecting lands on 'new' rather than whatever the status was before: the
+ *  previous value isn't stored anywhere, and 'new' is the one status that means
+ *  "not judged yet". Nothing is deleted either way — rejecting only drops the row
+ *  out of the default view; the Rejected status chip brings it back, still dimmed,
+ *  with the button that put it there ready to take it back out. */
+async function setRejected(listing, rejected) {
+  await saveField(listing, 'status', rejected ? 'rejected' : 'new');
+  renderRows();
+  if (state.selectedId === listing.id) renderDrawer();
+}
+
+/** The Reject / Un-reject toggle, shared by the table cell and the drawer's
+ *  actions row — `base` is the button class each surface uses. The click is
+ *  stopped from bubbling so the table's row handler doesn't open the drawer
+ *  behind it (same trick as the title link and the MOT Check button).
+ *
+ *  On success the re-render replaces this button, so only the failure path
+ *  re-enables it. Rejecting makes the row vanish, which reads like a delete, so
+ *  the toast says where it went. */
+function rejectButton(listing, base) {
+  const rejected = listing.status === 'rejected';
+  const label = rejected ? 'Un-reject' : 'Reject';
+  const btn = el('button', {
+    class: base,
+    text: label,
+    title: rejected ? 'Put this listing back to New' : 'Mark this listing rejected',
+    onclick: async (event) => {
+      event.stopPropagation();
+      btn.disabled = true;
+      try {
+        await setRejected(listing, !rejected);
+        if (!rejected) toast('Rejected — select the Rejected chip to see it again');
+      } catch (err) {
+        toast(errorMessage(err), 'error');
+        btn.disabled = false;
+      }
+    },
+  });
+  return btn;
+}
+
 /* ----------------------------------------------- shared field-input helpers */
 
 const NUMERIC_TYPES = ['number', 'integer', 'money'];
@@ -763,41 +1106,11 @@ function sectionFields(name) {
     f.in_drawer !== false && (f.section || 'Details') === name);
 }
 
-function renderDrawer() {
-  const listing = state.listings.find((l) => l.id === state.selectedId);
-  if (!listing) return closeDrawer();
-
-  refreshSuggestions();
-  $('#drawer-title').textContent = listing.title;
-  const body = $('#drawer-body');
-  const parts = [];
-
-  if (listing.image_urls.length) {
-    parts.push(el('div', { class: 'image-strip' }, listing.image_urls.map((src) =>
-      el('img', { src, alt: '', onclick: () => window.open(src, '_blank', 'noopener') }))));
-  }
-
-  if (listing.url) {
-    parts.push(el('p', {}, el('a', { href: listing.url, target: '_blank', rel: 'noopener', text: 'Open original listing ↗' })));
-  }
-
-  for (const name of DRAWER_SECTIONS) {
-    if (name === 'Custom') {
-      if (!state.properties.length) continue;
-      parts.push(el('div', { class: 'section-title', text: 'Custom' }));
-      for (const prop of state.properties) parts.push(drawerCustomField(listing, prop));
-      continue;
-    }
-    const specs = sectionFields(name);
-    if (!specs.length) continue;
-    parts.push(el('div', { class: 'section-title', text: name }));
-    for (const spec of specs) parts.push(drawerFieldFor(listing, spec));
-  }
-
-  // The DVSA report hangs off the end of the MOT section.
-  parts.push(motPanel(listing));
-
+/** The drawer's row actions — whole-listing operations, as opposed to the field
+ *  editors below them. Check listing live is eBay-only; the other two always show. */
+function drawerActions(listing) {
   const actions = el('div', { class: 'drawer-actions' });
+
   if (listing.source === 'ebay') {
     const liveBtn = el('button', {
       class: 'btn', text: 'Check listing live',
@@ -821,6 +1134,11 @@ function renderDrawer() {
     });
     actions.append(liveBtn);
   }
+
+  // Same one-click reject as the table column. The Status select below can still
+  // set any status; this is the shortcut for the one that gets used most.
+  actions.append(rejectButton(listing, 'btn'));
+
   actions.append(el('button', {
     class: 'btn danger', text: 'Delete',
     onclick: async () => {
@@ -834,7 +1152,46 @@ function renderDrawer() {
       } catch (err) { toast(errorMessage(err), 'error'); }
     },
   }));
-  parts.push(actions);
+
+  return actions;
+}
+
+function renderDrawer() {
+  const listing = state.listings.find((l) => l.id === state.selectedId);
+  if (!listing) return closeDrawer();
+
+  refreshSuggestions();
+  $('#drawer-title').textContent = listing.title;
+  const body = $('#drawer-body');
+  // Row actions sit at the very top, under the title: they are what the drawer is
+  // opened for as often as the fields are, and at the bottom they were a full
+  // scroll past the MOT report away.
+  const parts = [drawerActions(listing)];
+
+  if (listing.image_urls.length) {
+    parts.push(el('div', { class: 'image-strip' }, listing.image_urls.map((src) =>
+      el('img', { src, alt: '', onclick: () => openWindow(src) }))));
+  }
+
+  if (listing.url) {
+    parts.push(el('p', {}, el('a', { ...windowLink(listing.url), text: 'Open original listing ↗' })));
+  }
+
+  for (const name of DRAWER_SECTIONS) {
+    if (name === 'Custom') {
+      if (!state.properties.length) continue;
+      parts.push(el('div', { class: 'section-title', text: 'Custom' }));
+      for (const prop of state.properties) parts.push(drawerCustomField(listing, prop));
+      continue;
+    }
+    const specs = sectionFields(name);
+    if (!specs.length) continue;
+    parts.push(el('div', { class: 'section-title', text: name }));
+    for (const spec of specs) parts.push(drawerFieldFor(listing, spec));
+  }
+
+  // The DVSA report hangs off the end of the MOT section.
+  parts.push(motPanel(listing));
 
   body.replaceChildren(...parts);
 }
@@ -948,8 +1305,11 @@ function setupModals() {
   $$('.modal').forEach((modal) => modal.addEventListener('click', (e) => {
     if (e.target === modal) closeAllModals();
   }));
+  // One Escape handler for every layer, innermost first — a popover must close on
+  // its own without also taking the drawer or a modal with it.
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (popover) { closePopover(); return; }
     if (!$$('.modal:not(.hidden)').length) { if (state.selectedId) closeDrawer(); return; }
     closeAllModals();
   });
@@ -1205,6 +1565,264 @@ function setupColumnsForm() {
   });
 }
 
+/* --------------------------------------------------------------- popovers */
+
+// One popover at a time, shared by the + Filter menu, the per-property editors and
+// the rank panel. The anchor is held as a data-pop key rather than a node: every
+// keystroke in an editor re-renders the filter bar, which replaces the chip the
+// popover is hanging off, and a held node would leave it pinned to a detached one.
+let popover = null;   // { node, key }
+
+function popAnchor(key) {
+  return $$('[data-pop]').find((node) => node.dataset.pop === key) || null;
+}
+
+function closePopover() {
+  if (!popover) return;
+  popover.node.remove();
+  popover = null;
+}
+
+function showPopover(key, className, build) {
+  closePopover();
+  const node = el('div', { class: 'popover ' + className }, build());
+  document.body.append(node);
+  popover = { node, key };
+  positionPopover();
+}
+
+/** Clicking the thing a popover is already open on closes it again. */
+function togglePopover(key, className, build) {
+  if (popover && popover.key === key) closePopover();
+  else showPopover(key, className, build);
+}
+
+/** Re-pin the open popover under its anchor. Called after every filter-bar render;
+ *  if the anchor has gone (its filter was removed) the popover goes with it. */
+function positionPopover() {
+  if (!popover) return;
+  const anchor = popAnchor(popover.key);
+  if (!anchor) return closePopover();
+  const box = anchor.getBoundingClientRect();
+  const width = popover.node.offsetWidth;
+  popover.node.style.top = Math.round(box.bottom + 5) + 'px';
+  popover.node.style.left = Math.round(Math.max(8, Math.min(box.left, window.innerWidth - width - 8))) + 'px';
+}
+
+function setupPopovers() {
+  document.addEventListener('click', (event) => {
+    if (!popover) return;
+    if (popover.node.contains(event.target)) return;
+    // A control inside a popover that rebuilds it (picking a property, reordering
+    // the L-codes) leaves its own click target detached — that isn't an outside click.
+    if (!event.target.isConnected) return;
+    const anchor = popAnchor(popover.key);
+    if (anchor && anchor.contains(event.target)) return;
+    closePopover();
+  });
+  window.addEventListener('resize', positionPopover);
+}
+
+/* ------------------------------------------------------------- filter bar */
+
+/** A property filter's condition in a few characters, for its chip. */
+function conditionSummary(prop, cond) {
+  if (cond.kind === 'bool') return cond.value ? 'Checked' : 'Unchecked';
+
+  if (cond.kind === 'set') {
+    if (!cond.values.length) return 'any';
+    const labels = cond.values.map((v) => v === EMPTY_TOKEN ? '(empty)' : specLabel(prop.spec, v));
+    return labels.length <= 3 ? labels.join(', ')
+      : labels.slice(0, 2).join(', ') + ' +' + (labels.length - 2);
+  }
+
+  const fmt = (v) => prop.type === 'date' ? formatDate(v)
+    : prop.type === 'money' ? money(v)
+    : prop.spec && prop.spec.grouped === false ? String(v)
+    : number(v);
+  const lo = cond.min ?? '', hi = cond.max ?? '';
+  if (lo !== '' && hi !== '') return fmt(lo) + '–' + fmt(hi);
+  if (lo !== '') return '≥ ' + fmt(lo);
+  if (hi !== '') return '≤ ' + fmt(hi);
+  return 'any';
+}
+
+function removeFilter(key) {
+  if (popover && popover.key === 'filter:' + key) closePopover();
+  delete state.filters.props[key];
+  saveFilters();
+  render();
+}
+
+function openFilterEditor(prop) {
+  const key = 'filter:' + prop.key;
+  togglePopover(key, 'filter-editor', () => {
+    // The value lists are rebuilt from the current listings every time this opens.
+    const cond = state.filters.props[prop.key];
+    return [el('div', { class: 'pop-title', text: prop.label }), ...filterEditor(prop, cond)];
+  });
+}
+
+function filterEditor(prop, cond) {
+  const apply = (next) => {
+    state.filters.props[prop.key] = next;
+    saveFilters();
+    render();
+  };
+  switch (editorKind(prop)) {
+    case 'range': return rangeEditor(prop, cond, apply, 'number');
+    case 'date': return rangeEditor(prop, cond, apply, 'date');
+    case 'bool': return boolEditor(prop, cond, apply);
+    case 'select': return setEditor(cond, apply, [
+      ...prop.options.map((o) => ({ value: o, label: specLabel(prop.spec, o) })),
+      { value: EMPTY_TOKEN, label: '(empty)', muted: true },
+    ]);
+    default: {
+      const { values, hasEmpty } = distinctValues(prop);
+      return setEditor(cond, apply, [
+        ...values.map((v) => ({ value: v, label: v })),
+        ...(hasEmpty ? [{ value: EMPTY_TOKEN, label: '(empty)', muted: true }] : []),
+      ]);
+    }
+  }
+}
+
+function rangeEditor(prop, cond, apply, inputType) {
+  const next = { kind: 'range', min: cond.min ?? null, max: cond.max ?? null };
+  // Every change re-filters and re-renders the whole table, so don't do it per keystroke.
+  const push = debounce(() => apply({ ...next }), 250);
+  const field = (which, label) => el('label', { class: 'pop-field' },
+    el('span', { text: label }),
+    el('input', {
+      type: inputType, value: next[which] ?? '',
+      oninput: (event) => { next[which] = event.target.value === '' ? null : event.target.value; push(); },
+    }));
+  const dates = inputType === 'date';
+  return [field('min', dates ? 'From' : 'Min'), field('max', dates ? 'To' : 'Max')];
+}
+
+function setEditor(cond, apply, options) {
+  const values = new Set(cond.values);
+  if (!options.length) return [el('p', { class: 'hint muted', text: 'No values to pick from yet.' })];
+  return [el('div', { class: 'pop-list' }, options.map((opt) => el('label', { class: 'pop-check' },
+    el('input', {
+      type: 'checkbox', checked: values.has(opt.value),
+      onchange: (event) => {
+        if (event.target.checked) values.add(opt.value);
+        else values.delete(opt.value);
+        apply({ kind: 'set', values: Array.from(values) });
+      },
+    }),
+    el('span', { class: opt.muted ? 'muted' : null, text: opt.label }))))];
+}
+
+function boolEditor(prop, cond, apply) {
+  const name = 'boolfilter';
+  const radio = (value, label) => el('label', { class: 'pop-check' },
+    el('input', {
+      type: 'radio', name, checked: (cond.value === true) === value,
+      onchange: () => apply({ kind: 'bool', value }),
+    }),
+    el('span', { text: label }));
+  return [el('div', { class: 'pop-list' }, radio(true, 'Checked'), radio(false, 'Unchecked'))];
+}
+
+/** The + Filter menu: every filterable property that hasn't got a filter already. */
+function openFilterMenu() {
+  togglePopover('add-filter', 'filter-menu', () => {
+    const taken = new Set(Object.keys(state.filters.props));
+    const choices = filterableProps().filter((prop) => !taken.has(prop.key));
+    if (!choices.length) return [el('p', { class: 'hint muted', text: 'Every property is filtered already.' })];
+    return [el('div', { class: 'pop-list' }, choices.map((prop) => el('button', {
+      class: 'pop-item', text: prop.label || prop.key,
+      onclick: () => {
+        state.filters.props[prop.key] = blankCondition(STORED_KIND[editorKind(prop)]);
+        saveFilters();
+        render();   // the chip the editor anchors to only exists after this
+        openFilterEditor(prop);
+      },
+    })))];
+  });
+}
+
+function renderFilterBar() {
+  const container = $('#prop-filters');
+  container.replaceChildren(...activeFilters().map(({ prop, cond }) => {
+    const chip = el('span', { class: 'filter-chip', dataset: { pop: 'filter:' + prop.key } },
+      el('button', { class: 'filter-chip-body', onclick: () => openFilterEditor(prop) },
+        el('span', { class: 'fc-label', text: prop.label }),
+        el('span', { class: 'fc-value', text: conditionSummary(prop, cond) })),
+      el('button', {
+        class: 'filter-chip-x', text: '✕', title: 'Remove this filter',
+        onclick: () => removeFilter(prop.key),
+      }));
+    return chip;
+  }));
+  $('#btn-rank').classList.toggle('on', state.rank.enabled);
+  positionPopover();
+}
+
+/* ------------------------------------------------------------- rank panel */
+
+const RANK_LABELS = { price: 'Price', mileage: 'Mileage', length: 'Length' };
+
+function openRankPanel() {
+  togglePopover('rank', 'rank-panel', rankPanelContent);
+}
+
+function rankPanelContent() {
+  const parts = [el('label', { class: 'pop-check' },
+    el('input', {
+      type: 'checkbox', checked: state.rank.enabled,
+      onchange: (event) => { state.rank.enabled = event.target.checked; saveRank(); render(); },
+    }),
+    el('span', { text: 'Sort by rank' }))];
+
+  parts.push(el('div', { class: 'pop-title', text: 'Weights' }));
+  for (const factor of RANK_FACTORS) {
+    const value = el('span', { class: 'rank-value', text: String(state.rank.weights[factor]) });
+    parts.push(el('div', { class: 'rank-row' },
+      el('span', { class: 'rank-label', text: RANK_LABELS[factor] }),
+      el('input', {
+        type: 'range', min: 0, max: 100, step: 5, value: state.rank.weights[factor],
+        oninput: (event) => {
+          state.rank.weights[factor] = Number(event.target.value);
+          value.textContent = event.target.value;
+          saveRank();
+          render();
+        },
+      }),
+      value));
+  }
+
+  parts.push(el('div', { class: 'pop-title', text: 'Length, best first' }));
+  const order = state.rank.lengthOrder;
+  order.forEach((code, index) => {
+    parts.push(el('div', { class: 'rank-row' },
+      el('span', { class: 'rank-label', text: `${index + 1}. ${code}` }),
+      el('span', { class: 'rank-spacer' }),
+      el('button', {
+        class: 'icon-btn', text: '↑', title: 'Move up',
+        disabled: index === 0, onclick: () => moveLengthCode(index, -1),
+      }),
+      el('button', {
+        class: 'icon-btn', text: '↓', title: 'Move down',
+        disabled: index === order.length - 1, onclick: () => moveLengthCode(index, 1),
+      })));
+  });
+  return parts;
+}
+
+function moveLengthCode(index, delta) {
+  const target = index + delta;
+  const order = state.rank.lengthOrder;
+  if (target < 0 || target >= order.length) return;
+  [order[index], order[target]] = [order[target], order[index]];
+  saveRank();
+  render();
+  showPopover('rank', 'rank-panel', rankPanelContent);   // renumbered, so rebuild it
+}
+
 /* ------------------------------------------------------------------ chips */
 
 function renderChips() {
@@ -1224,6 +1842,7 @@ function renderChips() {
 
 function render() {
   renderChips();
+  renderFilterBar();
   renderHeader();
   renderRows();
   if (state.selectedId) renderDrawer();
@@ -1269,6 +1888,38 @@ function setupTopbar() {
     }
   });
 
+  $('#btn-check-all').addEventListener('click', async (e) => {
+    const btn = e.target;
+    if (!confirm('Re-check every active eBay listing? This makes one eBay call per listing.')) return;
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+    // One eBay call per listing, so this is the scrape button's polling trick again.
+    const poll = setInterval(async () => {
+      try {
+        const p = await get('/api/listings/check-all/progress');
+        if (!p.running) return;
+        btn.textContent = `Checking… (${p.processed}/${p.total})`;
+      } catch { /* keep showing the last known text */ }
+    }, 1000);
+    try {
+      const result = await post('/api/listings/check-all');
+      // Prices and active flags move across the whole table, so reload rather
+      // than patching rows one by one.
+      await loadListings();
+      render();
+      toast(result.checked
+        ? `${result.checked} checked · ${result.ended} ended`
+        : 'No active eBay listings to check');
+      (result.errors || []).forEach((msg) => toast(msg, 'error'));
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      clearInterval(poll);
+      btn.disabled = false;
+      btn.textContent = 'Check live';
+    }
+  });
+
   const menu = $('#add-menu');
   $('#btn-add').addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('hidden'); });
   document.addEventListener('click', () => menu.classList.add('hidden'));
@@ -1294,18 +1945,25 @@ function setupTopbar() {
 }
 
 function setupFilters() {
-  $('#filter-source').addEventListener('change', (e) => { state.filters.source = e.target.value; render(); });
   $('#filter-q').addEventListener('input', debounce((e) => { state.filters.q = e.target.value; render(); }, 150));
-  $('#filter-max-price').addEventListener('input', debounce((e) => {
-    state.filters.maxPrice = e.target.value === '' ? null : Number(e.target.value);
-    render();
-  }, 150));
   $('#filter-inactive').addEventListener('change', (e) => { state.filters.showInactive = e.target.checked; render(); });
+  $('#btn-add-filter').addEventListener('click', openFilterMenu);
+  $('#btn-rank').addEventListener('click', () => {
+    // Opening the panel with rank off is never what's wanted — the button is how
+    // rank mode is switched back on after a header click handed the order back.
+    if (!state.rank.enabled && !(popover && popover.key === 'rank')) {
+      state.rank.enabled = true;
+      saveRank();
+      render();
+    }
+    openRankPanel();
+  });
 }
 
 async function boot() {
   setupTopbar();
   setupFilters();
+  setupPopovers();
   setupModals();
   setupManualForm();
   setupImportForm();
@@ -1316,6 +1974,10 @@ async function boot() {
   } catch (err) {
     toast('Could not load data: ' + errorMessage(err), 'error');
   }
+  // Saved filters are validated against the schema and the custom properties, so
+  // they can only be restored once both have landed.
+  restoreFilters();
+  restoreRank();
   renderManualFields();
   render();
 }
