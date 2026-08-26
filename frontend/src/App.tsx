@@ -5,7 +5,13 @@ import { useListings, useProperties, useSchema } from '@/api/queries'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { RankPanel } from '@/components/filters/RankPanel'
 import { TableControls } from '@/components/filters/TableControls'
+import { ColumnsDialog } from '@/components/modals/ColumnsDialog'
+import { ImportDialog } from '@/components/modals/ImportDialog'
+import { ManualEntryDialog } from '@/components/modals/ManualEntryDialog'
+import { SearchesDialog } from '@/components/modals/SearchesDialog'
+import { Suggestions } from '@/components/modals/Suggestions'
 import { ListingsTable } from '@/components/table/ListingsTable'
+import { Topbar } from '@/components/Topbar'
 import { BLANK_FILTERS, filterableProps, type Filters } from '@/lib/filtering'
 import type { Listing, PropertyDef, Schema } from '@/lib/schema'
 import type { Rank } from '@/lib/ranking'
@@ -51,6 +57,7 @@ function VanCrm({
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(restoreColumnVisibility)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [dialog, setDialog] = useState<'manual' | 'import' | 'searches' | 'columns' | null>(null)
 
   useEffect(() => saveFilterProps(filters.props), [filters.props])
   useEffect(() => saveRank(rank), [rank])
@@ -58,9 +65,12 @@ function VanCrm({
 
   return (
     <div className="flex h-svh flex-col gap-3 p-4">
-      <header className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold">VanCRM</h1>
-      </header>
+      <Topbar
+        onAddManual={() => setDialog('manual')}
+        onImport={() => setDialog('import')}
+        onSearches={() => setDialog('searches')}
+        onColumns={() => setDialog('columns')}
+      />
 
       <TableControls
         schema={schema}
@@ -96,6 +106,27 @@ function VanCrm({
         selectedId={selectedId}
         onRowClick={(listing) => setSelectedId(listing.id)}
       />
+
+      <ManualEntryDialog
+        schema={schema}
+        open={dialog === 'manual'}
+        onOpenChange={(open) => setDialog(open ? 'manual' : null)}
+        onCreated={(listing) => setSelectedId(listing.id)}
+      />
+      <ImportDialog
+        open={dialog === 'import'}
+        onOpenChange={(open) => setDialog(open ? 'import' : null)}
+        onCreated={setSelectedId}
+      />
+      <SearchesDialog
+        open={dialog === 'searches'}
+        onOpenChange={(open) => setDialog(open ? 'searches' : null)}
+      />
+      <ColumnsDialog
+        open={dialog === 'columns'}
+        onOpenChange={(open) => setDialog(open ? 'columns' : null)}
+      />
+      <Suggestions schema={schema} listings={listings} />
     </div>
   )
 }
