@@ -278,3 +278,29 @@ via OpenRouter return structured facts only (size code, VAT status, mileage, fla
 tags); all judgement (VAT maths, mileage-vs-MOT comparison, auto-archiving) stays
 deterministic Python. Opt-in via `OPENROUTER_API_KEY`; the app runs identically
 without it. AI-derived values only ever fill empty fields.
+
+## D-037 — Frontend rebuilt on Vite + React + TypeScript (2026-08-26)
+Context: `app/static/app.js` reached ~2,000 lines in one file with hand-rolled
+popovers, filters and state sync; every UI feature was getting more expensive and
+harder to review. The "no npm, no build step, no React" rule was written for a
+smaller app.
+Decision: the frontend is rebuilt as a Vite + React + TypeScript app in `frontend/`,
+with TanStack Table v8 (listings table), TanStack Query v5 (API access, incl. the
+D-034 progress polling), and Tailwind CSS + shadcn/ui (styling and primitives).
+TypeScript is deliberate: the compiler is the automated reviewer for AI-written code.
+The Python backend, SQLite database, API surface and port 8321 do not change.
+Why: component model and typed API layer over a 2,000-line file; rejected staying
+vanilla (cost of each feature kept rising) and heavier options (Next.js — no server
+rendering needed for a localhost app). Plan lives in `docs/FRONTEND_REFACTOR.md`
+until it lands.
+Supersedes: the no-npm/no-React clause of the fixed-stack rule (AGENTS.md); backend
+stack remains fixed.
+
+## D-038 — Built frontend is served from `app/static/dist/`, gitignored (2026-08-26)
+Context: the React app needs a build step, but the app must keep working from a plain
+`uvicorn` start on port 8321 so bookmarks survive.
+Decision: `npm run build` in `frontend/` emits to `app/static/dist/`, which FastAPI
+serves at `/`. The directory is build output and is gitignored; dev uses Vite's dev
+server on :5173 proxying `/api` to :8321.
+Why: keeps the single-process, single-port usage identical to today while keeping
+generated files out of history.

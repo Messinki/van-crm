@@ -1,24 +1,33 @@
 # VanCRM
 
 Local-only web app for tracking vans for sale while shopping for a camper conversion
-base. Python 3.11+ / FastAPI backend, SQLite via stdlib `sqlite3`, vanilla-JS frontend.
-Single user, runs on localhost, no auth, no deployment.
+base. Python 3.11+ / FastAPI backend, SQLite via stdlib `sqlite3`, React frontend
+(Vite + TypeScript in `frontend/`, built output served by FastAPI). Single user, runs
+on localhost, no auth, no deployment.
 
 ## Commands
 
-- Install: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && cp .env.example .env`
-- Run: `.venv/bin/uvicorn app.main:app --port 8321` — port is fixed so bookmarks keep
-  working; add `--reload` while developing. Then open <http://localhost:8321>.
+- Install: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && cp .env.example .env`,
+  then `cd frontend && npm install`.
+- Run (use): `npm run build` in `frontend/`, then `.venv/bin/uvicorn app.main:app --port 8321`
+  — port is fixed so bookmarks keep working. Then open <http://localhost:8321>.
+- Dev: `.venv/bin/uvicorn app.main:app --port 8321 --reload` plus `npm run dev` in
+  `frontend/` — Vite on <http://localhost:5173> proxies `/api` to :8321.
 - Test: none yet — verification is manual against the running app. A test suite is on
   the refactor list (see `docs/STATUS.md`).
-- Lint / Build: none — no build step by design.
+- Lint / typecheck: `npm run build` runs `tsc` first — a clean build is the frontend
+  check. No Python lint step.
 
 Reset the database by deleting `data/vancrm.db`; it is recreated and seeded on next start.
 
 ## Rules
 
-- **The stack is fixed.** Dependencies stay at `fastapi`, `uvicorn`, `httpx`,
-  `python-dotenv`. No ORM, no React, no npm or build step, no Docker, no task queues.
+- **The backend stack is fixed.** Python dependencies stay at `fastapi`, `uvicorn`,
+  `httpx`, `python-dotenv`. No ORM, no Docker, no task queues.
+- **The frontend stack is fixed too** (D-037): Vite + React + TypeScript, TanStack
+  Table v8, TanStack Query v5, Tailwind CSS + shadcn/ui. Don't add state-management,
+  routing or component libraries beyond these. `app/static/dist/` is gitignored
+  build output (D-038) — never commit it or edit it by hand.
 - **Out of scope**: message drafting, scheduled scraping (button-triggered only),
   multi-user or auth, Facebook scraping of any kind (manual entry only). AI is limited
   to field extraction on import (D-036); no scoring, summarising or prose.

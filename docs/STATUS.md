@@ -4,19 +4,10 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 
 ## Current goal
 
-Refactor the codebase (Harry's stated next step). Before that starts, the uncommitted
-working-tree changes below need verifying and committing — refactoring on top of a
-dirty tree loses the ability to bisect.
-
-## In flight — uncommitted in the working tree (as of 2026-08-26)
-
-- **Bulk Check live sweep** — `ebay.check_all` + `CHECK_PROGRESS`, the
-  `/api/listings/check-all` endpoints and the topbar button. Described as working in
-  the old README, but never committed.
-- **A large frontend overhaul in `app.js`/`style.css`** (~800 lines): a filter bar with
-  per-property condition editors (range/set/bool), popover UI, a ranking panel with
-  weighted scores (including a length-code ordering), and filter/rank state persisted
-  to `localStorage`. Not described in any doc; needs a look before committing.
+The frontend rebuild on Vite + React + TypeScript (D-037, D-038). The plan, phase by
+phase, is `docs/FRONTEND_REFACTOR.md` — work through it in order; each phase ends
+verified and committed. Phase 0 (checkpoint + paperwork) is done; the in-flight
+check-all/filter-bar/ranking work is committed as the parity reference.
 
 ## Done
 
@@ -29,9 +20,8 @@ dirty tree loses the ability to bisect.
 
 ## Next
 
-1. Verify and commit the in-flight work above.
-2. **The refactor** (scope to be agreed at the start of that session).
-3. **Remaining production eBay checks** — the sandbox couldn't answer these; production
+1. **The frontend rebuild** — `docs/FRONTEND_REFACTOR.md`, phases 1–7.
+2. **Remaining production eBay checks** — the sandbox couldn't answer these; production
    keys are in, they just haven't been run:
    - import-from-link against a live `ebay.co.uk` URL
    - the `ebay.us`/`ebay.to` shortener redirect (a short link to a van already in the
@@ -39,7 +29,7 @@ dirty tree loses the ability to bisect.
    - a liveness check on an item that has genuinely ended → `is_active=0`
    - the spares/repairs skip firing on a real listing (watch `skipped`)
    - re-run the Taxonomy category lookup on production to confirm the ids in D-003
-4. **Milestone 4b — AI enrichment** (`app/ai.py`, via OpenRouter; the scope deviation
+3. **Milestone 4b — AI enrichment** (`app/ai.py`, via OpenRouter; the scope deviation
    is D-036). Condensed spec:
    - Config: `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` in `.env` (pick a current cheap
      model with Harry when building; verify the chat-completions request/response shape
