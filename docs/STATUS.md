@@ -6,8 +6,32 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 
 The frontend rebuild on Vite + React + TypeScript (D-037, D-038). The plan, phase by
 phase, is `docs/FRONTEND_REFACTOR.md` — work through it in order; each phase ends
-verified and committed. Phase 0 (checkpoint + paperwork) is done; the in-flight
-check-all/filter-bar/ranking work is committed as the parity reference.
+verified and committed.
+
+**Where it stands (2026-08-26): phases 0–3 done and verified; phase 4 half-built.**
+
+- Phases 0–3 are committed: scaffold (dev on :5173 proxying to :8321, `/new`
+  previews the build), typed data layer (`src/lib/schema.ts`, `src/api/queries.ts`,
+  global error toasts), and the full table — schema-driven columns, ported cell
+  renderers, sortValue sorting, title search, status chips, show-ended, column
+  visibility (new), the faceted filter bar, and the rank panel. All verified
+  headless (Playwright + system Chrome, scripts in the session scratchpad) against
+  expectations computed from the API with the original app.js semantics; the old
+  UI at `/` is untouched and still the reference.
+- Phase 4 is **half-built and unwired**: `components/Topbar.tsx` (scrape/check-all
+  with D-034 progress polling), `modals/ManualEntryDialog.tsx` (schema-driven form
+  + reg lookup autofill), `modals/ImportDialog.tsx` (incl. the 409 → open-existing
+  path), `modals/SearchesDialog.tsx`, plus shared `lib/lookup.ts`,
+  `modals/LookupHint.tsx`, `modals/Suggestions.tsx` all exist and typecheck, but
+  none are rendered from `App.tsx` yet. Still to do for phase 4: the custom-columns
+  CRUD dialog, wiring everything into `App.tsx` (dialog open state, `onCreated` →
+  select the new listing), suggestions datalists mounted, verification, and the
+  `/` route flip. Then phases 5–7 (detail dialog at parity, popup redesign,
+  demolition + docs).
+- Note for the resuming session: TanStack Table is pinned to v8 (v9 is npm latest
+  but has a different API); the `View` menu is column visibility while the topbar
+  `Columns` button will be the custom-properties CRUD; D-039 explains why
+  filtering/ranking live in `lib/` selectors rather than TanStack filter fns.
 
 ## Done
 

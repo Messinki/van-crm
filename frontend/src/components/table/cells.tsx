@@ -12,7 +12,6 @@ import type { FieldSpec, Listing, MotSummary, PropertyDef } from '@/lib/schema'
 import type { ScoreParts } from '@/lib/ranking'
 import { RANK_FACTORS } from '@/lib/ranking'
 import { windowLink } from '@/lib/window'
-import { errorMessage } from '@/api/client'
 import { cn } from '@/lib/utils'
 
 export function ThumbCell({ listing }: { listing: Listing }) {
@@ -214,7 +213,6 @@ export function RejectButton({ listing, size = 'table' }: { listing: Listing; si
               // the toast says where it went.
               if (!rejected) toast('Rejected — select the Rejected chip to see it again')
             },
-            onError: (err) => toast.error(errorMessage(err)),
           },
         )
       }}
