@@ -8,30 +8,35 @@ The frontend rebuild on Vite + React + TypeScript (D-037, D-038). The plan, phas
 phase, is `docs/FRONTEND_REFACTOR.md` — work through it in order; each phase ends
 verified and committed.
 
-**Where it stands (2026-08-26): phases 0–3 done and verified; phase 4 half-built.**
+**Where it stands (2026-08-26): phases 0–4 done and verified; next is phase 5.**
 
-- Phases 0–3 are committed: scaffold (dev on :5173 proxying to :8321, `/new`
-  previews the build), typed data layer (`src/lib/schema.ts`, `src/api/queries.ts`,
-  global error toasts), and the full table — schema-driven columns, ported cell
-  renderers, sortValue sorting, title search, status chips, show-ended, column
-  visibility (new), the faceted filter bar, and the rank panel. All verified
-  headless (Playwright + system Chrome, scripts in the session scratchpad) against
-  expectations computed from the API with the original app.js semantics; the old
-  UI at `/` is untouched and still the reference.
-- Phase 4 is **half-built and unwired**: `components/Topbar.tsx` (scrape/check-all
-  with D-034 progress polling), `modals/ManualEntryDialog.tsx` (schema-driven form
-  + reg lookup autofill), `modals/ImportDialog.tsx` (incl. the 409 → open-existing
-  path), `modals/SearchesDialog.tsx`, plus shared `lib/lookup.ts`,
-  `modals/LookupHint.tsx`, `modals/Suggestions.tsx` all exist and typecheck, but
-  none are rendered from `App.tsx` yet. Still to do for phase 4: the custom-columns
-  CRUD dialog, wiring everything into `App.tsx` (dialog open state, `onCreated` →
-  select the new listing), suggestions datalists mounted, verification, and the
-  `/` route flip. Then phases 5–7 (detail dialog at parity, popup redesign,
-  demolition + docs).
+- Phases 0–3 are committed: scaffold (dev on :5173 proxying to :8321), typed data
+  layer (`src/lib/schema.ts`, `src/api/queries.ts`, global error toasts), and the
+  full table — schema-driven columns, ported cell renderers, sortValue sorting,
+  title search, status chips, show-ended, column visibility (new), the faceted
+  filter bar, and the rank panel. All verified headless (Playwright + system
+  Chrome) against expectations computed from the API with the original app.js
+  semantics.
+- Phase 4 is committed and **`/` now serves the React build** (`/new` removed;
+  the old UI files still exist but are out of the routing until Phase 7 deletes
+  them). Topbar (scrape/check-all with D-034 progress polling), manual-entry
+  (schema-driven + reg lookup), import (incl. 409 → open existing), searches
+  CRUD and custom-columns CRUD dialogs are all wired into `App.tsx`, with the
+  suggestions datalists mounted and `onCreated` selecting the new row. Verified
+  headless: a 45-check Playwright script exercised every dialog end-to-end
+  (create/rename/reorder/delete a custom column, search CRUD, manual entry →
+  row appears selected) against the live API, creating and then deleting its
+  own test data. Scrape/Check live buttons verified render-only — no real
+  eBay calls made.
+- Next: **phase 5** — port the drawer's content into a centred detail Dialog at
+  parity (editable fields, links, MOT panel, reject, notes), then 6 (popup
+  redesign) and 7 (demolition + docs).
 - Note for the resuming session: TanStack Table is pinned to v8 (v9 is npm latest
   but has a different API); the `View` menu is column visibility while the topbar
-  `Columns` button will be the custom-properties CRUD; D-039 explains why
+  `Columns` button is the custom-properties CRUD; D-039 explains why
   filtering/ranking live in `lib/` selectors rather than TanStack filter fns.
+  The old drawer code in `app/static/app.js` (~line 1098 on) is the parity
+  reference for phase 5.
 
 ## Done
 

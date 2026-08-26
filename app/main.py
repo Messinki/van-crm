@@ -888,18 +888,13 @@ def check_all_progress():
 
 # ---------------------------------------------------------------- static
 
-# The React build (docs/FRONTEND_REFACTOR.md, D-038). `/` flips to this in
-# Phase 4; until then the old UI stays at / and the build previews at /new.
+# The React build (docs/FRONTEND_REFACTOR.md, D-038) — `/` serves it since
+# Phase 4; the old UI is out of the routing (deleted in Phase 7).
 DIST_INDEX = STATIC_DIR / "dist" / "index.html"
 
 
 @app.get("/")
 def index():
-    return FileResponse(STATIC_DIR / "index.html")
-
-
-@app.get("/new")
-def new_index():
     if not DIST_INDEX.exists():
         raise HTTPException(503, "No frontend build yet — run `npm run build` in frontend/")
     return FileResponse(DIST_INDEX)
