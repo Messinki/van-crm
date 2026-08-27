@@ -5,6 +5,7 @@ import { useListings, useProperties, useSchema } from '@/api/queries'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { RankPanel } from '@/components/filters/RankPanel'
 import { TableControls } from '@/components/filters/TableControls'
+import { DetailDialog } from '@/components/detail/DetailDialog'
 import { ColumnsDialog } from '@/components/modals/ColumnsDialog'
 import { ImportDialog } from '@/components/modals/ImportDialog'
 import { ManualEntryDialog } from '@/components/modals/ManualEntryDialog'
@@ -105,6 +106,13 @@ function VanCrm({
         onColumnVisibilityChange={setColumnVisibility}
         selectedId={selectedId}
         onRowClick={(listing) => setSelectedId(listing.id)}
+      />
+
+      <DetailDialog
+        listing={listings.find((l) => l.id === selectedId) ?? null}
+        schema={schema}
+        properties={properties}
+        onClose={() => setSelectedId(null)}
       />
 
       <ManualEntryDialog

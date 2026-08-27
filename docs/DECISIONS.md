@@ -319,3 +319,20 @@ and cell rendering. Behaviour parity with the old UI is the phase's acceptance
 test, and this keeps the ported logic byte-comparable to app.js.
 Why: parity beats framework idiom; rejected wedging relative scoring into
 sortingFns (hidden cache, render-order coupling).
+
+## D-040 — Detail-view fields are uncontrolled inputs keyed on their saved value (2026-08-27)
+Context: the old drawer's fields were plain DOM inputs that saved on `change` (i.e.
+on blur) and then re-rendered the whole drawer from the row the PATCH handed back.
+The React port needs the same behaviour without either wiring per-field controlled
+state (a second copy of the listing to keep in sync) or re-mounting every field
+whenever any one of them saves.
+Decision: each field renders as an uncontrolled input with `defaultValue` and a
+`key` set to its own current value, saving through the `useUpdateListing` mutation
+on change. A field remounts only when its own value actually changed — after its
+own save, or when a plate lookup fills it in — so a lookup that fills six fields
+does not disturb the one being typed in. Notes are the exception: a controlled
+textarea with an 800ms debounce, flushed on blur and by the dialog before it
+closes. The React Query cache is the single copy of the listing.
+Why: parity with the drawer's save-on-blur semantics with no duplicated state;
+rejected controlled inputs with a sync effect (two sources of truth for every
+field) and a single `key` on the whole form (loses in-progress typing elsewhere).

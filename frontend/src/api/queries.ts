@@ -175,22 +175,26 @@ export function useDeleteSearch() {
 /* -------------------------------------------------------------------- MOT */
 
 /** Whatever the server already has cached for this listing's reg — never
- *  spends a DVSA call, so it's safe to run whenever the detail view opens. */
+ *  spends a DVSA call, so it's safe to run whenever the detail view opens.
+ *  Silent: the detail view's MOT panel says so in the panel itself. */
 export function useMotReport(listingId: number | null) {
   return useQuery({
     queryKey: ['mot', listingId],
     queryFn: () => get<MotResponse>(`/api/listings/${listingId}/mot`),
     enabled: listingId !== null,
     staleTime: 5 * 60 * 1000,
+    meta: { silent: true },
   })
 }
 
-/** POST /mot — spends a DVSA call (force=true busts the 7-day cache). */
-export function useFetchMot() {
+/** POST /mot — spends a DVSA call (force=true busts the 7-day cache).
+ *  `silent` for the callers that show the failure where the button is. */
+export function useFetchMot(silent = false) {
   const client = useQueryClient()
   return useMutation({
     mutationFn: ({ id, force }: { id: number; force?: boolean }) =>
       post<MotResponse & { cached: true }>(`/api/listings/${id}/mot${force ? '?force=true' : ''}`),
+    meta: silent ? { silent: true } : undefined,
     onSuccess: (result, { id }) => {
       client.setQueryData(['mot', id], result)
       // The listing's table summary (listing.mot) changed too.

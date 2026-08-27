@@ -8,7 +8,7 @@ The frontend rebuild on Vite + React + TypeScript (D-037, D-038). The plan, phas
 phase, is `docs/FRONTEND_REFACTOR.md` — work through it in order; each phase ends
 verified and committed.
 
-**Where it stands (2026-08-26): phases 0–4 done and verified; next is phase 5.**
+**Where it stands (2026-08-27): phases 0–5 done and verified; next is phase 6.**
 
 - Phases 0–3 are committed: scaffold (dev on :5173 proxying to :8321), typed data
   layer (`src/lib/schema.ts`, `src/api/queries.ts`, global error toasts), and the
@@ -28,15 +28,26 @@ verified and committed.
   row appears selected) against the live API, creating and then deleting its
   own test data. Scrape/Check live buttons verified render-only — no real
   eBay calls made.
-- Next: **phase 5** — port the drawer's content into a centred detail Dialog at
-  parity (editable fields, links, MOT panel, reject, notes), then 6 (popup
-  redesign) and 7 (demolition + docs).
+- Phase 5 is committed: the drawer's content now lives in a centred detail
+  Dialog (`src/components/detail/`) — actions row (check live / reject / delete),
+  image strip, original-listing link, registry-driven sections
+  (Details / Images / Custom / Notes / MOT), reg + plate lookup, debounced notes
+  autosave (D-040) and the full DVSA report panel. Verified headless: a 45-check
+  Playwright script against the live API exercised every field type, the notes
+  debounce and its flush-on-close, the reject toggle, delete, and the cached MOT
+  report, creating and deleting its own test listing and custom property (44/45;
+  the one failure is the script's own fake image URLs failing DNS). Check
+  listing live is render-only — no eBay call made.
+- Next: **phase 6** — the detail popup redesign (left/right navigation through
+  the filtered order, bigger thumbnail, click-to-gallery layout), then 7
+  (demolition + docs).
 - Note for the resuming session: TanStack Table is pinned to v8 (v9 is npm latest
   but has a different API); the `View` menu is column visibility while the topbar
   `Columns` button is the custom-properties CRUD; D-039 explains why
-  filtering/ranking live in `lib/` selectors rather than TanStack filter fns.
-  The old drawer code in `app/static/app.js` (~line 1098 on) is the parity
-  reference for phase 5.
+  filtering/ranking live in `lib/` selectors rather than TanStack filter fns;
+  D-040 explains why the detail fields are uncontrolled inputs keyed on their
+  value. `DialogContent` is a CSS grid, so any wide child inside it needs
+  `min-w-0` on the content wrapper or the whole dialog overflows sideways.
 
 ## Done
 
