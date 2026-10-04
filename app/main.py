@@ -29,6 +29,7 @@ STATUS_LABELS = {
 }
 SOURCES = ("ebay", "facebook", "manual")
 PROPERTY_TYPES = ("text", "number", "checkbox", "select", "date")
+VAT_STATUSES = ("plus_vat",)
 HEIGHT_CODES = ("H1", "H2", "H3")
 LENGTH_CODES = ("L1", "L2", "L3", "L4")
 
@@ -76,8 +77,18 @@ FIELD_SPECS = [
         "required": True, "in_form": True, "section": "Details", "cell": "title_link",
     },
     {
+        # The `price_vat` widget pairs the box with the Plus VAT toggle (D-043).
+        # The stored value is always the listed price; the UI derives × 1.2.
         "key": "price_gbp", "label": "Price", "type": "money", "editable": True,
         "in_form": True, "section": "Details", "cell": "money", "numeric": True,
+        "widget": "price_vat",
+    },
+    {
+        # D-043: set by the price widget's toggle, so no row or column of its own
+        # — but still filterable. Milestone 4b's AI will add inc_vat / no_vat.
+        "key": "vat_status", "label": "VAT", "type": "select",
+        "options": list(VAT_STATUSES), "labels": {"plus_vat": "Plus VAT"},
+        "editable": True, "in_table": False, "in_drawer": False, "in_form": False,
     },
     {
         "key": "make", "label": "Make", "type": "text", "editable": True,
@@ -374,6 +385,11 @@ def clean_listing_fields(payload: dict, existing: dict | None = None) -> dict:
             out[field] = json.dumps(merge_custom(base, value))
         elif field in ("notes",):
             out[field] = "" if value is None else str(value)
+        elif field == "vat_status":
+            status = _as_text(value)
+            if status and status not in VAT_STATUSES:
+                raise HTTPException(400, f"invalid vat_status '{status}'")
+            out[field] = status
         elif field == "is_active":
             out[field] = 1 if value in (True, 1, "true", "1") else 0
         elif field == "title":

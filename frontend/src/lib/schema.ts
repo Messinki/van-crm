@@ -26,7 +26,7 @@ export interface FieldSpec {
   in_form?: boolean
   section?: 'Details' | 'Images' | 'Notes' | 'MOT'
   cell?: string
-  widget?: 'reg_lookup' | 'notes'
+  widget?: 'reg_lookup' | 'notes' | 'price_vat'
   sortable?: boolean
   suggest?: boolean
   numeric?: boolean
@@ -62,6 +62,7 @@ export interface Listing {
   id: number
   title: string
   price_gbp: number | null
+  vat_status: string | null
   make: string | null
   model: string | null
   year: number | null

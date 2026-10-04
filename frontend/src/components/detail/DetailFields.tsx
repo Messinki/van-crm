@@ -17,8 +17,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { lookupErrorText } from '@/components/modals/LookupHint'
 import { PlateField } from '@/components/modals/PlateField'
 import { suggestId } from '@/components/modals/Suggestions'
+import { VatToggle, VatTotal } from '@/components/modals/VatToggle'
 import { NUMERIC_TYPES, specLabel } from '@/lib/filtering'
-import { cleanReg, formatReg } from '@/lib/format'
+import { cleanReg, formatReg, plusVat } from '@/lib/format'
 import { LOOKUP_FILLS, type LookupState } from '@/lib/lookup'
 import type { FieldSpec, Listing, PropertyDef } from '@/lib/schema'
 
@@ -129,6 +130,31 @@ export function EditableField({ listing, spec }: { listing: Listing; spec: Field
           save(spec.key, raw === '' ? null : numeric ? Number(raw) : raw)
         }}
       />
+    </Field>
+  )
+}
+
+/** Price + the Plus VAT toggle (D-043). The box is the listed price; the
+ *  toggle saves vat_status, and the inc-VAT total shows underneath. */
+export function PriceField({ listing, spec }: { listing: Listing; spec: FieldSpec }) {
+  const save = useSaveField(listing)
+  const id = 'detail-' + spec.key
+  const on = plusVat(listing)
+  return (
+    <Field label={spec.label} htmlFor={id}>
+      <div className="flex gap-2">
+        <Input
+          id={id}
+          className="h-8"
+          type="number"
+          step="1"
+          key={String(listing.price_gbp ?? '')}
+          defaultValue={listing.price_gbp ?? ''}
+          onChange={(e) => save(spec.key, e.target.value === '' ? null : Number(e.target.value))}
+        />
+        <VatToggle on={on} onToggle={(next) => save('vat_status', next ? 'plus_vat' : null)} />
+      </div>
+      <VatTotal on={on} listed={listing.price_gbp} />
     </Field>
   )
 }

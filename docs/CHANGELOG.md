@@ -17,6 +17,11 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: Plus VAT toggle (2026-10-04)
+- New `vat_status` column and a Plus VAT toggle beside the price in the popup and
+  the manual form. Flagged listings show listed × 1.2 with a +VAT badge, and sort,
+  filter and rank on that figure; the stored price stays as listed (D-043).
+
 ## Goal: docs restructure (2026-08-26)
 - Adopted the standard project layout: AGENTS.md (CLAUDE.md now a symlink) plus
   docs/STATUS, DECISIONS, ARCHITECTURE, CHANGELOG.

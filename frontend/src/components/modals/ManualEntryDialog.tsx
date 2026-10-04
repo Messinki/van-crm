@@ -23,6 +23,7 @@ import type { FieldSpec, Listing, Schema } from '@/lib/schema'
 import { lookupErrorText } from './LookupHint'
 import { PlateField } from './PlateField'
 import { suggestId } from './Suggestions'
+import { VatToggle, VatTotal } from './VatToggle'
 
 interface Props {
   schema: Schema
@@ -112,9 +113,13 @@ export function ManualEntryDialog({ schema, open, onOpenChange, onCreated }: Pro
           />
 
           <div className="grid grid-cols-2 gap-3">
-            {gridSpecs.map((spec) => (
-              <ManualField key={spec.key} spec={spec} value={values[spec.key] ?? ''} onChange={set} />
-            ))}
+            {gridSpecs.map((spec) =>
+              spec.widget === 'price_vat' ? (
+                <ManualPriceField key={spec.key} spec={spec} values={values} onChange={set} />
+              ) : (
+                <ManualField key={spec.key} spec={spec} value={values[spec.key] ?? ''} onChange={set} />
+              ),
+            )}
           </div>
           {wideSpecs.map((spec) => (
             <ManualField key={spec.key} spec={spec} value={values[spec.key] ?? ''} onChange={set} />
@@ -128,6 +133,36 @@ export function ManualEntryDialog({ schema, open, onOpenChange, onCreated }: Pro
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Price + the Plus VAT toggle (D-043); the toggle sets vat_status in the form. */
+function ManualPriceField({
+  spec,
+  values,
+  onChange,
+}: {
+  spec: FieldSpec
+  values: FormValues
+  onChange: (key: string, value: string) => void
+}) {
+  const on = values.vat_status === 'plus_vat'
+  const price = values[spec.key] ?? ''
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{spec.label}</Label>
+      <div className="flex gap-2">
+        <Input
+          className="h-8"
+          type="number"
+          step="1"
+          value={price}
+          onChange={(e) => onChange(spec.key, e.target.value)}
+        />
+        <VatToggle on={on} onToggle={(next) => onChange('vat_status', next ? 'plus_vat' : '')} />
+      </div>
+      <VatTotal on={on} listed={price === '' ? null : Number(price)} />
+    </div>
   )
 }
 

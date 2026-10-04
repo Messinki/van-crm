@@ -6,6 +6,19 @@ export function money(value: number | null | undefined): string {
   return '£' + Number(value).toLocaleString('en-GB', { maximumFractionDigits: 0 })
 }
 
+/** D-043: price_gbp is the listed price; a Plus VAT listing really costs × 1.2.
+ *  Everything that shows, sorts, filters or ranks on price reads this. */
+export const VAT_MULTIPLIER = 1.2
+
+export function plusVat(listing: { vat_status?: string | null }): boolean {
+  return listing.vat_status === 'plus_vat'
+}
+
+export function effectivePrice(listing: { price_gbp: number | null; vat_status?: string | null }): number | null {
+  if (listing.price_gbp === null || listing.price_gbp === undefined) return null
+  return plusVat(listing) ? Math.round(listing.price_gbp * VAT_MULTIPLIER) : listing.price_gbp
+}
+
 export function number(value: number | null | undefined): string {
   if (value === null || value === undefined) return ''
   return Number(value).toLocaleString('en-GB')

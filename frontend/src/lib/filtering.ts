@@ -1,7 +1,7 @@
 // The filter model, ported from app.js (D-039). A filter's key follows the
 // column convention: a bare registry field key, or `custom:<slug>`.
 
-import { formatDate, money, number } from './format'
+import { effectivePrice, formatDate, money, number } from './format'
 import type { FieldSpec, Listing, PropertyDef, Schema } from './schema'
 
 export const NUMERIC_TYPES = ['number', 'integer', 'money']
@@ -60,9 +60,11 @@ export function specLabel(spec: FieldSpec | null, value: string): string {
 }
 
 /** The sortable/filterable value of a listing under a column key; null for
- *  missing or blank. The MOT cell is an object — it sorts by expiry date. */
+ *  missing or blank. The MOT cell is an object — it sorts by expiry date, and
+ *  price is the inc-VAT figure for a Plus VAT listing (D-043). */
 export function sortValue(listing: Listing, key: string): string | number | boolean | null {
   if (key === 'id') return listing.id
+  if (key === 'price_gbp') return effectivePrice(listing)
   if (key === 'mot') return (listing.mot && listing.mot.expiry) || null
   if (key.startsWith('custom:')) {
     const value = listing.custom[key.slice(7)]

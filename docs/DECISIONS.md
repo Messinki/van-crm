@@ -373,3 +373,20 @@ Why: reading a plate and entering it is one task, so the fields stay beside the
 photo; the bigger thumbnail wasn't wanted once the gallery existed.
 Rejected: a gallery that takes over the whole popup; arrow keys that keep
 changing listing in gallery mode.
+
+## D-043 — "Plus VAT" is a flag; the VAT price is derived everywhere (2026-10-04)
+Context: some vans are advertised ex-VAT. Harry wants a Plus VAT toggle beside
+the price so the price he sees, filters on and ranks by is what he'd actually
+pay (listed × 1.2), with a visible cue wherever that price shows.
+Decision: a new `vat_status` column (`plus_vat` or empty — the same field and
+value milestone 4b's AI extraction will fill) and a toggle beside the price in
+the popup and the manual form. `price_gbp` stays the listed price. The frontend's
+`effectivePrice()` applies × 1.2 when flagged, and every price read goes through
+it: the table cell (with a +VAT badge, listed price in the tooltip), sorting,
+the price filter, the rank factor. The popup's price box keeps the listed figure,
+with the inc-VAT total shown next to the toggle.
+Why: scrapes and Check live overwrite `price_gbp` with eBay's figure, so a stored
+× 1.2 price would silently revert on the next refresh (or double-count if
+reapplied). Deriving it means every refresh is recalculated for free, and
+toggling off is exact.
+Rejected: multiplying the stored price; a separate stored "real price" column.

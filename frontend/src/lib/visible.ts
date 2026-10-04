@@ -4,6 +4,7 @@
 
 import { activeFilters, matchesCondition, sortValue, type FilterableProp, type Filters } from './filtering'
 import { rankActive, rankScores, type Rank, type Scores } from './ranking'
+import { effectivePrice } from './format'
 import type { Listing } from './schema'
 
 export interface Sort {
@@ -42,7 +43,7 @@ export function visibleListings(
     rows.sort(
       (a, b) =>
         scores.get(b.id)!.total - scores.get(a.id)!.total ||
-        (a.price_gbp ?? Infinity) - (b.price_gbp ?? Infinity) ||
+        (effectivePrice(a) ?? Infinity) - (effectivePrice(b) ?? Infinity) ||
         b.id - a.id,
     )
     return { rows, scores }

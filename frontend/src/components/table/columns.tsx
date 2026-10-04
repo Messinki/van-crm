@@ -12,6 +12,7 @@ import {
   MotCell,
   MotDueCell,
   NotesCell,
+  PriceCell,
   RejectButton,
   ScoreCell,
   SourceBadge,
@@ -56,6 +57,9 @@ function specCell(spec: FieldSpec, listing: Listing): React.ReactNode {
       return <RejectButton listing={listing} />
     case 'mot_due':
       return <MotDueCell value={(listing[spec.key] as string | null) ?? null} />
+    case 'money':
+      // Only price carries a money cell; it shows the inc-VAT figure when flagged.
+      return <PriceCell listing={listing} />
     case 'notes':
       return <NotesCell value={String(listing[spec.key] ?? '')} />
     default:

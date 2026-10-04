@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { cn } from '@/lib/utils'
 import type { FieldSpec, Listing, PropertyDef, Schema } from '@/lib/schema'
 import { windowLink } from '@/lib/window'
-import { CustomField, EditableField, NotesField, ReadonlyField, RegField } from './DetailFields'
+import { CustomField, EditableField, NotesField, PriceField, ReadonlyField, RegField } from './DetailFields'
 import { Gallery } from './Gallery'
 import { MotPanel } from './MotPanel'
 
@@ -256,6 +256,7 @@ function DetailField({
 }) {
   if (spec.widget === 'reg_lookup') return <RegField listing={listing} />
   if (spec.widget === 'notes') return <NotesField listing={listing} flushRef={flushNotes} />
+  if (spec.widget === 'price_vat') return <PriceField listing={listing} spec={spec} />
   if (!spec.editable) return <ReadonlyField listing={listing} spec={spec} />
   return <EditableField listing={listing} spec={spec} />
 }

@@ -80,6 +80,8 @@ MIGRATIONS = [
     # "peugeot boxer" against a £30 heater resistor as readily as an actual van,
     # and those are far cheaper than any base vehicle worth considering.
     ("searches", "min_price", "REAL"),
+    # D-043: 'plus_vat' when the listed price is ex-VAT; the UI shows price × 1.2.
+    ("listings", "vat_status", "TEXT"),
 ]
 
 SEED_SEARCHES = [

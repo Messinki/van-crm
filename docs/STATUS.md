@@ -53,6 +53,13 @@ verified and committed.
   headless (19 checks incl. both pinch paths; own test data created and
   deleted). **Not yet tried on a real trackpad** — worth Harry pinching once in
   Safari and Chrome to confirm the zoom speed feels right.
+- Side feature, not a phase (D-043): a **Plus VAT** toggle beside the price in
+  the popup and the manual form. Flagged listings show listed × 1.2 with a +VAT
+  badge and sort/filter/rank on it; `price_gbp` stays the listed price so
+  rescrapes recalculate for free. New column `vat_status` — milestone 4b's AI
+  should fill this same field. Verified headless (19 checks, own test data
+  created and deleted); the price *filter* wasn't driven through the UI, but it
+  reads the same `sortValue()` the verified sort does.
 - Next: **phase 7** (demolition + docs). Open question: should Delete in the
   popup also advance rather than close? (Not asked for; currently closes.)
 - Note for the resuming session: TanStack Table is pinned to v8 (v9 is npm latest
@@ -102,7 +109,8 @@ verified and committed.
      latest MOT odometer → clocking flag, don't fill; spares/repairs wording → status
      auto-set to rejected (stays inserted so the UNIQUE dedupe stops it returning).
    - Fill rules: AI values only ever fill empty fields; record `ai_analysed_at`.
-     New columns `vat_status`, `ai_flags` (JSON TEXT), `ai_analysed_at` via
+     `vat_status` already exists (D-043, manual toggle; add `inc_vat`/`no_vat` to
+     `VAT_STATUSES`). New columns `ai_flags` (JSON TEXT), `ai_analysed_at` via
      `db.MIGRATIONS` + `FIELD_SPECS`.
    - Acceptance: rescrape doesn't re-call the model for analysed rows or overwrite
      user edits; a "plus VAT" van sorts by its ×1.2 price; empty key → 4a behaviour

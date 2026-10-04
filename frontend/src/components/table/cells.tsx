@@ -7,7 +7,18 @@ import { toast } from 'sonner'
 import { useFetchMot, useUpdateListing } from '@/api/queries'
 import { Button } from '@/components/ui/button'
 import { specLabel } from '@/lib/filtering'
-import { formatDate, formatReg, formatStamp, isoInDays, money, number, todayIso, truncateWords } from '@/lib/format'
+import {
+  effectivePrice,
+  formatDate,
+  formatReg,
+  formatStamp,
+  isoInDays,
+  money,
+  number,
+  plusVat,
+  todayIso,
+  truncateWords,
+} from '@/lib/format'
 import type { FieldSpec, Listing, MotSummary, PropertyDef } from '@/lib/schema'
 import type { ScoreParts } from '@/lib/ranking'
 import { RANK_FACTORS } from '@/lib/ranking'
@@ -26,6 +37,27 @@ export function TitleCell({ listing }: { listing: Listing }) {
   // Plain text on purpose: the original listing opens from the detail popup,
   // so a click anywhere on the row means "open the details".
   return <span className="font-medium">{listing.title}</span>
+}
+
+/** The cue that a price shown is listed + 20% VAT (D-043). */
+export function VatBadge() {
+  return (
+    <span className="rounded bg-amber-100 px-1 py-0.5 text-[10px] font-semibold leading-none text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+      +VAT
+    </span>
+  )
+}
+
+/** The price you'd actually pay; a Plus VAT listing shows the × 1.2 figure,
+ *  badged, with the listed price in the tooltip. */
+export function PriceCell({ listing }: { listing: Listing }) {
+  if (!plusVat(listing) || listing.price_gbp === null) return <>{money(listing.price_gbp)}</>
+  return (
+    <span className="inline-flex items-center gap-1" title={`Listed at ${money(listing.price_gbp)} + 20% VAT`}>
+      {money(effectivePrice(listing))}
+      <VatBadge />
+    </span>
+  )
 }
 
 export function SourceBadge({ value }: { value: string }) {
