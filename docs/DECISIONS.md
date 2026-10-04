@@ -401,3 +401,14 @@ Why: an always-visible chip is findable, and keeps prices aligned since the
 chip is the same width either way. Rejected: a chip that only appears on hover
 (the same discoverability problem).
 Supersedes: D-043 (the table's badge only — the rest stands)
+
+## D-045 — ↑/↓ change listing, ←/→ change photo (2026-10-04)
+Context: in the popup, ←/→ meant "listing" by default but "photo" in gallery mode
+(D-041, D-042), so the same key did different things. Harry wants one meaning each.
+Decision: ↑/↓ always step through listings, in both layouts; ←/→ only ever change
+photo, so outside gallery mode they do nothing. The header listing buttons show
+up/down chevrons to match. Same exceptions as before: keys are ignored while focus
+is in a text field, select or open menu.
+Why: a fixed key per axis needs no mode to remember. Cost: ↑/↓ no longer
+keyboard-scroll the popup — the mouse or trackpad still does.
+Supersedes: D-041 (the arrow keys and button icons only), D-042 (←/→ in gallery mode stands)

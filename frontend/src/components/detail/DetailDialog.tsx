@@ -6,7 +6,7 @@
 // /api/properties, slotted in between Images and Notes.
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import { ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useCheckListing, useDeleteListing } from '@/api/queries'
@@ -60,8 +60,9 @@ export function DetailDialog({
   const stepPhoto = (by: number) =>
     setGalleryIndex((i) => (i === null ? i : (i + by + images.length) % images.length))
 
-  // ←/→ flick through listings — or photos, in gallery mode — unless the key is moving a text cursor or
-  // driving a dropdown, which have first claim on arrows.
+  // ↑/↓ flick through listings and ←/→ through photos in gallery mode (D-045),
+  // unless the key is moving a text cursor or driving a dropdown, which have
+  // first claim on arrows.
   const open = listing !== null
   useEffect(() => {
     if (!open) return
@@ -69,9 +70,11 @@ export function DetailDialog({
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
       const target = event.target as HTMLElement
       if (target.closest('input, textarea, select, [contenteditable], [role="listbox"], [role="menu"]')) return
-      const by = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
-      if (!by) return
-      const go = gallery ? () => stepPhoto(by) : by < 0 ? onPrev : onNext
+      let go: (() => void) | null = null
+      if (event.key === 'ArrowUp') go = onPrev
+      else if (event.key === 'ArrowDown') go = onNext
+      else if (gallery && event.key === 'ArrowLeft') go = () => stepPhoto(-1)
+      else if (gallery && event.key === 'ArrowRight') go = () => stepPhoto(1)
       if (!go) return
       event.preventDefault()
       go()
@@ -107,11 +110,11 @@ export function DetailDialog({
           <>
             <DialogHeader>
               <div className="flex items-center gap-2 pr-8">
-                <Button variant="outline" size="icon-sm" disabled={!onPrev} onClick={() => onPrev?.()} title="Previous listing (←)">
-                  <ChevronLeftIcon />
+                <Button variant="outline" size="icon-sm" disabled={!onPrev} onClick={() => onPrev?.()} title="Previous listing (↑)">
+                  <ChevronUpIcon />
                 </Button>
-                <Button variant="outline" size="icon-sm" disabled={!onNext} onClick={() => onNext?.()} title="Next listing (→)">
-                  <ChevronRightIcon />
+                <Button variant="outline" size="icon-sm" disabled={!onNext} onClick={() => onNext?.()} title="Next listing (↓)">
+                  <ChevronDownIcon />
                 </Button>
                 {position && (
                   <span className="text-xs text-muted-foreground tabular-nums">
