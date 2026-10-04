@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { lookupErrorText } from '@/components/modals/LookupHint'
 import { PlateField } from '@/components/modals/PlateField'
 import { suggestId } from '@/components/modals/Suggestions'
-import { VatToggle, VatTotal } from '@/components/modals/VatToggle'
+import { VatChip, VatTotal } from '@/components/modals/VatToggle'
 import { NUMERIC_TYPES, specLabel } from '@/lib/filtering'
 import { cleanReg, formatReg, plusVat } from '@/lib/format'
 import { LOOKUP_FILLS, type LookupState } from '@/lib/lookup'
@@ -142,7 +142,7 @@ export function PriceField({ listing, spec }: { listing: Listing; spec: FieldSpe
   const on = plusVat(listing)
   return (
     <Field label={spec.label} htmlFor={id}>
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <Input
           id={id}
           className="h-8"
@@ -152,7 +152,7 @@ export function PriceField({ listing, spec }: { listing: Listing; spec: FieldSpe
           defaultValue={listing.price_gbp ?? ''}
           onChange={(e) => save(spec.key, e.target.value === '' ? null : Number(e.target.value))}
         />
-        <VatToggle on={on} onToggle={(next) => save('vat_status', next ? 'plus_vat' : null)} />
+        <VatChip on={on} onToggle={(next) => save('vat_status', next ? 'plus_vat' : null)} />
       </div>
       <VatTotal on={on} listed={listing.price_gbp} />
     </Field>

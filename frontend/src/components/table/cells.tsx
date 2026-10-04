@@ -5,6 +5,7 @@
 import { toast } from 'sonner'
 
 import { useFetchMot, useUpdateListing } from '@/api/queries'
+import { VatChip } from '@/components/modals/VatToggle'
 import { Button } from '@/components/ui/button'
 import { specLabel } from '@/lib/filtering'
 import {
@@ -54,24 +55,11 @@ export function PriceCell({ listing }: { listing: Listing }) {
       title={on ? `Listed at ${money(listing.price_gbp)} + 20% VAT` : undefined}
     >
       {money(effectivePrice(listing))}
-      <button
-        type="button"
-        aria-pressed={on}
+      <VatChip
+        on={on}
         disabled={update.isPending}
-        title={on ? 'Marked plus VAT — click to undo' : 'Mark this price as plus VAT (adds 20%)'}
-        className={cn(
-          'rounded border px-1 py-0.5 text-[10px] font-semibold leading-none',
-          on
-            ? 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300'
-            : 'border-dashed border-muted-foreground/30 text-muted-foreground/50 hover:border-amber-400 hover:text-amber-700',
-        )}
-        onClick={(e) => {
-          e.stopPropagation()
-          update.mutate({ id: listing.id, fields: { vat_status: on ? null : 'plus_vat' } })
-        }}
-      >
-        +VAT
-      </button>
+        onToggle={(next) => update.mutate({ id: listing.id, fields: { vat_status: next ? 'plus_vat' : null } })}
+      />
     </span>
   )
 }

@@ -23,7 +23,7 @@ import type { FieldSpec, Listing, Schema } from '@/lib/schema'
 import { lookupErrorText } from './LookupHint'
 import { PlateField } from './PlateField'
 import { suggestId } from './Suggestions'
-import { VatToggle, VatTotal } from './VatToggle'
+import { VatChip, VatTotal } from './VatToggle'
 
 interface Props {
   schema: Schema
@@ -151,7 +151,7 @@ function ManualPriceField({
   return (
     <div className="space-y-1">
       <Label className="text-xs">{spec.label}</Label>
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <Input
           className="h-8"
           type="number"
@@ -159,7 +159,7 @@ function ManualPriceField({
           value={price}
           onChange={(e) => onChange(spec.key, e.target.value)}
         />
-        <VatToggle on={on} onToggle={(next) => onChange('vat_status', next ? 'plus_vat' : '')} />
+        <VatChip on={on} onToggle={(next) => onChange('vat_status', next ? 'plus_vat' : '')} />
       </div>
       <VatTotal on={on} listed={price === '' ? null : Number(price)} />
     </div>

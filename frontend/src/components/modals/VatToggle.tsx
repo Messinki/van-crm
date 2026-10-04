@@ -1,28 +1,39 @@
-// The Plus VAT toggle that sits beside the price box (D-043), shared by the
-// manual form and the detail dialog. The box always holds the listed price; this
-// marks it ex-VAT and spells out what you'd actually pay.
+// The Plus VAT toggle (D-043, D-044): one +VAT chip used beside every price —
+// the table cell, the detail dialog and the manual form. Solid amber when the
+// price is marked ex-VAT, faint and dashed when not.
 
-import { Button } from '@/components/ui/button'
 import { VAT_MULTIPLIER, money } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-export function VatToggle({ on, onToggle }: { on: boolean; onToggle: (on: boolean) => void }) {
+export function VatChip({
+  on,
+  onToggle,
+  disabled,
+}: {
+  on: boolean
+  onToggle: (on: boolean) => void
+  disabled?: boolean
+}) {
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      size="sm"
       aria-pressed={on}
-      title={on ? 'Price is marked ex-VAT — click to undo' : 'Mark this price as ex-VAT (adds 20%)'}
+      disabled={disabled}
+      title={on ? 'Marked plus VAT — click to undo' : 'Mark this price as plus VAT (adds 20%)'}
       className={cn(
-        'h-8 shrink-0',
-        on &&
-          'border-amber-400 bg-amber-100 text-amber-800 hover:bg-amber-200 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300',
+        'shrink-0 rounded border px-1 py-0.5 text-[10px] font-semibold leading-none',
+        on
+          ? 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300'
+          : 'border-dashed border-muted-foreground/30 text-muted-foreground/50 hover:border-amber-400 hover:text-amber-700',
       )}
-      onClick={() => onToggle(!on)}
+      onClick={(e) => {
+        // In the table the chip sits inside a clickable row.
+        e.stopPropagation()
+        onToggle(!on)
+      }}
     >
-      Plus VAT
-    </Button>
+      +VAT
+    </button>
   )
 }
 

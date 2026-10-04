@@ -54,8 +54,8 @@ verified and committed.
   deleted). **Not yet tried on a real trackpad** — worth Harry pinching once in
   Safari and Chrome to confirm the zoom speed feels right.
 - Side feature, not a phase (D-043, D-044): a **Plus VAT** toggle beside the
-  price in the popup, the manual form and every table price cell (a +VAT chip:
-  solid when on, faint dashed when off). Flagged listings show listed × 1.2 with a +VAT
+  price in the popup, the manual form and every table price cell — the same
+  +VAT chip everywhere (`VatChip`): solid when on, faint dashed when off. Flagged listings show listed × 1.2 with a +VAT
   badge and sort/filter/rank on it; `price_gbp` stays the listed price so
   rescrapes recalculate for free. New column `vat_status` — milestone 4b's AI
   should fill this same field. Verified headless (24 checks, own test data
