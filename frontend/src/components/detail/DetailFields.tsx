@@ -162,6 +162,14 @@ export function RegField({ listing }: { listing: Listing }) {
   const [state, setState] = useState<LookupState>({ kind: 'idle' })
   const input = useRef<HTMLInputElement>(null)
 
+  // The server stores the plate cleaned (caps, no spaces), so a keyed remount
+  // would steal focus mid-typing. Sync the box from the listing only when it
+  // isn't being typed in — e.g. after a lookup fills the plate.
+  useEffect(() => {
+    const el = input.current
+    if (el && document.activeElement !== el) el.value = formatReg(listing.reg)
+  }, [listing.reg])
+
   const runLookup = () => {
     const reg = cleanReg(input.current?.value)
     if (!reg) {
@@ -194,7 +202,6 @@ export function RegField({ listing }: { listing: Listing }) {
           id="detail-reg"
           ref={input}
           className="h-8 w-40"
-          key={listing.reg ?? ''}
           defaultValue={formatReg(listing.reg)}
           onChange={(e) => save('reg', e.target.value || null)}
         />
