@@ -78,11 +78,12 @@ Facebook/manual entries are mostly towns, sometimes with a county
 
 1. A full postcode anywhere in it → postcode lookup.
 2. An outcode anywhere in it (`BB5`, `nw10`; ignore the `***`) → outcode lookup.
-3. Otherwise the text before the first comma → places search. Prefer
-   City/Town/Village results; if the string has more text (a county), prefer a
-   result whose `county_unitary` or `region` contains it; else take the first.
-   ("Newport" is ambiguous — first result wins; Harry fixes it by adding a
-   postcode.)
+3. Otherwise the text before the first comma → places search, 20 results,
+   ranked (D-050): exact name match, then a `county_unitary` /
+   `district_borough` / `region` matching the text after the comma, then City >
+   Town > Village > anything else, then postcodes.io's order. (Bare "Newport"
+   is still a guess — it lands on the Welsh city; Harry fixes a wrong one by
+   adding a postcode.)
 4. Nothing found → "not found".
 
 ## Data model
@@ -97,7 +98,8 @@ Facebook/manual entries are mostly towns, sometimes with a county
     **needs a lookup** when it has a location and `geocoded_from` differs from it.
   - "Not found" sets `geocoded_from` with null coordinates, so junk isn't
     retried every scrape. A **network failure leaves `geocoded_from` alone**, so
-    it is retried next time automatically.
+    it is retried next time automatically. (On a location *edit* it also clears
+    the old coordinates — D-050.)
 - **New registry pseudo-field `distance`** in `FIELD_SPECS` + `DERIVED_KEYS`:
   numeric, read-only, cell `distance`, visible in table and popup, after
   `location`. It is **computed in the browser**, not stored. Enabling a home or
@@ -109,7 +111,15 @@ Facebook/manual entries are mostly towns, sometimes with a county
 Each phase ends verified against the running app and committed. Push when the
 whole goal is done (and at the end of any session with commits).
 
-### Phase 1 — backend: geocoding, homes API, stored coordinates
+### Phase 1 — backend: geocoding, homes API, stored coordinates — done 2026-10-04
+
+**Result:** the one-off fill located **385 of 385** listings with a location, 0
+not found, 0 failed (~15 s); all coordinates fall inside the UK. Verified as
+below, plus the scrape/import hooks with eBay faked in-process. Found on the
+way: a rescrape never changes a listing's location (`_touch_existing` only
+updates price), so the post-scrape pass only ever covers new rows and earlier
+failures. `distance` in the registry moved to Phase 2, so the table doesn't
+show an empty column in between.
 
 - `app/geo.py`: `locate(text) -> (lat, lng) | None` using the lookup order above,
   over `httpx` with a short timeout and a descriptive User-Agent; a module-level
@@ -119,8 +129,7 @@ whole goal is done (and at the end of any session with commits).
   returns `{located, not_found, failed}`. Use the bulk `POST /postcodes` for
   full postcodes; outcodes and places are one call each (cached).
 - Migrations: the three listings columns + the `homes` table. Update
-  `UNMANAGED_COLUMNS`; add `distance` to `FIELD_SPECS` + `DERIVED_KEYS` (startup
-  registry check must pass).
+  `UNMANAGED_COLUMNS` (startup registry check must pass).
 - Hook-in points. **A geocoding failure never fails the save or the scrape.**
   - `POST /api/listings`: locate after insert.
   - `PATCH /api/listings/{id}`: if `location` changed, locate again; the response
@@ -143,6 +152,7 @@ counts; the app still boots with the network off.
 
 ### Phase 2 — distance column, pill, Homes dialog
 
+- Add `distance` to `FIELD_SPECS` + `DERIVED_KEYS` (see Data model).
 - `lib/distance.ts`: haversine in miles; `closestHome(listing, enabledHomes)`
   → `{ miles, home } | null` (rounded to whole miles for display, unrounded for
   sorting). `sortValue(listing, 'distance')` returns the miles, so the existing

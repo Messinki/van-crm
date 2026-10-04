@@ -60,6 +60,19 @@ CREATE TABLE IF NOT EXISTS mot_cache (
   fetched_at  TEXT NOT NULL,
   raw_json    TEXT NOT NULL
 );
+
+-- D-047: places a van's distance is measured from. Coordinates are looked up
+-- from the postcode when a home is saved, so a home is never stored unplaced.
+CREATE TABLE IF NOT EXISTS homes (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  label       TEXT NOT NULL,
+  postcode    TEXT NOT NULL,
+  lat         REAL NOT NULL,
+  lng         REAL NOT NULL,
+  enabled     INTEGER NOT NULL DEFAULT 1,
+  position    INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL
+);
 """
 
 # Amendment 01 section A: columns added after v1.0 shipped.
@@ -82,6 +95,11 @@ MIGRATIONS = [
     ("searches", "min_price", "REAL"),
     # D-043: 'plus_vat' when the listed price is ex-VAT; the UI shows price × 1.2.
     ("listings", "vat_status", "TEXT"),
+    # D-048: where the location is, from postcodes.io, and the location string
+    # that lookup ran on — a listing needs looking up again when they differ.
+    ("listings", "lat", "REAL"),
+    ("listings", "lng", "REAL"),
+    ("listings", "geocoded_from", "TEXT"),
 ]
 
 SEED_SEARCHES = [
@@ -187,3 +205,9 @@ def row_to_search(row: sqlite3.Row) -> dict:
     search = dict(row)
     search["enabled"] = bool(search["enabled"])
     return search
+
+
+def row_to_home(row: sqlite3.Row) -> dict:
+    home = dict(row)
+    home["enabled"] = bool(home["enabled"])
+    return home

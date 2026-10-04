@@ -473,3 +473,18 @@ vans that share an outcode stacking invisibly. Rejected: MapLibre GL +
 OpenFreeMap (nicer vector maps, but a heavier library for no feature we need);
 Google/Mapbox (keys and billing accounts).
 Supersedes: D-037 (the fixed frontend library list only — the rest stands)
+
+## D-050 — Rank same-named places; a geocoding pass stops at the first network failure (2026-10-04)
+Context: postcodes.io's place search returns every settlement sharing a name, in
+no useful order — "Newport" lists an Essex village first and the Welsh city
+tenth — and the plan said take the first. Separately, a fill pass over hundreds
+of listings with the network down would sit out one timeout per listing.
+Decision: ask for 20 places and pick by exact name match, then a county or
+region matching the text after the first comma, then City over Town over
+Village over anything else, then postcodes.io's order. A fill pass stops at the
+first network failure and counts the rest as failed (retried next pass). A
+lookup that fails on a location edit clears the stored coordinates, so a van
+never shows its old place against its new location.
+Why: with this ranking all 217 distinct location strings in the table placed
+sensibly, bare "Newport" included; "first result" put Newport in Essex.
+Rejected: dropping place search for manual entries (they're mostly town names).

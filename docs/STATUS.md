@@ -4,12 +4,17 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 
 ## Current goal
 
-**Distance to homes + maps** — not started. The plan, Harry's agreed answers and
-verified API facts are in `docs/DISTANCE_MAPS.md` (D-047, D-048, D-049): several
-postcode "homes", whole-mile straight-line distance to the closest enabled one with
-a pill naming it, sortable/filterable/rankable; a per-van location map and a
-Table | Map view of all visible vans (Leaflet + OSM, geocoding via postcodes.io).
-Six phases — work through them in order; each ends verified and committed.
+**Distance to homes + maps** — Phase 1 of 6 done (backend: `app/geo.py`,
+homes API, stored coordinates; every listing with a location is now placed).
+**Next: Phase 2** — distance column, home pill, Homes dialog. The plan, Harry's
+agreed answers and verified API facts are in `docs/DISTANCE_MAPS.md` (D-047–D-050):
+several postcode "homes", whole-mile straight-line distance to the closest enabled
+one with a pill naming it, sortable/filterable/rankable; a per-van location map and
+a Table | Map view of all visible vans (Leaflet + OSM, geocoding via postcodes.io).
+Work through the phases in order; each ends verified and committed.
+ARCHITECTURE.md is updated in Phase 6, so until then the new backend pieces
+(`geo.py`, `homes` table, `/api/homes`, `/api/geocode/missing`) are described only
+in the plan.
 
 The frontend rebuild it was waiting on finished on 2026-10-04 (CHANGELOG). Notes
 for working in `frontend/`:

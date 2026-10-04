@@ -12,7 +12,7 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import db, ebay, mot
+from app import db, ebay, geo, mot
 
 load_dotenv()
 
@@ -195,11 +195,13 @@ FIELD_SPECS = [
 DERIVED_KEYS = frozenset({"thumb", "mot", "reject"})
 
 # Listings columns deliberately kept out of the UI: identity, bookkeeping, the
-# JSON custom bag (it has its own /api/properties machinery), and the dead
-# euro_status column older DBs still carry.
+# JSON custom bag (it has its own /api/properties machinery), the dead
+# euro_status column older DBs still carry, and the geocoding results (D-048) —
+# set by app/geo.py, never by hand, but still sent with every listing.
 UNMANAGED_COLUMNS = frozenset({
     "id", "external_id", "custom", "euro_status",
     "first_seen_at", "last_seen_at", "created_at", "updated_at",
+    "lat", "lng", "geocoded_from",
 })
 
 # Fields a PATCH (or manual POST) is allowed to touch. `custom` is not a registry
@@ -518,6 +520,8 @@ def create_listing(payload: dict = Body(...)):
         cursor = conn.execute(
             f"INSERT INTO listings ({columns}) VALUES ({placeholders})", list(fields.values())
         )
+        if fields.get("location"):
+            geo.locate_listing(conn, cursor.lastrowid, fields["location"])
         return attach_mot(conn, [get_listing_or_404(conn, cursor.lastrowid)])[0]
 
 
@@ -533,6 +537,8 @@ def update_listing(listing_id: int, payload: dict = Body(...)):
                 f"UPDATE listings SET {assignments} WHERE id = ?",
                 [*fields.values(), listing_id],
             )
+        if "location" in fields and fields["location"] != existing["location"]:
+            geo.locate_listing(conn, listing_id, fields["location"])
         return attach_mot(conn, [get_listing_or_404(conn, listing_id)])[0]
 
 
@@ -714,6 +720,117 @@ def delete_property(property_id: int):
     return {"deleted": property_id, "listings_updated": stripped}
 
 
+# ---------------------------------------------------------------- homes (D-047)
+
+def home_location(postcode) -> tuple[str, float, float]:
+    """(tidied postcode, lat, lng) for a home, or the HTTP error saying why not."""
+    if not _as_text(postcode):
+        raise HTTPException(400, "postcode is required")
+    try:
+        found = geo.locate_postcode(postcode)
+    except geo.GeoUnavailable:
+        raise HTTPException(
+            503, "Couldn't reach postcodes.io to look up that postcode — check the "
+            "internet connection and try again",
+        )
+    if found is None:
+        raise HTTPException(
+            422, "Couldn't find that postcode — enter a full one like BS5 6AB, or "
+            "just the first half like BS5",
+        )
+    return found
+
+
+@app.get("/api/homes")
+def list_homes():
+    with db.connect() as conn:
+        rows = conn.execute("SELECT * FROM homes ORDER BY position, id").fetchall()
+    return [db.row_to_home(r) for r in rows]
+
+
+@app.post("/api/homes", status_code=201)
+def create_home(payload: dict = Body(...)):
+    label = _as_text(payload.get("label"))
+    if not label:
+        raise HTTPException(400, "label is required")
+    postcode, lat, lng = home_location(payload.get("postcode"))
+    with db.connect() as conn:
+        next_position = conn.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 AS n FROM homes"
+        ).fetchone()["n"]
+        cursor = conn.execute(
+            "INSERT INTO homes (label, postcode, lat, lng, enabled, position, created_at)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (
+                label, postcode, lat, lng,
+                0 if payload.get("enabled") in (False, 0, "false") else 1,
+                next_position, db.now_iso(),
+            ),
+        )
+        row = conn.execute("SELECT * FROM homes WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return db.row_to_home(row)
+
+
+@app.patch("/api/homes/{home_id}")
+def update_home(home_id: int, payload: dict = Body(...)):
+    allowed = {"label", "postcode", "enabled", "position"}
+    unknown = set(payload) - allowed
+    if unknown:
+        raise HTTPException(400, f"cannot set field(s): {', '.join(sorted(unknown))}")
+    fields = {}
+    if "label" in payload:
+        label = _as_text(payload["label"])
+        if not label:
+            raise HTTPException(400, "label cannot be empty")
+        fields["label"] = label
+    if "enabled" in payload:
+        fields["enabled"] = 0 if payload["enabled"] in (False, 0, "false") else 1
+    if "position" in payload:
+        fields["position"] = _as_number(payload["position"], "position", integer=True) or 0
+
+    with db.connect() as conn:
+        if conn.execute("SELECT 1 FROM homes WHERE id = ?", (home_id,)).fetchone() is None:
+            raise HTTPException(404, "home not found")
+        if "postcode" in payload:
+            fields["postcode"], fields["lat"], fields["lng"] = home_location(payload["postcode"])
+        if fields:
+            assignments = ", ".join(f"{f} = ?" for f in fields)
+            conn.execute(f"UPDATE homes SET {assignments} WHERE id = ?", [*fields.values(), home_id])
+        row = conn.execute("SELECT * FROM homes WHERE id = ?", (home_id,)).fetchone()
+        return db.row_to_home(row)
+
+
+@app.delete("/api/homes/{home_id}")
+def delete_home(home_id: int):
+    with db.connect() as conn:
+        if conn.execute("SELECT 1 FROM homes WHERE id = ?", (home_id,)).fetchone() is None:
+            raise HTTPException(404, "home not found")
+        conn.execute("DELETE FROM homes WHERE id = ?", (home_id,))
+    return {"deleted": home_id}
+
+
+@app.post("/api/geocode/missing")
+def geocode_missing():
+    """Look up every listing whose location hasn't been placed yet: the Homes
+    dialog's Retry, and the one-off fill for listings that predate D-048.
+    Returns {located, not_found, failed} — failed means postcodes.io was
+    unreachable, and those are retried next time."""
+    with db.connect() as conn:
+        return geo.fill_missing(conn)
+
+
+def fill_missing_quietly(conn: sqlite3.Connection) -> None:
+    """Coordinates for whatever a scrape or import just added (D-048).
+
+    Never an error: a lookup problem isn't a scrape problem (D-002 is about eBay
+    warnings), and anything left unplaced is retried by the next pass.
+    """
+    try:
+        geo.fill_missing(conn)
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------- MOT + reg lookup
 
 @app.post("/api/lookup/reg")
@@ -833,9 +950,11 @@ def scrape():
     require_ebay()
     with db.connect() as conn:
         try:
-            return ebay.scrape(conn)
+            summary = ebay.scrape(conn)
         except ebay.EbayError as err:
             raise HTTPException(err.status, err.message)
+        fill_missing_quietly(conn)
+        return summary
 
 
 @app.get("/api/scrape/progress")
@@ -862,6 +981,7 @@ def import_ebay(payload: dict = Body(...)):
             raise HTTPException(
                 409, {"message": "That listing is already in the table", "listing_id": listing_id}
             )
+        fill_missing_quietly(conn)
         return attach_mot(conn, [get_listing_or_404(conn, listing_id)])[0]
 
 
