@@ -203,6 +203,9 @@ export function RegField({ listing }: { listing: Listing }) {
           ref={input}
           className="h-8 w-40"
           defaultValue={formatReg(listing.reg)}
+          onBlur={(e) => {
+            if (e.target.value) e.target.value = formatReg(cleanReg(e.target.value))
+          }}
           onChange={(e) => save('reg', e.target.value || null)}
         />
         <Button
