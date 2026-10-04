@@ -428,3 +428,48 @@ Why: one layout means no mode to remember or toggle; the fixed size stops the
 popup jumping when the next listing has no photos.
 Rejected: falling back to the narrow layout for photo-less listings.
 Supersedes: D-042 (the default layout and the ways out of gallery mode), D-045 (←/→ doing nothing outside gallery mode)
+
+## D-047 — Distance to the closest of several homes, computed in the browser (2026-10-04)
+Context: Harry wants to rank vans by how far they are from several "home"
+locations, any of which would do for a viewing or collection.
+Decision: homes live in their own table (label, postcode, coordinates, enabled,
+position). Each van shows one figure — straight-line whole miles to the closest
+*enabled* home — with a pill naming that home, in the table, the popup and the
+map card alike. Distance is a registry pseudo-field computed client-side from
+stored coordinates, so it sorts, filters and ranks like any number, and toggling
+a home re-sorts instantly.
+Why: straight-line is plenty for "is this worth the trip" and needs no routing
+service. Computing in the browser follows the inc-VAT price (D-043): nothing
+stored goes stale when homes change. Rejected: road distance or drive time;
+showing every home's distance in the popup (Harry wants the popup to match the
+table); per-home weighting; storing distance per listing.
+
+## D-048 — Geocode with postcodes.io and store coordinates on the listing (2026-10-04)
+Context: listing locations are free text — eBay gives `Town, OUTCODE ***`, manual
+entries are mostly town names — and distance needs coordinates.
+Decision: `app/geo.py` turns a location into coordinates through postcodes.io
+(full postcode, then outcode, then place-name search), called from the backend
+with `httpx`. Results go in new `lat`/`lng` columns plus `geocoded_from`, the
+string they came from. A lookup runs on create, on a location change, and once
+per scrape/import for anything new or changed. "Not found" is remembered, so it
+isn't retried; a network failure isn't, so it is. A failed lookup never fails a
+save or a scrape.
+Why: postcodes.io is free, keyless, UK-only open data, and covers all three
+kinds of input we have. Storing means one lookup per van, not per page load,
+and the maps work instantly. Rejected: Nominatim (1 request/second, and
+built for worldwide addresses rather than UK postcodes); geocoding in the browser (repeated work, and a third-party call
+from every page view).
+
+## D-049 — Maps with Leaflet + react-leaflet on OpenStreetMap tiles (2026-10-04)
+Context: two map views are wanted — one van's location, and every visible van —
+and the frontend stack is fixed (D-037).
+Decision: add `leaflet`, `react-leaflet` (v5, for React 19) and
+`react-leaflet-cluster` to the fixed frontend stack, using the standard OSM tile
+server with its required attribution. Pins are plain coloured `divIcon`s: one
+colour for vans, another for homes.
+Why: Leaflet is the simplest well-documented map library, needs no API key,
+and OSM's tile policy allows light interactive personal use. Clustering stops
+vans that share an outcode stacking invisibly. Rejected: MapLibre GL +
+OpenFreeMap (nicer vector maps, but a heavier library for no feature we need);
+Google/Mapbox (keys and billing accounts).
+Supersedes: D-037 (the fixed frontend library list only — the rest stands)

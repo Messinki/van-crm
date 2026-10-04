@@ -70,8 +70,11 @@ verified and committed.
   popup). ←/→ always change photo; the strip still jumps to one. A listing with
   no photos shows a "No photos" panel so the popup keeps its size. Verified
   headless (17 checks, own test data created and deleted).
-- Next: **phase 7** (demolition + docs). Open question: should Delete in the
-  popup also advance rather than close? (Not asked for; currently closes.)
+- Next: **phase 7** (demolition + docs) — checked 2026-10-04, genuinely not
+  started: `app/static/app.js`, `style.css`, `index.html` and
+  `docs/FRONTEND_REFACTOR.md` all still exist. Then the distance + maps goal
+  (§Next 2). Open question: should Delete in the popup also advance rather than
+  close? (Not asked for; currently closes.)
 - Note for the resuming session: TanStack Table is pinned to v8 (v9 is npm latest
   but has a different API); the `View` menu is column visibility while the topbar
   `Columns` button is the custom-properties CRUD; D-039 explains why
@@ -92,7 +95,13 @@ verified and committed.
 ## Next
 
 1. **The frontend rebuild** — `docs/FRONTEND_REFACTOR.md`, phases 1–7.
-2. **Remaining production eBay checks** — the sandbox couldn't answer these; production
+2. **Distance to homes + maps** — plan, Harry's agreed answers and verified API
+   facts in `docs/DISTANCE_MAPS.md` (D-047, D-048, D-049). Several postcode
+   "homes", whole-mile straight-line distance to the closest enabled one with a
+   pill naming it, sortable/filterable/rankable; a per-van location map and a
+   Table | Map view of all visible vans (Leaflet + OSM, geocoding via
+   postcodes.io). Six phases; starts after frontend Phase 7.
+3. **Remaining production eBay checks** — the sandbox couldn't answer these; production
    keys are in, they just haven't been run:
    - import-from-link against a live `ebay.co.uk` URL
    - the `ebay.us`/`ebay.to` shortener redirect (a short link to a van already in the
@@ -100,7 +109,7 @@ verified and committed.
    - a liveness check on an item that has genuinely ended → `is_active=0`
    - the spares/repairs skip firing on a real listing (watch `skipped`)
    - re-run the Taxonomy category lookup on production to confirm the ids in D-003
-3. **Milestone 4b — AI enrichment** (`app/ai.py`, via OpenRouter; the scope deviation
+4. **Milestone 4b — AI enrichment** (`app/ai.py`, via OpenRouter; the scope deviation
    is D-036). Condensed spec:
    - Config: `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` in `.env` (pick a current cheap
      model with Harry when building; verify the chat-completions request/response shape
