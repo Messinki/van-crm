@@ -39,23 +39,39 @@ export function TitleCell({ listing }: { listing: Listing }) {
   return <span className="font-medium">{listing.title}</span>
 }
 
-/** The cue that a price shown is listed + 20% VAT (D-043). */
-export function VatBadge() {
-  return (
-    <span className="rounded bg-amber-100 px-1 py-0.5 text-[10px] font-semibold leading-none text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-      +VAT
-    </span>
-  )
-}
-
-/** The price you'd actually pay; a Plus VAT listing shows the × 1.2 figure,
- *  badged, with the listed price in the tooltip. */
+/** The price you'd actually pay, with the Plus VAT toggle beside it (D-043).
+ *  A flagged listing shows listed × 1.2 next to a solid +VAT chip, with the
+ *  listed price in the tooltip; an unflagged one shows a faint dashed chip, so
+ *  the toggle is always findable. Clicking the chip flips the flag without
+ *  opening the popup. */
 export function PriceCell({ listing }: { listing: Listing }) {
-  if (!plusVat(listing) || listing.price_gbp === null) return <>{money(listing.price_gbp)}</>
+  const update = useUpdateListing()
+  if (listing.price_gbp === null) return null
+  const on = plusVat(listing)
   return (
-    <span className="inline-flex items-center gap-1" title={`Listed at ${money(listing.price_gbp)} + 20% VAT`}>
+    <span
+      className="inline-flex items-center gap-1.5"
+      title={on ? `Listed at ${money(listing.price_gbp)} + 20% VAT` : undefined}
+    >
       {money(effectivePrice(listing))}
-      <VatBadge />
+      <button
+        type="button"
+        aria-pressed={on}
+        disabled={update.isPending}
+        title={on ? 'Marked plus VAT — click to undo' : 'Mark this price as plus VAT (adds 20%)'}
+        className={cn(
+          'rounded border px-1 py-0.5 text-[10px] font-semibold leading-none',
+          on
+            ? 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300'
+            : 'border-dashed border-muted-foreground/30 text-muted-foreground/50 hover:border-amber-400 hover:text-amber-700',
+        )}
+        onClick={(e) => {
+          e.stopPropagation()
+          update.mutate({ id: listing.id, fields: { vat_status: on ? null : 'plus_vat' } })
+        }}
+      >
+        +VAT
+      </button>
     </span>
   )
 }

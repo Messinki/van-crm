@@ -53,11 +53,12 @@ verified and committed.
   headless (19 checks incl. both pinch paths; own test data created and
   deleted). **Not yet tried on a real trackpad** — worth Harry pinching once in
   Safari and Chrome to confirm the zoom speed feels right.
-- Side feature, not a phase (D-043): a **Plus VAT** toggle beside the price in
-  the popup and the manual form. Flagged listings show listed × 1.2 with a +VAT
+- Side feature, not a phase (D-043, D-044): a **Plus VAT** toggle beside the
+  price in the popup, the manual form and every table price cell (a +VAT chip:
+  solid when on, faint dashed when off). Flagged listings show listed × 1.2 with a +VAT
   badge and sort/filter/rank on it; `price_gbp` stays the listed price so
   rescrapes recalculate for free. New column `vat_status` — milestone 4b's AI
-  should fill this same field. Verified headless (19 checks, own test data
+  should fill this same field. Verified headless (24 checks, own test data
   created and deleted); the price *filter* wasn't driven through the UI, but it
   reads the same `sortValue()` the verified sort does.
 - Next: **phase 7** (demolition + docs). Open question: should Delete in the

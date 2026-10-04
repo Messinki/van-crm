@@ -390,3 +390,14 @@ Why: scrapes and Check live overwrite `price_gbp` with eBay's figure, so a store
 reapplied). Deriving it means every refresh is recalculated for free, and
 toggling off is exact.
 Rejected: multiplying the stored price; a separate stored "real price" column.
+
+## D-044 — The table's +VAT badge is also the toggle (2026-10-04)
+Context: Harry couldn't find the Plus VAT toggle (D-043) and wants to set it
+wherever the price appears, the table included.
+Decision: every priced table cell carries a +VAT chip — solid amber when the
+listing is flagged, faint and dashed when not. Clicking it flips `vat_status`
+without opening the popup. The popup and manual form keep their toggles.
+Why: an always-visible chip is findable, and keeps prices aligned since the
+chip is the same width either way. Rejected: a chip that only appears on hover
+(the same discoverability problem).
+Supersedes: D-043 (the table's badge only — the rest stands)
