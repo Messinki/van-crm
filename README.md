@@ -3,7 +3,8 @@
 A personal, local-only web app for tracking vans for sale while shopping for a camper
 conversion base. Single user, runs on localhost, no auth, no deployment.
 
-FastAPI + SQLite (stdlib `sqlite3`) + a vanilla-JS frontend. No framework, no build step.
+FastAPI + SQLite (stdlib `sqlite3`) backend; Vite + React + TypeScript frontend in
+`frontend/`, built into `app/static/dist/` and served by FastAPI.
 
 ## Run it
 
@@ -11,6 +12,7 @@ FastAPI + SQLite (stdlib `sqlite3`) + a vanilla-JS frontend. No framework, no bu
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 cp .env.example .env          # works with all keys blank
+(cd frontend && npm install && npm run build)
 .venv/bin/uvicorn app.main:app --port 8321 --reload
 ```
 

@@ -4,8 +4,8 @@ Working document for the distance-and-maps goal. Delete this file when the last
 phase lands (its outcome moves to CHANGELOG/ARCHITECTURE as usual). The why lives
 in DECISIONS: D-047 (homes and distance), D-048 (geocoding), D-049 (maps).
 
-**Starts after frontend-refactor Phase 7** (`docs/FRONTEND_REFACTOR.md`) — Harry
-chose to finish the demolition first, 2026-10-04.
+**Starts after frontend-refactor Phase 7** — Harry chose to finish the demolition
+first, 2026-10-04. Phase 7 landed 2026-10-04, so this is next.
 
 ## What Harry asked for (agreed 2026-10-04)
 

@@ -5,7 +5,7 @@ commands change.
 
 ## Overview
 
-One FastAPI process serves both the JSON API and the static frontend. Everything is
+One FastAPI process serves both the JSON API and the built frontend. Everything is
 synchronous and single-user; there is no queue, no worker, no cache layer beyond two
 module-level dicts and the `mot_cache` table.
 
@@ -26,17 +26,39 @@ Backend modules, all under `app/`:
   `clean_reg()`, `extract_reg()`. The DVLA VES merge path lives here too, dormant until
   `DVLA_VES_API_KEY` is set.
 
-Frontend is `app/static/` — `index.html` + `app.js` + `style.css`, served by
-`StaticFiles`. No framework, no routing, no build step. All listings load once
-(`GET /api/listings?active=-1`) into one `state` object; filtering and sorting are
-client-side, and every mutation re-renders from `state`.
+Frontend is a Vite + React + TypeScript app in `frontend/` (D-037). `npm run build`
+emits to `app/static/dist/` (gitignored, D-038); FastAPI serves its `index.html` at
+`/` and the hashed assets through the `/static` mount. In dev, Vite on :5173 proxies
+`/api` to :8321. All listings load once (`GET /api/listings?active=-1`, D-035) into
+the TanStack Query cache; filtering, ranking and sorting are plain client-side
+selectors over that list (D-039), and mutations write the returned row straight back
+into the cache. Filter, rank and column-visibility settings persist to localStorage.
+
+Inside `frontend/src/`:
+
+- **`api/`** — `client.ts`, the one fetch wrapper (`ApiError` carries status and
+  body), and `queries.ts`, a TanStack Query hook per resource, including the D-034
+  progress polling.
+- **`lib/`** — `schema.ts` (types for the API's shapes), `filtering.ts`,
+  `ranking.ts` and `visible.ts` (filter model, weighted rank score, the visible-rows
+  selector), `format.ts`, `store.ts` (localStorage), `lookup.ts` (what a plate
+  lookup may fill), `window.ts`.
+- **`components/`** — `Topbar.tsx`; `table/` (TanStack Table, columns from the
+  registry, cell renderers); `filters/` (filter bar, rank panel, View menu);
+  `detail/` (the listing popup, its fields, gallery and MOT panel); `modals/`
+  (manual entry, import, searches, columns); `ui/` (shadcn/ui primitives).
 
 ## What the app does
 
-A Notion-style table of van listings: thumbnail, title (links to the original ad),
-price, make/model/year/mileage, L/H size codes, reg, location, seller, source, status
-pill, MOT due, live MOT summary, notes preview, plus user-defined custom columns. The
-table is read-only (D-025); clicking a row opens the drawer where everything is edited.
+A Notion-style table of van listings: thumbnail, title, price (with a +VAT chip,
+D-043), make/model/year/mileage, L/H size codes, reg, location, seller, source, status
+pill, MOT due, live MOT summary, notes preview, plus user-defined custom columns.
+Above it: title search, status chips, show-ended, a View menu for column visibility,
+the faceted filter bar and the rank panel. The table is read-only (D-025) apart from
+the +VAT chip (D-044) and the MOT cell's Check button. Clicking a row opens the
+listing popup, where everything is edited: photos on the left (←/→ change photo,
+pinch zooms), fields on the right, ↑/↓ step through the table's current order
+(D-041, D-042, D-045, D-046).
 Topbar: **Scrape eBay** (runs all enabled saved searches), **Check live** (bulk liveness
 sweep), **Add listing ▾** (manual entry with plate lookup, or import from an eBay URL),
 **Searches** and **Columns** modals.
@@ -56,16 +78,17 @@ price/year bounds, enabled), `property_defs` (typed custom columns), `mot_cache`
 ## The field registry
 
 `main.FIELD_SPECS` defines, in order, every listing property: label, type, editability,
-where it appears (table / drawer / manual form), drawer section, and cell renderer.
+where it appears (table / popup / manual form), popup section, and cell renderer.
 `EDITABLE_FIELDS` is derived from it (plus `custom`), and the frontend fetches it from
-`GET /api/schema` — table, drawer and manual form all build from that and hardcode
-nothing.
+`GET /api/schema` — table, popup and manual form all build from that and hardcode
+nothing. (The popup was a side drawer when the registry was written, hence the
+`in_drawer` key.)
 
 - A new field is visible everywhere by default; hide it per surface with
   `in_table: False` / `in_drawer: False`. Non-editable fields still show read-only in
-  the drawer.
+  the popup.
 - `suggest: True` on a free-text field gives it a `<datalist>` of values already used
-  across listings, built client-side from `state.listings`.
+  across listings, built client-side from the loaded listings.
 - Anything absent from `EDITABLE_FIELDS` is rejected with 400 — that's what keeps `id`,
   `external_id` and timestamps out of reach.
 - Pseudo-fields with no column (`thumb`, `mot`, `reject`) are listed in `DERIVED_KEYS`;
@@ -95,7 +118,8 @@ nothing.
 │   ├── db.py            # schema, migrations, seeds, row decoding
 │   ├── ebay.py          # eBay auth/scrape/import/liveness
 │   ├── mot.py           # DVSA auth/fetch/cache, reg utilities, dormant VES path
-│   └── static/          # index.html, app.js, style.css
+│   └── static/dist/     # frontend build output, served at /; gitignored
+├── frontend/            # Vite + React + TypeScript app (src/api, components, lib)
 └── data/vancrm.db       # created on first run; never committed
 ```
 

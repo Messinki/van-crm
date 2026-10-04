@@ -168,7 +168,8 @@ FIELD_SPECS = [
         # Not a column: the cached DVSA summary attached to every listing by
         # attach_mot(). The table renders expiry + fault badges from it (or a Check
         # button when there's nothing cached); the drawer has its own MOT panel, so
-        # no drawer row. Sorts on the expiry date — see sortValue() in app.js.
+        # no drawer row. Sorts on the expiry date — see sortValue() in
+        # frontend/src/lib/filtering.ts.
         "key": "mot", "label": "MOT", "type": "text", "editable": False,
         "in_table": True, "in_drawer": False, "in_form": False, "cell": "mot",
     },
@@ -904,8 +905,8 @@ def check_all_progress():
 
 # ---------------------------------------------------------------- static
 
-# The React build (docs/FRONTEND_REFACTOR.md, D-038) — `/` serves it since
-# Phase 4; the old UI is out of the routing (deleted in Phase 7).
+# The React build (D-037, D-038). Its assets are served from /static/dist/ by
+# the mount below — Vite's build `base` points there.
 DIST_INDEX = STATIC_DIR / "dist" / "index.html"
 
 

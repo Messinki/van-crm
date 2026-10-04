@@ -17,6 +17,22 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: frontend rebuild on Vite + React (2026-10-04)
+- Replaced the vanilla-JS UI with a Vite + React + TypeScript app in `frontend/`,
+  built into gitignored `app/static/dist/` and served at `/` (D-037, D-038). The old
+  `app/static/app.js`, `style.css` and `index.html` are deleted.
+- Listings table on TanStack Table: schema-driven columns, title search, status
+  chips, show-ended, a new View menu for column visibility, the faceted filter bar
+  and the rank panel. Saved filter/rank settings carried over (D-039).
+- All API access through TanStack Query, including the scrape and check-all
+  progress polling (D-034); errors surface as toasts.
+- Topbar and every modal (manual entry with plate lookup, import from link, saved
+  searches, custom columns) rebuilt as shadcn/ui dialogs.
+- The side drawer became a centred listing popup: photos on the left with pinch
+  zoom, editable fields on the right, ↑/↓ through the table's current order, ←/→
+  through photos, Reject advances to the next listing (D-040, D-041, D-042, D-045,
+  D-046). The table title is plain text; the original ad opens from the popup.
+
 ## Goal: Plus VAT toggle (2026-10-04)
 - New `vat_status` column and a Plus VAT toggle beside the price in the popup and
   the manual form. Flagged listings show listed × 1.2 with a +VAT badge, and sort,
