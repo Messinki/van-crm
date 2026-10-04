@@ -59,8 +59,8 @@ verified and committed.
   badge and sort/filter/rank on it; `price_gbp` stays the listed price so
   rescrapes recalculate for free. New column `vat_status` — milestone 4b's AI
   should fill this same field. Verified headless (24 checks, own test data
-  created and deleted); the price *filter* wasn't driven through the UI, but it
-  reads the same `sortValue()` the verified sort does.
+  created and deleted), plus 4 checks driving the Price filter through the
+  filter bar (min/max act on the inc-VAT price; toggling re-filters live).
 - Next: **phase 7** (demolition + docs). Open question: should Delete in the
   popup also advance rather than close? (Not asked for; currently closes.)
 - Note for the resuming session: TanStack Table is pinned to v8 (v9 is npm latest
