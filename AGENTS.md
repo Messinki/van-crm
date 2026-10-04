@@ -9,7 +9,7 @@ on localhost, no auth, no deployment.
 
 - Install: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && cp .env.example .env`,
   then `cd frontend && npm install`.
-- Run (use): `npm run build` in `frontend/`, then `.venv/bin/uvicorn app.main:app --port 8321`
+- Run (use): `npm run build` in `frontend/`, then `.venv/bin/uvicorn app.main:app --port 8321 --reload`
   — port is fixed so bookmarks keep working. Then open <http://localhost:8321>.
 - Dev: `.venv/bin/uvicorn app.main:app --port 8321 --reload` plus `npm run dev` in
   `frontend/` — Vite on <http://localhost:5173> proxies `/api` to :8321.

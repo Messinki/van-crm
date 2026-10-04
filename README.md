@@ -11,7 +11,7 @@ FastAPI + SQLite (stdlib `sqlite3`) + a vanilla-JS frontend. No framework, no bu
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 cp .env.example .env          # works with all keys blank
-.venv/bin/uvicorn app.main:app --port 8321
+.venv/bin/uvicorn app.main:app --port 8321 --reload
 ```
 
 Then open <http://localhost:8321>. The database is created and seeded at
