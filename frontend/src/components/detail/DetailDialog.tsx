@@ -5,7 +5,7 @@
 // isn't a registry section — it's the user-defined properties from
 // /api/properties, slotted in between Images and Notes.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -13,9 +13,11 @@ import { useCheckListing, useDeleteListing } from '@/api/queries'
 import { RejectButton } from '@/components/table/cells'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 import type { FieldSpec, Listing, PropertyDef, Schema } from '@/lib/schema'
-import { openWindow, windowLink } from '@/lib/window'
+import { windowLink } from '@/lib/window'
 import { CustomField, EditableField, NotesField, ReadonlyField, RegField } from './DetailFields'
+import { Gallery } from './Gallery'
 import { MotPanel } from './MotPanel'
 
 const SECTIONS = ['Details', 'Images', 'Custom', 'Notes', 'MOT'] as const
@@ -45,7 +47,20 @@ export function DetailDialog({
 }: Props) {
   const flushNotes = useRef<() => void>(() => {})
 
-  // ←/→ flick through listings — unless the key is moving a text cursor or
+  // Which photo the gallery shows; null is the default layout (D-042). Moving
+  // to another listing keeps gallery mode, starting at its first photo.
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
+  const [galleryFor, setGalleryFor] = useState(listing?.id)
+  if (galleryFor !== listing?.id) {
+    setGalleryFor(listing?.id)
+    setGalleryIndex(galleryIndex !== null && listing?.image_urls.length ? 0 : null)
+  }
+  const images = listing?.image_urls ?? []
+  const gallery = galleryIndex !== null && galleryIndex < images.length
+  const stepPhoto = (by: number) =>
+    setGalleryIndex((i) => (i === null ? i : (i + by + images.length) % images.length))
+
+  // ←/→ flick through listings — or photos, in gallery mode — unless the key is moving a text cursor or
   // driving a dropdown, which have first claim on arrows.
   const open = listing !== null
   useEffect(() => {
@@ -54,14 +69,16 @@ export function DetailDialog({
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
       const target = event.target as HTMLElement
       if (target.closest('input, textarea, select, [contenteditable], [role="listbox"], [role="menu"]')) return
-      const go = event.key === 'ArrowLeft' ? onPrev : event.key === 'ArrowRight' ? onNext : null
+      const by = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
+      if (!by) return
+      const go = gallery ? () => stepPhoto(by) : by < 0 ? onPrev : onNext
       if (!go) return
       event.preventDefault()
       go()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onPrev, onNext])
+  })
 
   return (
     <Dialog
@@ -73,7 +90,19 @@ export function DetailDialog({
         onClose()
       }}
     >
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent
+        className={
+          gallery
+            ? 'h-[90svh] grid-rows-[auto_minmax(0,1fr)] overflow-hidden sm:max-w-[min(96vw,1600px)]'
+            : 'max-h-[90svh] overflow-y-auto sm:max-w-3xl'
+        }
+        onEscapeKeyDown={(event) => {
+          // Esc leaves the gallery first; a second Esc closes the popup.
+          if (!gallery) return
+          event.preventDefault()
+          setGalleryIndex(null)
+        }}
+      >
         {listing && (
           <>
             <DialogHeader>
@@ -95,15 +124,26 @@ export function DetailDialog({
             {/* Keyed so moving to another listing remounts the fields: they are
                 uncontrolled (D-040), and the unmount flushes any pending notes
                 save against the listing being left. */}
-            <DetailBody
-              key={listing.id}
-              onRejectToggled={onRejectToggled}
-              listing={listing}
-              schema={schema}
-              properties={properties}
-              flushNotes={flushNotes}
-              onClose={onClose}
-            />
+            {/* The body sits at the same place in the tree in both layouts, so
+                switching layout doesn't remount the fields. */}
+            <div className={gallery ? 'grid min-h-0 grid-cols-2 gap-4' : 'min-w-0'}>
+              {gallery && (
+                <Gallery images={images} index={galleryIndex} onStep={stepPhoto} onClose={() => setGalleryIndex(null)} />
+              )}
+              <div className={gallery ? 'min-h-0 min-w-0 overflow-y-auto pr-2' : 'min-w-0'}>
+                <DetailBody
+                  key={listing.id}
+                  onRejectToggled={onRejectToggled}
+                  listing={listing}
+                  schema={schema}
+                  properties={properties}
+                  flushNotes={flushNotes}
+                  onClose={onClose}
+                  activeImage={gallery ? galleryIndex : null}
+                  onImageClick={setGalleryIndex}
+                />
+              </div>
+            </div>
           </>
         )}
       </DialogContent>
@@ -118,6 +158,8 @@ function DetailBody({
   flushNotes,
   onClose,
   onRejectToggled,
+  activeImage,
+  onImageClick,
 }: {
   listing: Listing
   schema: Schema
@@ -125,6 +167,9 @@ function DetailBody({
   flushNotes: React.RefObject<() => void>
   onClose: () => void
   onRejectToggled: () => void
+  /** The photo the gallery is showing, outlined in the strip. */
+  activeImage: number | null
+  onImageClick: (index: number) => void
 }) {
   // The specs a section renders, in registry order.
   const sectionFields = (name: string): FieldSpec[] =>
@@ -139,14 +184,17 @@ function DetailBody({
 
       {listing.image_urls.length > 0 && (
         <div className="flex gap-2 overflow-x-auto">
-          {listing.image_urls.map((src) => (
+          {listing.image_urls.map((src, index) => (
             <img
               key={src}
               src={src}
               alt=""
               loading="lazy"
-              className="h-24 w-32 shrink-0 cursor-pointer rounded bg-muted object-cover"
-              onClick={() => openWindow(src)}
+              className={cn(
+                'h-24 w-32 shrink-0 cursor-pointer rounded bg-muted object-cover',
+                index === activeImage && 'outline-2 -outline-offset-2 outline-primary',
+              )}
+              onClick={() => onImageClick(index)}
             />
           ))}
         </div>

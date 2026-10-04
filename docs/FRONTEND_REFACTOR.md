@@ -143,6 +143,9 @@ The agreed new design, on top of Phase 5:
 - Open questions to settle while building, not before: exact popup size,
   whether field editing stays visible in gallery mode.
 
+Built (D-041, D-042) — with one change from the above: no bigger default
+thumbnail; the small strip stays and opens the gallery.
+
 ### Phase 7 — demolition and docs
 
 - Delete `app/static/app.js`, `style.css`, the old `index.html`.

@@ -8,8 +8,8 @@ The frontend rebuild on Vite + React + TypeScript (D-037, D-038). The plan, phas
 phase, is `docs/FRONTEND_REFACTOR.md` — work through it in order; each phase ends
 verified and committed.
 
-**Where it stands (2026-10-04): phases 0–5 done and verified; phase 6 under way —
-navigation is in, the thumbnail/gallery layout is not.**
+**Where it stands (2026-10-04): phases 0–6 done and verified; phase 7
+(demolition + docs) is next.**
 
 - Phases 0–3 are committed: scaffold (dev on :5173 proxying to :8321), typed data
   layer (`src/lib/schema.ts`, `src/api/queries.ts`, global error toasts), and the
@@ -44,9 +44,17 @@ navigation is in, the thumbnail/gallery layout is not.**
   Un-reject in the popup advances to the next listing (previous at the end,
   closes when none left); the table title is no longer a link. Verified headless
   (17 checks, own test data created and deleted).
-- Next: **rest of phase 6** — bigger thumbnail, click-to-gallery layout — then 7
-  (demolition + docs). Open question: should Delete in the popup also advance
-  rather than close? (Not asked for; currently closes.)
+- Phase 6, part 2 (D-042): clicking a photo in the popup's strip opens gallery
+  mode — the popup widens, the photo fills the left half and the fields stay
+  editable on the right. ←/→ change photo there; pinch zooms (ctrl+wheel for
+  Chrome/Firefox, gesture events for Safari), drag or two-finger scroll pans,
+  changing photo resets the zoom; Esc or a click on an unzoomed photo goes back.
+  No bigger default thumbnail — Harry chose to keep the small strip. Verified
+  headless (19 checks incl. both pinch paths; own test data created and
+  deleted). **Not yet tried on a real trackpad** — worth Harry pinching once in
+  Safari and Chrome to confirm the zoom speed feels right.
+- Next: **phase 7** (demolition + docs). Open question: should Delete in the
+  popup also advance rather than close? (Not asked for; currently closes.)
 - Note for the resuming session: TanStack Table is pinned to v8 (v9 is npm latest
   but has a different API); the `View` menu is column visibility while the topbar
   `Columns` button is the custom-properties CRUD; D-039 explains why

@@ -354,3 +354,22 @@ of the view it was in. The body is keyed on listing id so the uncontrolled field
 (D-040) remount per listing and the notes debounce flushes on the way out.
 Rejected: a hard-coded "next non-rejected listing" (wrong in the Rejected view)
 and advancing before the save confirms (a failed save would silently move on).
+
+## D-042 — Gallery mode splits the popup; pinch zooms the photo (2026-10-04)
+Context: Phase 6 planned a bigger default thumbnail and a click-to-gallery
+layout. Harry mainly wants the gallery to read number plates, zooming with the
+Mac trackpad.
+Decision: the default popup keeps the small image strip — no bigger thumbnail.
+Clicking a strip photo widens the popup into two halves: the gallery on the left
+and the normal, still-editable fields scrolling on the right, so a plate can be
+read and typed straight into Reg. In gallery mode ←/→ change photo (the header
+‹ › buttons still change listing), and Esc or a click on an unzoomed photo goes
+back to the default layout. Gallery mode stays on when moving to another
+listing, starting at its first photo. Pinch zooms around the pointer (Chrome and
+Firefox report it as ctrl+wheel, Safari as gesture events — both are handled);
+when zoomed, drag or two-finger scroll pans; changing photo resets the zoom. No
+double-click zoom.
+Why: reading a plate and entering it is one task, so the fields stay beside the
+photo; the bigger thumbnail wasn't wanted once the gallery existed.
+Rejected: a gallery that takes over the whole popup; arrow keys that keep
+changing listing in gallery mode.
