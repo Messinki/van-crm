@@ -412,3 +412,19 @@ is in a text field, select or open menu.
 Why: a fixed key per axis needs no mode to remember. Cost: ↑/↓ no longer
 keyboard-scroll the popup — the mouse or trackpad still does.
 Supersedes: D-041 (the arrow keys and button icons only), D-042 (←/→ in gallery mode stands)
+
+## D-046 — The gallery layout is the only popup layout (2026-10-04)
+Context: the popup had two layouts — a narrow default with the image strip, and
+gallery mode (D-042) opened by clicking a strip photo. Harry likes the gallery
+layout and wants it to be the only one.
+Decision: the popup always opens split — the photo on the left, the editable
+fields scrolling on the right — starting at the first photo. There is no mode to
+leave: the "Close gallery" button, Esc-leaves-gallery and click-an-unzoomed-photo-
+to-go-back are gone, so Esc closes the popup. The strip stays, to jump to a photo,
+and ←/→ always change photo. A listing with no photos shows a "No photos" panel in
+the left half, so the popup keeps its size while flicking through listings.
+Pinch zoom, panning and "Full size ↗" are unchanged.
+Why: one layout means no mode to remember or toggle; the fixed size stops the
+popup jumping when the next listing has no photos.
+Rejected: falling back to the narrow layout for photo-less listings.
+Supersedes: D-042 (the default layout and the ways out of gallery mode), D-045 (←/→ doing nothing outside gallery mode)

@@ -1,4 +1,4 @@
-// The gallery half of the detail popup (D-042): one photo at a time, flicked
+// The photo half of the detail popup (D-042, D-046): one photo at a time, flicked
 // with the arrows under it (←/→ are handled by the dialog), and zoomable with a
 // trackpad pinch so a number plate can be read.
 
@@ -12,15 +12,23 @@ interface Props {
   images: string[]
   index: number
   onStep: (by: number) => void
-  onClose: () => void
 }
 
-export function Gallery({ images, index, onStep, onClose }: Props) {
+export function Gallery({ images, index, onStep }: Props) {
   const src = images[index]
+  // Same footprint without photos, so the popup doesn't change size when
+  // flicking on to a listing that has none.
+  if (!src) {
+    return (
+      <div className="flex min-h-0 items-center justify-center rounded bg-muted text-sm text-muted-foreground">
+        No photos
+      </div>
+    )
+  }
   return (
     <div className="flex min-h-0 flex-col gap-2">
       {/* Keyed on the photo so a new photo starts unzoomed. */}
-      <ZoomableImage key={src} src={src} onClick={onClose} />
+      <ZoomableImage key={src} src={src} />
       <div className="flex items-center gap-2">
         <Button variant="outline" size="icon-sm" disabled={images.length < 2} onClick={() => onStep(-1)} title="Previous photo (←)">
           <ChevronLeftIcon />
@@ -32,14 +40,9 @@ export function Gallery({ images, index, onStep, onClose }: Props) {
           {index + 1} / {images.length}
         </span>
         <span className="truncate text-xs text-muted-foreground">· pinch to zoom, drag to move</span>
-        <div className="ml-auto flex shrink-0 gap-1">
-          <Button variant="ghost" size="sm" onClick={() => openWindow(src)}>
-            Full size ↗
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onClose} title="Back to details (Esc)">
-            Close gallery
-          </Button>
-        </div>
+        <Button variant="ghost" size="sm" className="ml-auto shrink-0" onClick={() => openWindow(src)}>
+          Full size ↗
+        </Button>
       </div>
     </div>
   )
@@ -63,14 +66,14 @@ interface GestureEvent extends UIEvent {
   clientY: number
 }
 
-function ZoomableImage({ src, onClick }: { src: string; onClick: () => void }) {
+function ZoomableImage({ src }: { src: string }) {
   const box = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<View>(UNZOOMED)
   const viewRef = useRef(view)
   useEffect(() => {
     viewRef.current = view
   })
-  const drag = useRef<{ startX: number; startY: number; lastX: number; lastY: number; moved: boolean } | null>(null)
+  const drag = useRef<{ lastX: number; lastY: number } | null>(null)
 
   // Keep the scale in range and the image covering the box, so panning can't
   // lose it off an edge.
@@ -152,11 +155,11 @@ function ZoomableImage({ src, onClick }: { src: string; onClick: () => void }) {
     <div
       ref={box}
       className="relative min-h-0 flex-1 touch-none overflow-hidden rounded bg-muted select-none"
-      style={{ cursor: zoomed ? 'grab' : 'zoom-out' }}
+      style={{ cursor: zoomed ? 'grab' : undefined }}
       onPointerDown={(event) => {
         if (event.button !== 0) return
         event.currentTarget.setPointerCapture(event.pointerId)
-        drag.current = { startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY, moved: false }
+        drag.current = { lastX: event.clientX, lastY: event.clientY }
       }}
       onPointerMove={(event) => {
         const d = drag.current
@@ -165,15 +168,10 @@ function ZoomableImage({ src, onClick }: { src: string; onClick: () => void }) {
         const dy = event.clientY - d.lastY
         d.lastX = event.clientX
         d.lastY = event.clientY
-        if (Math.hypot(event.clientX - d.startX, event.clientY - d.startY) > 4) d.moved = true
         setView((v) => (v.scale === 1 ? v : fit({ ...v, x: v.x + dx, y: v.y + dy })))
       }}
       onPointerUp={() => {
-        const d = drag.current
         drag.current = null
-        // A plain click on an unzoomed photo is the "second click" that leaves
-        // the gallery; once zoomed, clicks belong to panning.
-        if (d && !d.moved && viewRef.current.scale === 1) onClick()
       }}
       onPointerCancel={() => {
         drag.current = null

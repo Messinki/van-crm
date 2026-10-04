@@ -62,8 +62,14 @@ verified and committed.
   created and deleted), plus 4 checks driving the Price filter through the
   filter bar (min/max act on the inc-VAT price; toggling re-filters live).
 - Popup keys (D-045): ↑/↓ always change listing (header buttons now show up/down
-  chevrons); ←/→ only change photo in gallery mode and do nothing otherwise.
+  chevrons); ←/→ change photo (now always — see D-046).
   Verified headless (15 checks, read-only).
+- One popup layout (D-046): the popup always opens split — photo on the left at
+  photo 1, editable fields on the right; the narrow default layout, "Close
+  gallery", Esc-leaves-gallery and click-photo-to-go-back are gone (Esc closes the
+  popup). ←/→ always change photo; the strip still jumps to one. A listing with
+  no photos shows a "No photos" panel so the popup keeps its size. Verified
+  headless (17 checks, own test data created and deleted).
 - Next: **phase 7** (demolition + docs). Open question: should Delete in the
   popup also advance rather than close? (Not asked for; currently closes.)
 - Note for the resuming session: TanStack Table is pinned to v8 (v9 is npm latest

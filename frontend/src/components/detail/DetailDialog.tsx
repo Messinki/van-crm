@@ -47,20 +47,20 @@ export function DetailDialog({
 }: Props) {
   const flushNotes = useRef<() => void>(() => {})
 
-  // Which photo the gallery shows; null is the default layout (D-042). Moving
-  // to another listing keeps gallery mode, starting at its first photo.
-  const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
-  const [galleryFor, setGalleryFor] = useState(listing?.id)
-  if (galleryFor !== listing?.id) {
-    setGalleryFor(listing?.id)
-    setGalleryIndex(galleryIndex !== null && listing?.image_urls.length ? 0 : null)
+  // Which photo the gallery shows (D-046). Moving to another listing starts
+  // at its first photo.
+  const [photoIndex, setPhotoIndex] = useState(0)
+  const [photoFor, setPhotoFor] = useState(listing?.id)
+  if (photoFor !== listing?.id) {
+    setPhotoFor(listing?.id)
+    setPhotoIndex(0)
   }
   const images = listing?.image_urls ?? []
-  const gallery = galleryIndex !== null && galleryIndex < images.length
-  const stepPhoto = (by: number) =>
-    setGalleryIndex((i) => (i === null ? i : (i + by + images.length) % images.length))
+  const stepPhoto = (by: number) => {
+    if (images.length) setPhotoIndex((i) => (i + by + images.length) % images.length)
+  }
 
-  // ↑/↓ flick through listings and ←/→ through photos in gallery mode (D-045),
+  // ↑/↓ flick through listings and ←/→ through photos (D-045, D-046),
   // unless the key is moving a text cursor or driving a dropdown, which have
   // first claim on arrows.
   const open = listing !== null
@@ -73,8 +73,8 @@ export function DetailDialog({
       let go: (() => void) | null = null
       if (event.key === 'ArrowUp') go = onPrev
       else if (event.key === 'ArrowDown') go = onNext
-      else if (gallery && event.key === 'ArrowLeft') go = () => stepPhoto(-1)
-      else if (gallery && event.key === 'ArrowRight') go = () => stepPhoto(1)
+      else if (event.key === 'ArrowLeft') go = () => stepPhoto(-1)
+      else if (event.key === 'ArrowRight') go = () => stepPhoto(1)
       if (!go) return
       event.preventDefault()
       go()
@@ -93,19 +93,7 @@ export function DetailDialog({
         onClose()
       }}
     >
-      <DialogContent
-        className={
-          gallery
-            ? 'h-[90svh] grid-rows-[auto_minmax(0,1fr)] overflow-hidden sm:max-w-[min(96vw,1600px)]'
-            : 'max-h-[90svh] overflow-y-auto sm:max-w-3xl'
-        }
-        onEscapeKeyDown={(event) => {
-          // Esc leaves the gallery first; a second Esc closes the popup.
-          if (!gallery) return
-          event.preventDefault()
-          setGalleryIndex(null)
-        }}
-      >
+      <DialogContent className="h-[90svh] grid-rows-[auto_minmax(0,1fr)] overflow-hidden sm:max-w-[min(96vw,1600px)]">
         {listing && (
           <>
             <DialogHeader>
@@ -127,13 +115,9 @@ export function DetailDialog({
             {/* Keyed so moving to another listing remounts the fields: they are
                 uncontrolled (D-040), and the unmount flushes any pending notes
                 save against the listing being left. */}
-            {/* The body sits at the same place in the tree in both layouts, so
-                switching layout doesn't remount the fields. */}
-            <div className={gallery ? 'grid min-h-0 grid-cols-2 gap-4' : 'min-w-0'}>
-              {gallery && (
-                <Gallery images={images} index={galleryIndex} onStep={stepPhoto} onClose={() => setGalleryIndex(null)} />
-              )}
-              <div className={gallery ? 'min-h-0 min-w-0 overflow-y-auto pr-2' : 'min-w-0'}>
+            <div className="grid min-h-0 grid-cols-2 gap-4">
+              <Gallery images={images} index={photoIndex} onStep={stepPhoto} />
+              <div className="min-h-0 min-w-0 overflow-y-auto pr-2">
                 <DetailBody
                   key={listing.id}
                   onRejectToggled={onRejectToggled}
@@ -142,8 +126,8 @@ export function DetailDialog({
                   properties={properties}
                   flushNotes={flushNotes}
                   onClose={onClose}
-                  activeImage={gallery ? galleryIndex : null}
-                  onImageClick={setGalleryIndex}
+                  activeImage={photoIndex}
+                  onImageClick={setPhotoIndex}
                 />
               </div>
             </div>
@@ -171,7 +155,7 @@ function DetailBody({
   onClose: () => void
   onRejectToggled: () => void
   /** The photo the gallery is showing, outlined in the strip. */
-  activeImage: number | null
+  activeImage: number
   onImageClick: (index: number) => void
 }) {
   // The specs a section renders, in registry order.
