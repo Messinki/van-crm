@@ -24,3 +24,11 @@ export function lookupDetailLine(result: RegLookupResult): string {
     .filter(Boolean)
     .join(' · ')
 }
+
+/** Where a plate lookup is up to, as shown under the plate box. */
+export type LookupState =
+  | { kind: 'idle' }
+  | { kind: 'busy' }
+  | { kind: 'hint'; text: string }
+  | { kind: 'error'; text: string }
+  | { kind: 'result'; result: RegLookupResult }

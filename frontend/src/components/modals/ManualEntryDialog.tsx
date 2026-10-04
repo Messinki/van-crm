@@ -18,9 +18,10 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { NUMERIC_TYPES, specLabel } from '@/lib/filtering'
 import { cleanReg } from '@/lib/format'
-import { LOOKUP_FILLS } from '@/lib/lookup'
-import type { FieldSpec, Listing, RegLookupResult, Schema } from '@/lib/schema'
-import { lookupErrorText, LookupResult } from './LookupHint'
+import { LOOKUP_FILLS, type LookupState } from '@/lib/lookup'
+import type { FieldSpec, Listing, Schema } from '@/lib/schema'
+import { lookupErrorText } from './LookupHint'
+import { PlateField } from './PlateField'
 import { suggestId } from './Suggestions'
 
 interface Props {
@@ -44,9 +45,7 @@ export function ManualEntryDialog({ schema, open, onOpenChange, onCreated }: Pro
   const create = useCreateListing()
   const lookup = useRegLookup()
   const [values, setValues] = useState<FormValues>(() => defaults(schema))
-  const [lookupState, setLookupState] = useState<
-    { kind: 'idle' } | { kind: 'busy' } | { kind: 'hint'; text: string } | { kind: 'error'; text: string } | { kind: 'result'; result: RegLookupResult }
-  >({ kind: 'idle' })
+  const [lookupState, setLookupState] = useState<LookupState>({ kind: 'idle' })
 
   const set = (key: string, value: string) => setValues((v) => ({ ...v, [key]: value }))
 
@@ -102,29 +101,15 @@ export function ManualEntryDialog({ schema, open, onOpenChange, onCreated }: Pro
           <DialogTitle>Add a listing</DialogTitle>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Number plate</Label>
-            <div className="flex gap-2">
-              <Input
-                value={values.reg ?? ''}
-                onChange={(e) => set('reg', e.target.value)}
-                className="h-8 w-40"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={lookupState.kind === 'busy'}
-                title="Fill in the empty fields from DVSA/DVLA"
-                onClick={runLookup}
-              >
-                {lookupState.kind === 'busy' ? 'Looking up…' : 'Look up plate'}
-              </Button>
-            </div>
-            {lookupState.kind === 'hint' && <p className="text-xs text-muted-foreground">{lookupState.text}</p>}
-            {lookupState.kind === 'error' && <p className="text-xs text-destructive">{lookupState.text}</p>}
-            {lookupState.kind === 'result' && <LookupResult result={lookupState.result} />}
-          </div>
+          <PlateField
+            id="manual-reg"
+            labelClassName="text-xs"
+            value={values.reg ?? ''}
+            onChange={(value) => set('reg', value)}
+            state={lookupState}
+            lookupTitle="Fill in the empty fields from DVSA/DVLA"
+            onLookup={runLookup}
+          />
 
           <div className="grid grid-cols-2 gap-3">
             {gridSpecs.map((spec) => (

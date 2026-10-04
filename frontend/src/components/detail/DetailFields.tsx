@@ -11,16 +11,16 @@ import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { useRegLookup, useUpdateListing } from '@/api/queries'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { lookupErrorText, LookupResult } from '@/components/modals/LookupHint'
+import { lookupErrorText } from '@/components/modals/LookupHint'
+import { PlateField } from '@/components/modals/PlateField'
 import { suggestId } from '@/components/modals/Suggestions'
 import { NUMERIC_TYPES, specLabel } from '@/lib/filtering'
 import { cleanReg, formatReg } from '@/lib/format'
-import { LOOKUP_FILLS } from '@/lib/lookup'
-import type { FieldSpec, Listing, PropertyDef, RegLookupResult } from '@/lib/schema'
+import { LOOKUP_FILLS, type LookupState } from '@/lib/lookup'
+import type { FieldSpec, Listing, PropertyDef } from '@/lib/schema'
 
 /** Label + control, the shape every row in the dialog takes. `htmlFor` ties the
  *  two together — the control carries the matching id. */
@@ -144,13 +144,6 @@ export function ReadonlyField({ listing, spec }: { listing: Listing; spec: Field
   )
 }
 
-type LookupState =
-  | { kind: 'idle' }
-  | { kind: 'busy' }
-  | { kind: 'hint'; text: string }
-  | { kind: 'error'; text: string }
-  | { kind: 'result'; result: RegLookupResult }
-
 /** Reg + plate lookup. The lookup fills only the fields left empty, saves them
  *  in one PATCH along with the cleaned plate, and warms the MOT cache — so the
  *  panel below reloads its report for free. */
@@ -193,36 +186,16 @@ export function RegField({ listing }: { listing: Listing }) {
   }
 
   return (
-    <div className="space-y-1">
-      <Label htmlFor="detail-reg" className="text-xs text-muted-foreground">
-        Number plate
-      </Label>
-      <div className="flex gap-2">
-        <Input
-          id="detail-reg"
-          ref={input}
-          className="h-8 w-40"
-          defaultValue={formatReg(listing.reg)}
-          onBlur={(e) => {
-            if (e.target.value) e.target.value = formatReg(cleanReg(e.target.value))
-          }}
-          onChange={(e) => save('reg', e.target.value || null)}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={state.kind === 'busy'}
-          title="Fill in the empty fields from DVSA/DVLA and load the MOT history below"
-          onClick={runLookup}
-        >
-          {state.kind === 'busy' ? 'Looking up…' : 'Look up plate'}
-        </Button>
-      </div>
-      {state.kind === 'hint' && <p className="text-xs text-muted-foreground">{state.text}</p>}
-      {state.kind === 'error' && <p className="text-xs text-destructive">{state.text}</p>}
-      {state.kind === 'result' && <LookupResult result={state.result} />}
-    </div>
+    <PlateField
+      id="detail-reg"
+      labelClassName="text-xs text-muted-foreground"
+      inputRef={input}
+      defaultValue={formatReg(listing.reg)}
+      onChange={(value) => save('reg', value || null)}
+      state={state}
+      lookupTitle="Fill in the empty fields from DVSA/DVLA and load the MOT history below"
+      onLookup={runLookup}
+    />
   )
 }
 
