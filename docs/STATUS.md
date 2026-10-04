@@ -8,7 +8,8 @@ The frontend rebuild on Vite + React + TypeScript (D-037, D-038). The plan, phas
 phase, is `docs/FRONTEND_REFACTOR.md` — work through it in order; each phase ends
 verified and committed.
 
-**Where it stands (2026-08-27): phases 0–5 done and verified; next is phase 6.**
+**Where it stands (2026-10-04): phases 0–5 done and verified; phase 6 under way —
+navigation is in, the thumbnail/gallery layout is not.**
 
 - Phases 0–3 are committed: scaffold (dev on :5173 proxying to :8321), typed data
   layer (`src/lib/schema.ts`, `src/api/queries.ts`, global error toasts), and the
@@ -38,9 +39,14 @@ verified and committed.
   report, creating and deleting its own test listing and custom property (44/45;
   the one failure is the script's own fake image URLs failing DNS). Check
   listing live is render-only — no eBay call made.
-- Next: **phase 6** — the detail popup redesign (left/right navigation through
-  the filtered order, bigger thumbnail, click-to-gallery layout), then 7
-  (demolition + docs).
+- Phase 6, part 1 (D-041): the popup has ‹ › buttons, ←/→ keys and an "n of N"
+  counter, stepping through the table's current filtered/sorted order; Reject /
+  Un-reject in the popup advances to the next listing (previous at the end,
+  closes when none left); the table title is no longer a link. Verified headless
+  (17 checks, own test data created and deleted).
+- Next: **rest of phase 6** — bigger thumbnail, click-to-gallery layout — then 7
+  (demolition + docs). Open question: should Delete in the popup also advance
+  rather than close? (Not asked for; currently closes.)
 - Note for the resuming session: TanStack Table is pinned to v8 (v9 is npm latest
   but has a different API); the `View` menu is column visibility while the topbar
   `Columns` button is the custom-properties CRUD; D-039 explains why

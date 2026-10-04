@@ -11,7 +11,7 @@ import { ImportDialog } from '@/components/modals/ImportDialog'
 import { ManualEntryDialog } from '@/components/modals/ManualEntryDialog'
 import { SearchesDialog } from '@/components/modals/SearchesDialog'
 import { Suggestions } from '@/components/modals/Suggestions'
-import { ListingsTable } from '@/components/table/ListingsTable'
+import { ListingsTable, useTableRows } from '@/components/table/ListingsTable'
 import { Topbar } from '@/components/Topbar'
 import { BLANK_FILTERS, filterableProps, type Filters } from '@/lib/filtering'
 import type { Listing, PropertyDef, Schema } from '@/lib/schema'
@@ -60,6 +60,14 @@ function VanCrm({
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [dialog, setDialog] = useState<'manual' | 'import' | 'searches' | 'columns' | null>(null)
 
+  const { columns, rows, scores } = useTableRows(listings, schema, properties, filters, rank, sort)
+
+  // The popup steps through the table's current order. A listing the filters
+  // hide (say, one just added) still opens, it just has no neighbours.
+  const at = selectedId === null ? -1 : rows.findIndex((l) => l.id === selectedId)
+  const prevId = at > 0 ? rows[at - 1].id : null
+  const nextId = at >= 0 && at < rows.length - 1 ? rows[at + 1].id : null
+
   useEffect(() => saveFilterProps(filters.props), [filters.props])
   useEffect(() => saveRank(rank), [rank])
   useEffect(() => saveColumnVisibility(columnVisibility), [columnVisibility])
@@ -95,9 +103,9 @@ function VanCrm({
 
       <ListingsTable
         listings={listings}
-        schema={schema}
-        properties={properties}
-        filters={filters}
+        columns={columns}
+        rows={rows}
+        scores={scores}
         rank={rank}
         sort={sort}
         onSortChange={setSort}
@@ -113,6 +121,15 @@ function VanCrm({
         schema={schema}
         properties={properties}
         onClose={() => setSelectedId(null)}
+        position={at >= 0 ? { index: at, total: rows.length } : null}
+        onPrev={prevId === null ? null : () => setSelectedId(prevId)}
+        onNext={nextId === null ? null : () => setSelectedId(nextId)}
+        // Reject/un-reject drops the listing out of the view it was in, so move
+        // on to the one below it — or above, at the end — as the order stood
+        // when the button was pressed. Nothing left in the view: close.
+        onRejectToggled={() => {
+          if (at >= 0) setSelectedId(nextId ?? prevId)
+        }}
       />
 
       <ManualEntryDialog

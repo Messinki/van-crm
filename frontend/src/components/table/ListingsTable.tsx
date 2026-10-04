@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import {
+  type ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
@@ -8,45 +9,25 @@ import {
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { filterableProps, type Filters } from '@/lib/filtering'
-import { rankActive, type Rank } from '@/lib/ranking'
+import { rankActive, type Rank, type Scores } from '@/lib/ranking'
 import type { Listing, PropertyDef, Schema } from '@/lib/schema'
 import { visibleListings, type Sort } from '@/lib/visible'
 import { cn } from '@/lib/utils'
 import { buildColumns, SCORE_KEY } from './columns'
 
-interface Props {
-  listings: Listing[]
-  schema: Schema
-  properties: PropertyDef[]
-  filters: Filters
-  rank: Rank
-  sort: Sort
-  onSortChange: (sort: Sort) => void
-  /** Sorting by a column hands the order back from rank mode (rank turns off). */
-  onRankOff: () => void
-  columnVisibility: VisibilityState
-  onColumnVisibilityChange: (updater: React.SetStateAction<VisibilityState>) => void
-  selectedId: number | null
-  onRowClick: (listing: Listing) => void
-}
-
-export function ListingsTable({
-  listings,
-  schema,
-  properties,
-  filters,
-  rank,
-  sort,
-  onSortChange,
-  onRankOff,
-  columnVisibility,
-  onColumnVisibilityChange,
-  selectedId,
-  onRowClick,
-}: Props) {
+/** The table's columns and its rows in their filtered, ranked/sorted order.
+ *  Lives above the table because the detail popup steps through the same
+ *  order the table shows. */
+export function useTableRows(
+  listings: Listing[],
+  schema: Schema,
+  properties: PropertyDef[],
+  filters: Filters,
+  rank: Rank,
+  sort: Sort,
+) {
   const rankOn = rankActive(rank)
   const columns = useMemo(() => buildColumns(schema, properties, rankOn), [schema, properties, rankOn])
-
   const props = useMemo(() => filterableProps(schema, properties), [schema, properties])
   const { rows, scores } = useMemo(
     () =>
@@ -60,6 +41,40 @@ export function ListingsTable({
       ),
     [listings, filters, rank, sort, props, columns],
   )
+  return { columns, rows, scores }
+}
+
+interface Props {
+  listings: Listing[]
+  columns: ColumnDef<Listing>[]
+  rows: Listing[]
+  scores: Scores | null
+  rank: Rank
+  sort: Sort
+  onSortChange: (sort: Sort) => void
+  /** Sorting by a column hands the order back from rank mode (rank turns off). */
+  onRankOff: () => void
+  columnVisibility: VisibilityState
+  onColumnVisibilityChange: (updater: React.SetStateAction<VisibilityState>) => void
+  selectedId: number | null
+  onRowClick: (listing: Listing) => void
+}
+
+export function ListingsTable({
+  listings,
+  columns,
+  rows,
+  scores,
+  rank,
+  sort,
+  onSortChange,
+  onRankOff,
+  columnVisibility,
+  onColumnVisibilityChange,
+  selectedId,
+  onRowClick,
+}: Props) {
+  const rankOn = rankActive(rank)
 
   const table = useReactTable({
     data: rows,
@@ -130,12 +145,7 @@ export function ListingsTable({
                     !listing.is_active && 'bg-muted/40 [&_td]:text-muted-foreground',
                     selectedId === listing.id && 'bg-accent',
                   )}
-                  onClick={(event) => {
-                    // The title link is the one thing in a row that isn't
-                    // "open the details".
-                    if ((event.target as HTMLElement).closest('a')) return
-                    onRowClick(listing)
-                  }}
+                  onClick={() => onRowClick(listing)}
                 >
                   {row.getVisibleCells().map((cell) => {
                     const numeric = cell.column.columnDef.meta?.numeric

@@ -11,7 +11,6 @@ import { formatDate, formatReg, formatStamp, isoInDays, money, number, todayIso,
 import type { FieldSpec, Listing, MotSummary, PropertyDef } from '@/lib/schema'
 import type { ScoreParts } from '@/lib/ranking'
 import { RANK_FACTORS } from '@/lib/ranking'
-import { windowLink } from '@/lib/window'
 import { cn } from '@/lib/utils'
 
 export function ThumbCell({ listing }: { listing: Listing }) {
@@ -24,16 +23,9 @@ export function ThumbCell({ listing }: { listing: Listing }) {
 }
 
 export function TitleCell({ listing }: { listing: Listing }) {
-  if (!listing.url) return <span className="font-medium">{listing.title}</span>
-  return (
-    <a
-      {...windowLink(listing.url)}
-      title="Open the original listing"
-      className="font-medium text-primary hover:underline"
-    >
-      {listing.title}
-    </a>
-  )
+  // Plain text on purpose: the original listing opens from the detail popup,
+  // so a click anywhere on the row means "open the details".
+  return <span className="font-medium">{listing.title}</span>
 }
 
 export function SourceBadge({ value }: { value: string }) {
@@ -193,7 +185,16 @@ export function MotCell({ listing }: { listing: Listing }) {
  *  previous value isn't stored anywhere, and 'new' is the one status that means
  *  "not judged yet". Nothing is deleted either way — rejecting only drops the
  *  row out of the default view; the Rejected status chip brings it back. */
-export function RejectButton({ listing, size = 'table' }: { listing: Listing; size?: 'table' | 'full' }) {
+export function RejectButton({
+  listing,
+  size = 'table',
+  onToggled,
+}: {
+  listing: Listing
+  size?: 'table' | 'full'
+  /** Runs once the change has saved — the detail popup moves on to the next listing. */
+  onToggled?: () => void
+}) {
   const update = useUpdateListing()
   const rejected = listing.status === 'rejected'
   return (
@@ -212,6 +213,7 @@ export function RejectButton({ listing, size = 'table' }: { listing: Listing; si
               // Rejecting makes the row vanish, which reads like a delete, so
               // the toast says where it went.
               if (!rejected) toast('Rejected — select the Rejected chip to see it again')
+              onToggled?.()
             },
           },
         )

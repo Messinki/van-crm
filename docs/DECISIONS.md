@@ -336,3 +336,21 @@ closes. The React Query cache is the single copy of the listing.
 Why: parity with the drawer's save-on-blur semantics with no duplicated state;
 rejected controlled inputs with a sync effect (two sources of truth for every
 field) and a single `key` on the whole form (loses in-progress typing elsewhere).
+
+## D-041 — The detail popup is a cursor over the table's current order (2026-10-04)
+Context: Phase 6 asks for left/right navigation in the popup, and Harry wants
+Reject in the popup to move straight on to the next listing, in whatever view
+(status chips, filters, rank or sort) is active — e.g. working through the
+Rejected chip view with Un-reject.
+Decision: the filtered/sorted rows are computed once in `App` (`useTableRows`)
+and both the table and the popup read them; ←/→ buttons and arrow keys step
+through that order (keys ignored while focus is in a text field or open menu).
+Reject *and* Un-reject in the popup move to the listing below the current one as
+the order stood at the click — or above it at the end — and close the popup when
+nothing is left. A listing the filters hide still opens, with no neighbours.
+The table title is plain text; the original listing opens only from the popup.
+Why: one rule covers every view, because toggling reject always drops the row out
+of the view it was in. The body is keyed on listing id so the uncontrolled fields
+(D-040) remount per listing and the notes debounce flushes on the way out.
+Rejected: a hard-coded "next non-rejected listing" (wrong in the Rejected view)
+and advancing before the save confirms (a failed save would silently move on).
