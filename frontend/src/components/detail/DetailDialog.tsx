@@ -25,6 +25,7 @@ import {
   PriceField,
   ReadonlyField,
   RegField,
+  UrlField,
 } from './DetailFields'
 import { Gallery } from './Gallery'
 import { MotPanel } from './MotPanel'
@@ -262,6 +263,7 @@ function DetailField({
   if (spec.widget === 'price_vat') return <PriceField listing={listing} spec={spec} />
   if (spec.widget === 'distance') return <DistanceField listing={listing} spec={spec} />
   if (spec.widget === 'location') return <LocationField listing={listing} spec={spec} onShowMap={onShowMap} />
+  if (spec.type === 'url' && spec.editable) return <UrlField listing={listing} spec={spec} />
   if (!spec.editable) return <ReadonlyField listing={listing} spec={spec} />
   return <EditableField listing={listing} spec={spec} />
 }

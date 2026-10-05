@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { MapPinIcon } from 'lucide-react'
+import { ExternalLinkIcon, MapPinIcon } from 'lucide-react'
 
 import { useRegLookup, useUpdateListing } from '@/api/queries'
 import { DistanceValue } from '@/components/DistanceValue'
@@ -195,6 +195,38 @@ export function LocationField({
           onClick={() => onShowMap(listing)}
         >
           <MapPinIcon />
+        </Button>
+      </div>
+    </Field>
+  )
+}
+
+/** Link + a button that opens it in a new tab. Only http(s) links get the
+ *  button enabled, so a half-typed or odd value never opens anything. */
+export function UrlField({ listing, spec }: { listing: Listing; spec: FieldSpec }) {
+  const save = useSaveField(listing)
+  const id = 'detail-' + spec.key
+  const href = ((listing[spec.key] as string | null) ?? '').trim()
+  const openable = /^https?:\/\//i.test(href)
+  return (
+    <Field label={spec.label} htmlFor={id}>
+      <div className="flex items-center gap-2">
+        <Input
+          id={id}
+          className="h-8"
+          key={href}
+          defaultValue={(listing[spec.key] as string | null) ?? ''}
+          onChange={(e) => save(spec.key, e.target.value === '' ? null : e.target.value)}
+        />
+        <Button
+          variant="outline"
+          size="icon-sm"
+          title="Open the link in a new tab"
+          aria-label="Open the link in a new tab"
+          disabled={!openable}
+          onClick={() => window.open(href, '_blank', 'noopener,noreferrer')}
+        >
+          <ExternalLinkIcon />
         </Button>
       </div>
     </Field>
