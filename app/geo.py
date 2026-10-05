@@ -1,7 +1,7 @@
 """UK geocoding through postcodes.io (D-048): free-text location -> coordinates.
 
 postcodes.io is free, keyless and UK-only. Response shapes were probed against
-the live API on 2026-10-04 — see docs/DISTANCE_MAPS.md for the table. Three
+the live API on 2026-10-04 — see docs/ARCHITECTURE.md for the table. Three
 lookups cover every kind of location string this app holds:
 
 * a full postcode   — `GET /postcodes/{pc}`, or `POST /postcodes` for up to 100

@@ -17,6 +17,27 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: distance to homes + maps (2026-10-05)
+- Listings are geocoded through postcodes.io (`app/geo.py`) into new `lat`, `lng` and
+  `geocoded_from` columns: on create, on a location edit, after each scrape and
+  import, and from a Retry button. The one-off fill placed 385 of 385 listings that
+  had a location (D-048, D-050).
+- New `homes` table and `/api/homes` CRUD, managed from a **Homes** topbar dialog:
+  label, postcode, on/off switch, reorder (D-047).
+- New **Distance** column beside Location: whole miles in a straight line to the
+  closest enabled home, with a teal pill naming it; the same figure shows in the
+  popup and on the map card. "—" with a tooltip saying why when there's none (D-047).
+- Distance is a range filter ("≤ 50 mi") and a rank-panel factor, closer better.
+- Clicking a Location cell, or the map button beside the popup's Location field,
+  opens a map of that van and the enabled homes (D-049).
+- A **Table | Map** topbar toggle shows the table's visible rows as clustered van
+  pins plus home pins; a pin's card opens the popup, ↑/↓ follow the table order (D-049).
+- Added Leaflet, react-leaflet and react-leaflet-cluster to the fixed frontend
+  stack, on OSM tiles (D-049).
+- Also fixed along the way: a missing price or mileage ranked as the best rather
+  than neutral; deleting from the popup now moves to the next listing like reject.
+  The popup's Link field gained an open-link button.
+
 ## Goal: frontend rebuild on Vite + React (2026-10-04)
 - Replaced the vanilla-JS UI with a Vite + React + TypeScript app in `frontend/`,
   built into gitignored `app/static/dist/` and served at `/` (D-037, D-038). The old

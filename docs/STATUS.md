@@ -4,25 +4,12 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 
 ## Current goal
 
-**Distance to homes + maps** — Phases 1–5 of 6 done (backend geocoding +
-homes API; Distance column, home pill and Homes dialog; distance in the
-filter bar and rank panel; Leaflet and the single-van location map; the
-Table | Map toggle and the clustered all-vans map). Harry's homes are in
-(Bristol, Mere; Manchester switched off). **Next: Phase 6** — docs wrap-up
-(ARCHITECTURE, CHANGELOG, delete the plan file). The plan, Harry's
-agreed answers and verified API facts are in `docs/DISTANCE_MAPS.md` (D-047–D-050):
-several postcode "homes", whole-mile straight-line distance to the closest enabled
-one with a pill naming it, sortable/filterable/rankable; a per-van location map and
-a Table | Map view of all visible vans (Leaflet + OSM, geocoding via postcodes.io).
-Work through the phases in order; each ends verified and committed.
-ARCHITECTURE.md is updated in Phase 6, so until then the new pieces
-(`geo.py`, `homes` table, `/api/homes`, `/api/geocode/missing`, and in the
-frontend `lib/distance.ts`, `components/DistanceValue.tsx`,
-`modals/HomesDialog.tsx`, `components/map/`, the `vancrm.view` localStorage
-key) are described only in the plan.
+None in progress. **Distance to homes + maps** finished on 2026-10-05 (CHANGELOG;
+how it works is in ARCHITECTURE under "Geocoding and maps", the why in D-047–D-050).
+Harry's homes are Bristol and Mere, with Manchester switched off. Pick the next
+goal from **Next** below.
 
-The frontend rebuild it was waiting on finished on 2026-10-04 (CHANGELOG). Notes
-for working in `frontend/`:
+Notes for working in `frontend/`:
 
 - TanStack Table is pinned to v8 (v9 is npm latest but has a different API).
 - The `View` menu is column visibility; the topbar `Columns` button is the
@@ -34,6 +21,9 @@ for working in `frontend/`:
   the content wrapper or the whole dialog overflows sideways.
 - `npm run build` warns that the JS bundle is over 500 kB. Harmless for a
   localhost app; not worth code-splitting unless load time actually suffers.
+- Leaflet's CSS is unlayered, so it beats Tailwind utilities on the same element
+  (e.g. `.leaflet-container`'s font); style a child instead. Maps carry `isolate`
+  so Leaflet's high z-indexes stay under dialogs and menus.
 - Verification so far has been headless Playwright scripts (system Chrome) against
   the live API, each creating and deleting its own test data; they live in session
   scratchpads, not the repo.
@@ -42,6 +32,9 @@ Open, not blocking:
 
 - Pinch zoom in the popup (D-042) hasn't been tried on a real trackpad — worth
   Harry pinching once in Safari and Chrome to confirm the zoom speed feels right.
+- The all-vans map re-zooms to fit whenever a filter or search changes the pins.
+  If that's annoying while zoomed into an area, keep the view instead (`FitToPoints`
+  in `VanMap.tsx`).
 
 ## Done
 
@@ -51,11 +44,11 @@ Open, not blocking:
   successfully on 2026-08-12 (all 5 saved searches, pagination past one page).
 - 2026-10-04: the frontend rebuild on Vite + React (D-037), phases 0–7, and the
   Plus VAT toggle (D-043, D-044). See CHANGELOG.
+- 2026-10-05: distance to homes + maps (D-047–D-050). See CHANGELOG.
 
 ## Next
 
-1. **Distance to homes + maps** — the current goal above.
-2. **Remaining production eBay checks** — the sandbox couldn't answer these; production
+1. **Remaining production eBay checks** — the sandbox couldn't answer these; production
    keys are in, they just haven't been run:
    - import-from-link against a live `ebay.co.uk` URL
    - the `ebay.us`/`ebay.to` shortener redirect (a short link to a van already in the
@@ -63,7 +56,7 @@ Open, not blocking:
    - a liveness check on an item that has genuinely ended → `is_active=0`
    - the spares/repairs skip firing on a real listing (watch `skipped`)
    - re-run the Taxonomy category lookup on production to confirm the ids in D-003
-3. **Milestone 4b — AI enrichment** (`app/ai.py`, via OpenRouter; the scope deviation
+2. **Milestone 4b — AI enrichment** (`app/ai.py`, via OpenRouter; the scope deviation
    is D-036). Condensed spec:
    - Config: `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` in `.env` (pick a current cheap
      model with Harry when building; verify the chat-completions request/response shape
