@@ -59,6 +59,8 @@ LENGTH_CODES = ("L1", "L2", "L3", "L4")
 #               dropdown (a <datalist>) in the drawer and manual form — still
 #               free text, the suggestions are only a shortcut. Meaningless on
 #               `select`, which already constrains its values.
+#   unit        short unit a numeric field's filter chip and editor show
+#               ("≤ 100 mi") — display only, values stay plain numbers
 #
 # Visibility defaults to "everywhere": a field with no in_table/in_drawer/section
 # gets a table column AND a Details row in the drawer. Hiding is opt-out, per
@@ -131,11 +133,12 @@ FIELD_SPECS = [
         # Not a column: whole miles to the closest enabled home, with a pill
         # naming it (D-047). Computed in the browser from the listing's stored
         # lat/lng and /api/homes, so switching a home off re-sorts instantly.
-        # Sorts and filters on the unrounded miles — see sortValue() in
-        # frontend/src/lib/filtering.ts. Its popup row sits beside Location.
+        # Sorts on the unrounded miles, filters on the whole miles shown — see
+        # sortValue() and filterValue() in frontend/src/lib/filtering.ts. Its
+        # popup row sits beside Location.
         "key": "distance", "label": "Distance", "type": "number", "editable": False,
         "in_form": False, "section": "Details", "cell": "distance", "widget": "distance",
-        "numeric": True,
+        "numeric": True, "unit": "mi",
     },
     {
         "key": "seller_name", "label": "Seller", "type": "text", "editable": True,

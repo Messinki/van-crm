@@ -191,21 +191,26 @@ Verify headless as before (Playwright + own test data, created and deleted):
 column values against a hand-computed haversine; toggling a home off moves the
 pill to the next-closest and re-sorts; no homes → all "—".
 
-### Phase 3 — filter bar and rank panel
+### Phase 3 — filter bar and rank panel — done 2026-10-05
 
-- Distance shows up as a numeric range filter (check `filterableProps` /
-  `NUMERIC_TYPES` take a derived field; it may need a nudge like
-  price did). **Already appears** since Phase 2 — `distance` is `type:
-  number` and `sortValue` handles it — but unverified. Two things to settle:
-  the chip reads "≤ 100" with no "mi"; and the filter compares unrounded
-  miles, so a van showing "100 mi" (really 100.4) fails "≤ 100". Probably
-  compare the rounded figure in the filter (sorting stays unrounded).
-- `RANK_FACTORS` gains `distance` (less is better, via `inverseNormaliser`).
-  Saved rank settings in localStorage won't have it — default its weight to 0
-  so existing rankings don't shift until Harry gives it weight.
+**Result:** verified headless (17 checks) against Harry's real homes plus
+test listings and a test home, all removed afterwards: "≤ 50 mi" shows
+exactly the 17 visible vans an independent haversine count gives; switching
+a home on re-applies the filter live; a distance-only ranking orders the
+whole table closest first (0 → 178 mi); rank settings saved before this
+restore distance at 0.
 
-Verify: "max 100 mi" filters correctly and live-updates when a home is toggled;
-ranking with only distance weighted orders by closest.
+- The filter needed no nudge — `distance` is `type: number` and `sortValue`
+  handles it. Two additions: a registry `unit` key (`"mi"`), so the chip reads
+  "Distance ≤ 50 mi" and the editor "Distance (mi)"; and `filterValue()`,
+  which compares the **whole miles shown**, so a van showing "100 mi" (really
+  100.4) passes "≤ 100". Sorting and ranking keep the unrounded figure.
+- `RANK_FACTORS` gained `distance` (closer is better, `inverseNormaliser`),
+  default weight 0.
+- A van with no distance scores a neutral 0.5 on it, like a missing price or
+  mileage — so it sits mid-ranking, not last. Checking this exposed a bug
+  inherited from app.js: `Number(null)` is 0, so a *missing* mileage or price
+  had been scoring as the *best*. Fixed in its own commit.
 
 ### Phase 4 — map dependency + the single-van map
 

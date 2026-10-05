@@ -4,10 +4,11 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 
 ## Current goal
 
-**Distance to homes + maps** — Phases 1–2 of 6 done (backend geocoding +
-homes API; the Distance column, home pill and Homes dialog). Harry hasn't
-added any homes yet, so every distance shows "—" until he does (topbar →
-Homes). **Next: Phase 3** — distance in the filter bar and rank panel. The plan, Harry's
+**Distance to homes + maps** — Phases 1–3 of 6 done (backend geocoding +
+homes API; Distance column, home pill and Homes dialog; distance in the
+filter bar and rank panel). Harry's homes are in (Bristol, Mere; Manchester
+switched off). **Next: Phase 4** — add Leaflet to the fixed stack (AGENTS.md
+first), then the single-van location map. The plan, Harry's
 agreed answers and verified API facts are in `docs/DISTANCE_MAPS.md` (D-047–D-050):
 several postcode "homes", whole-mile straight-line distance to the closest enabled
 one with a pill naming it, sortable/filterable/rankable; a per-van location map and
@@ -39,8 +40,6 @@ Open, not blocking:
 
 - Pinch zoom in the popup (D-042) hasn't been tried on a real trackpad — worth
   Harry pinching once in Safari and Chrome to confirm the zoom speed feels right.
-- Should Delete in the popup also advance to the next listing rather than close?
-  Not asked for; currently closes.
 
 ## Done
 

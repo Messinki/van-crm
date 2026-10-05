@@ -78,7 +78,10 @@ export function FilterBar({ schema, properties, listings, filters, onFiltersChan
             </button>
           </span>
           <PopoverContent align="start" className="w-64 p-3">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">{prop.label}</p>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              {prop.label}
+              {prop.spec?.unit && ` (${prop.spec.unit})`}
+            </p>
             <FilterEditor
               prop={prop}
               cond={cond}

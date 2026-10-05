@@ -31,6 +31,8 @@ export interface FieldSpec {
   suggest?: boolean
   numeric?: boolean
   grouped?: boolean
+  /** Shown after a numeric field's filter bounds ("≤ 100 mi"). */
+  unit?: string
   options?: string[]
   labels?: Record<string, string>
   form_default?: string

@@ -107,8 +107,16 @@ function boundValue(raw: string | number | null, numeric: boolean): string | num
   return Number.isNaN(n) ? null : n
 }
 
+/** What a filter compares: the sort value, except that distance is the whole
+ *  miles the table shows — so "≤ 100" keeps a van showing "100 mi" even when
+ *  it's really 100.4. Sorting keeps the unrounded figure. */
+function filterValue(listing: Listing, key: string): string | number | boolean | null {
+  if (key === 'distance') return listing.nearest ? Math.round(listing.nearest.miles) : null
+  return sortValue(listing, key)
+}
+
 export function matchesCondition(listing: Listing, prop: FilterableProp, cond: Condition): boolean {
-  const value = sortValue(listing, prop.key) // null for missing or blank
+  const value = filterValue(listing, prop.key) // null for missing or blank
 
   if (cond.kind === 'range') {
     const numeric = NUMERIC_TYPES.includes(prop.type)
@@ -187,10 +195,11 @@ export function conditionSummary(prop: FilterableProp, cond: Condition): string 
         : prop.spec && prop.spec.grouped === false
           ? String(v)
           : number(Number(v))
+  const unit = prop.spec?.unit ? ' ' + prop.spec.unit : ''
   const lo = cond.min ?? ''
   const hi = cond.max ?? ''
-  if (lo !== '' && hi !== '') return fmt(lo) + '–' + fmt(hi)
-  if (lo !== '') return '≥ ' + fmt(lo)
-  if (hi !== '') return '≤ ' + fmt(hi)
+  if (lo !== '' && hi !== '') return fmt(lo) + '–' + fmt(hi) + unit
+  if (lo !== '') return '≥ ' + fmt(lo) + unit
+  if (hi !== '') return '≤ ' + fmt(hi) + unit
   return 'any'
 }

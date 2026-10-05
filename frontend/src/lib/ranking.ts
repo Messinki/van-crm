@@ -4,13 +4,14 @@
 import { sortValue } from './filtering'
 import type { Listing } from './schema'
 
-export const RANK_FACTORS = ['price', 'mileage', 'length'] as const
+export const RANK_FACTORS = ['price', 'mileage', 'length', 'distance'] as const
 export type RankFactor = (typeof RANK_FACTORS)[number]
 
 export const RANK_LABELS: Record<RankFactor, string> = {
   price: 'Price',
   mileage: 'Mileage',
   length: 'Length',
+  distance: 'Distance',
 }
 
 export interface Rank {
@@ -21,7 +22,9 @@ export interface Rank {
 
 export const DEFAULT_RANK: Rank = {
   enabled: false,
-  weights: { price: 40, mileage: 30, length: 30 },
+  // Distance starts at 0: rank settings saved before it existed restore it
+  // from here, so nobody's ranking shifts until they give it weight.
+  weights: { price: 40, mileage: 30, length: 30, distance: 0 },
   lengthOrder: ['L3', 'L2', 'L4', 'L1'],
 }
 
@@ -29,6 +32,7 @@ export interface ScoreParts {
   price: number
   mileage: number
   length: number
+  distance: number
   total: number
 }
 
@@ -74,12 +78,15 @@ export function rankScores(rows: Listing[], rank: Rank): Scores {
   const sum = RANK_FACTORS.reduce((acc, f) => acc + w[f], 0)
   const price = inverseNormaliser(rows, 'price_gbp')
   const mileage = inverseNormaliser(rows, 'mileage')
+  // Closer is better; the unrounded miles to the closest enabled home (D-047).
+  const distance = inverseNormaliser(rows, 'distance')
   const out: Scores = new Map()
   for (const row of rows) {
     const parts = {
       price: price(row),
       mileage: mileage(row),
       length: lengthScore(row, rank.lengthOrder),
+      distance: distance(row),
     }
     const total = RANK_FACTORS.reduce((acc, f) => acc + w[f] * parts[f], 0) / sum
     out.set(row.id, { ...parts, total })
