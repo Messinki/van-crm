@@ -135,10 +135,10 @@ function VanCrm({
         position={at >= 0 ? { index: at, total: rows.length } : null}
         onPrev={prevId === null ? null : () => setSelectedId(prevId)}
         onNext={nextId === null ? null : () => setSelectedId(nextId)}
-        // Reject/un-reject drops the listing out of the view it was in, so move
+        // Reject/un-reject/delete drops the listing out of the view it was in, so move
         // on to the one below it — or above, at the end — as the order stood
         // when the button was pressed. Nothing left in the view: close.
-        onRejectToggled={() => {
+        onListingGone={() => {
           if (at >= 0) setSelectedId(nextId ?? prevId)
         }}
       />

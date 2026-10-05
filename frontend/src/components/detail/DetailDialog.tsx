@@ -40,7 +40,7 @@ interface Props {
   position: { index: number; total: number } | null
   onPrev: (() => void) | null
   onNext: (() => void) | null
-  onRejectToggled: () => void
+  onListingGone: () => void
 }
 
 export function DetailDialog({
@@ -51,7 +51,7 @@ export function DetailDialog({
   position,
   onPrev,
   onNext,
-  onRejectToggled,
+  onListingGone,
 }: Props) {
   const flushNotes = useRef<() => void>(() => {})
 
@@ -128,12 +128,11 @@ export function DetailDialog({
               <div className="min-h-0 min-w-0 overflow-y-auto pr-2">
                 <DetailBody
                   key={listing.id}
-                  onRejectToggled={onRejectToggled}
+                  onListingGone={onListingGone}
                   listing={listing}
                   schema={schema}
                   properties={properties}
                   flushNotes={flushNotes}
-                  onClose={onClose}
                   activeImage={photoIndex}
                   onImageClick={setPhotoIndex}
                 />
@@ -151,8 +150,7 @@ function DetailBody({
   schema,
   properties,
   flushNotes,
-  onClose,
-  onRejectToggled,
+  onListingGone,
   activeImage,
   onImageClick,
 }: {
@@ -160,8 +158,7 @@ function DetailBody({
   schema: Schema
   properties: PropertyDef[]
   flushNotes: React.RefObject<() => void>
-  onClose: () => void
-  onRejectToggled: () => void
+  onListingGone: () => void
   /** The photo the gallery is showing, outlined in the strip. */
   activeImage: number
   onImageClick: (index: number) => void
@@ -175,7 +172,7 @@ function DetailBody({
     // widest min-content child — the image strip — and the field grid spills out
     // of the dialog instead of the strip scrolling.
     <div className="min-w-0 space-y-4">
-      <DetailActions listing={listing} onClose={onClose} onRejectToggled={onRejectToggled} />
+      <DetailActions listing={listing} onListingGone={onListingGone} />
 
       {listing.image_urls.length > 0 && (
         <div className="flex gap-2 overflow-x-auto">
@@ -271,12 +268,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  *  as the fields are. Check listing live is eBay-only; the other two always show. */
 function DetailActions({
   listing,
-  onClose,
-  onRejectToggled,
+  onListingGone,
 }: {
   listing: Listing
-  onClose: () => void
-  onRejectToggled: () => void
+  onListingGone: () => void
 }) {
   const check = useCheckListing()
   const remove = useDeleteListing()
@@ -303,7 +298,7 @@ function DetailActions({
         </Button>
       )}
 
-      <RejectButton listing={listing} size="full" onToggled={onRejectToggled} />
+      <RejectButton listing={listing} size="full" onToggled={onListingGone} />
 
       <Button
         variant="destructive"
@@ -313,7 +308,7 @@ function DetailActions({
           if (!confirm('Delete this listing? This cannot be undone.')) return
           remove.mutate(listing.id, {
             onSuccess: () => {
-              onClose()
+              onListingGone()
               toast('Listing deleted')
             },
           })
