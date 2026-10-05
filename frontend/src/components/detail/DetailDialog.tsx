@@ -20,6 +20,7 @@ import {
   CustomField,
   DistanceField,
   EditableField,
+  LocationField,
   NotesField,
   PriceField,
   ReadonlyField,
@@ -41,6 +42,7 @@ interface Props {
   onPrev: (() => void) | null
   onNext: (() => void) | null
   onListingGone: () => void
+  onShowMap: (listing: Listing) => void
 }
 
 export function DetailDialog({
@@ -52,8 +54,10 @@ export function DetailDialog({
   onPrev,
   onNext,
   onListingGone,
+  onShowMap,
 }: Props) {
   const flushNotes = useRef<() => void>(() => {})
+  const content = useRef<HTMLDivElement>(null)
 
   // Which photo the gallery shows (D-046). Moving to another listing starts
   // at its first photo.
@@ -77,6 +81,8 @@ export function DetailDialog({
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
       const target = event.target as HTMLElement
+      // A dialog opened over this one (the location map) has the keys.
+      if (!content.current?.contains(target)) return
       if (target.closest('input, textarea, select, [contenteditable], [role="listbox"], [role="menu"]')) return
       let go: (() => void) | null = null
       if (event.key === 'ArrowUp') go = onPrev
@@ -101,7 +107,7 @@ export function DetailDialog({
         onClose()
       }}
     >
-      <DialogContent className="h-[90svh] grid-rows-[auto_minmax(0,1fr)] overflow-hidden sm:max-w-[min(96vw,1600px)]">
+      <DialogContent ref={content} className="h-[90svh] grid-rows-[auto_minmax(0,1fr)] overflow-hidden sm:max-w-[min(96vw,1600px)]">
         {listing && (
           <>
             <DialogHeader>
@@ -129,6 +135,7 @@ export function DetailDialog({
                 <DetailBody
                   key={listing.id}
                   onListingGone={onListingGone}
+                  onShowMap={onShowMap}
                   listing={listing}
                   schema={schema}
                   properties={properties}
@@ -151,6 +158,7 @@ function DetailBody({
   properties,
   flushNotes,
   onListingGone,
+  onShowMap,
   activeImage,
   onImageClick,
 }: {
@@ -159,6 +167,7 @@ function DetailBody({
   properties: PropertyDef[]
   flushNotes: React.RefObject<() => void>
   onListingGone: () => void
+  onShowMap: (listing: Listing) => void
   /** The photo the gallery is showing, outlined in the strip. */
   activeImage: number
   onImageClick: (index: number) => void
@@ -224,7 +233,7 @@ function DetailBody({
             <div className={grid ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
               {specs.map((spec) => (
                 <div key={spec.key} className={grid && spec.widget === 'reg_lookup' ? 'col-span-2' : undefined}>
-                  <DetailField listing={listing} spec={spec} flushNotes={flushNotes} />
+                  <DetailField listing={listing} spec={spec} flushNotes={flushNotes} onShowMap={onShowMap} />
                 </div>
               ))}
             </div>
@@ -241,15 +250,18 @@ function DetailField({
   listing,
   spec,
   flushNotes,
+  onShowMap,
 }: {
   listing: Listing
   spec: FieldSpec
   flushNotes: React.RefObject<() => void>
+  onShowMap: (listing: Listing) => void
 }) {
   if (spec.widget === 'reg_lookup') return <RegField listing={listing} />
   if (spec.widget === 'notes') return <NotesField listing={listing} flushRef={flushNotes} />
   if (spec.widget === 'price_vat') return <PriceField listing={listing} spec={spec} />
   if (spec.widget === 'distance') return <DistanceField listing={listing} spec={spec} />
+  if (spec.widget === 'location') return <LocationField listing={listing} spec={spec} onShowMap={onShowMap} />
   if (!spec.editable) return <ReadonlyField listing={listing} spec={spec} />
   return <EditableField listing={listing} spec={spec} />
 }

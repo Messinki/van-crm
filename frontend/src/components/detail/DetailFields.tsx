@@ -9,9 +9,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { MapPinIcon } from 'lucide-react'
 
 import { useRegLookup, useUpdateListing } from '@/api/queries'
 import { DistanceValue } from '@/components/DistanceValue'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -156,6 +158,45 @@ export function PriceField({ listing, spec }: { listing: Listing; spec: FieldSpe
         <VatChip on={on} onToggle={(next) => save('vat_status', next ? 'plus_vat' : null)} />
       </div>
       <VatTotal on={on} listed={listing.price_gbp} />
+    </Field>
+  )
+}
+
+/** Location + a button that opens its map (D-049). Editing the text is what
+ *  looks the coordinates up again, so the map follows the box. */
+export function LocationField({
+  listing,
+  spec,
+  onShowMap,
+}: {
+  listing: Listing
+  spec: FieldSpec
+  onShowMap: (listing: Listing) => void
+}) {
+  const save = useSaveField(listing)
+  const id = 'detail-' + spec.key
+  return (
+    <Field label={spec.label} htmlFor={id}>
+      <div className="flex items-center gap-2">
+        <Input
+          id={id}
+          className="h-8"
+          list={spec.suggest ? suggestId(spec.key) : undefined}
+          key={listing.location ?? ''}
+          defaultValue={listing.location ?? ''}
+          onChange={(e) => save(spec.key, e.target.value === '' ? null : e.target.value)}
+        />
+        <Button
+          variant="outline"
+          size="icon-sm"
+          title="Show on a map"
+          aria-label="Show on a map"
+          disabled={!listing.location}
+          onClick={() => onShowMap(listing)}
+        >
+          <MapPinIcon />
+        </Button>
+      </div>
     </Field>
   )
 }

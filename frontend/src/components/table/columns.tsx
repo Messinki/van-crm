@@ -3,13 +3,14 @@
 // column is spliced in right after the thumb while rank mode is on: the score
 // is the reason the rows are in the order they are, so it reads first.
 
-import type { ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef, TableMeta } from '@tanstack/react-table'
 
 import { DistanceValue } from '@/components/DistanceValue'
 import type { FieldSpec, Listing, PropertyDef, Schema } from '@/lib/schema'
 import type { Scores } from '@/lib/ranking'
 import {
   CustomCell,
+  LocationCell,
   MotCell,
   MotDueCell,
   NotesCell,
@@ -39,10 +40,12 @@ declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface TableMeta<TData> {
     scores: Scores | null
+    /** Opens the location map from the Location cell. */
+    onShowMap?: (listing: Listing) => void
   }
 }
 
-function specCell(spec: FieldSpec, listing: Listing): React.ReactNode {
+function specCell(spec: FieldSpec, listing: Listing, meta: TableMeta<Listing> | undefined): React.ReactNode {
   switch (spec.cell) {
     case 'thumb':
       return <ThumbCell listing={listing} />
@@ -65,6 +68,8 @@ function specCell(spec: FieldSpec, listing: Listing): React.ReactNode {
       return <NotesCell value={String(listing[spec.key] ?? '')} />
     case 'distance':
       return <DistanceValue listing={listing} aligned />
+    case 'location':
+      return <LocationCell listing={listing} onShowMap={meta?.onShowMap} />
     default:
       return plainCellText(spec, listing[spec.key])
   }
@@ -80,7 +85,7 @@ export function buildColumns(
     .map((spec) => ({
       id: spec.key,
       header: spec.label,
-      cell: ({ row }) => specCell(spec, row.original),
+      cell: ({ row, table }) => specCell(spec, row.original, table.options.meta),
       // Label-less utility columns (thumb, reject) can't be hidden — there'd be
       // nothing legible to re-enable them by.
       enableHiding: Boolean(spec.label),

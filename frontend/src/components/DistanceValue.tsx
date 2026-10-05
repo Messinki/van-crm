@@ -3,6 +3,7 @@
 // come — so they can't disagree. Every home shares one colour (teal); homes
 // are told apart by label.
 
+import { missingReason } from '@/lib/distance'
 import type { Listing } from '@/lib/schema'
 import { cn } from '@/lib/utils'
 
@@ -12,17 +13,6 @@ export function HomePill({ label }: { label: string }) {
       {label}
     </span>
   )
-}
-
-/** Why a listing has no distance, for the "—" tooltip. */
-function missingReason(listing: Listing): string {
-  if (!listing.location?.trim()) return 'No location'
-  if (listing.lat === null) {
-    return listing.geocoded_from === listing.location
-      ? "Couldn't place this location — adding a postcode (even just BS5) fixes it"
-      : 'Not looked up yet — Retry under Homes'
-  }
-  return 'No home switched on — add one under Homes'
 }
 
 /** `aligned` gives the miles a fixed-width slot, so a column of them lines up

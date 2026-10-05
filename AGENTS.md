@@ -25,7 +25,8 @@ Reset the database by deleting `data/vancrm.db`; it is recreated and seeded on n
 - **The backend stack is fixed.** Python dependencies stay at `fastapi`, `uvicorn`,
   `httpx`, `python-dotenv`. No ORM, no Docker, no task queues.
 - **The frontend stack is fixed too** (D-037): Vite + React + TypeScript, TanStack
-  Table v8, TanStack Query v5, Tailwind CSS + shadcn/ui. Don't add state-management,
+  Table v8, TanStack Query v5, Tailwind CSS + shadcn/ui, and for maps Leaflet +
+  react-leaflet v5 + react-leaflet-cluster on OSM tiles (D-049). Don't add state-management,
   routing or component libraries beyond these. `app/static/dist/` is gitignored
   build output (D-038) — never commit it or edit it by hand.
 - **Out of scope**: message drafting, scheduled scraping (button-triggered only),

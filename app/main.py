@@ -126,8 +126,10 @@ FIELD_SPECS = [
         "in_form": True, "section": "Details", "cell": "reg", "widget": "reg_lookup",
     },
     {
+        # The `location` cell and widget open the van's location map (D-049).
         "key": "location", "label": "Location", "type": "text", "editable": True,
-        "in_form": True, "section": "Details", "cell": "text", "suggest": True,
+        "in_form": True, "section": "Details", "cell": "location", "widget": "location",
+        "suggest": True,
     },
     {
         # Not a column: whole miles to the closest enabled home, with a pill

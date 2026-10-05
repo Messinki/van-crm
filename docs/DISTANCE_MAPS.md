@@ -212,7 +212,32 @@ restore distance at 0.
   inherited from app.js: `Number(null)` is 0, so a *missing* mileage or price
   had been scoring as the *best*. Fixed in its own commit.
 
-### Phase 4 — map dependency + the single-van map
+### Phase 4 — map dependency + the single-van map — done 2026-10-05
+
+**Result:** verified headless (17 checks, own test listings, deleted
+afterwards): the Location cell opens the map and not the popup; the popup's
+map-pin button stacks the map on top of it, and Escape closes just the map;
+pins are 1 van + each enabled home; tiles really load from
+tile.openstreetmap.org (no "access blocked" image) with the attribution
+showing; an unplaceable location gets the same sentence as the "—" tooltip
+instead of a map; a blank location has no map button and its cell still
+opens the popup. How it's wired, beyond the bullets:
+
+- Location got its own registry `cell` and `widget` (`"location"`), so the
+  table and popup pick the map-opening versions from the spec like every
+  other special field. The table cell reaches the dialog through TanStack's
+  `TableMeta.onShowMap`; the dialog lives in `App` (`mapId`), after
+  `DetailDialog` so it stacks on top.
+- Pins: vans orange (`#ea580c`), homes teal (`#0d9488`, matching the pill)
+  and a little bigger with a white centre, so they differ without the
+  colour. Only **enabled** homes are drawn, so the pins agree with the pill.
+- `VanMap` re-fits only when a pin's coordinates actually change, and caps
+  the fit at zoom 11 — outcode accuracy doesn't justify street level. It
+  also watches its own box size (Phase 5 puts it in a flexible layout).
+- The popup's ↑/↓/←/→ now ignore keys pressed inside another dialog, so
+  panning the map with the arrow keys doesn't flip listings behind it.
+- `missingReason()` moved from `DistanceValue.tsx` to `lib/distance.ts` so
+  the dialog can share it.
 
 - **Before installing**: update AGENTS.md's fixed frontend stack rule to add
   Leaflet / react-leaflet / react-leaflet-cluster (D-049).

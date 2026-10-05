@@ -12,6 +12,7 @@ import { ImportDialog } from '@/components/modals/ImportDialog'
 import { ManualEntryDialog } from '@/components/modals/ManualEntryDialog'
 import { SearchesDialog } from '@/components/modals/SearchesDialog'
 import { Suggestions } from '@/components/modals/Suggestions'
+import { LocationMapDialog } from '@/components/map/LocationMapDialog'
 import { ListingsTable, useTableRows } from '@/components/table/ListingsTable'
 import { Topbar } from '@/components/Topbar'
 import { withNearest } from '@/lib/distance'
@@ -59,6 +60,7 @@ function VanCrm({
   // Everything below reads listings with their closest home attached (D-047).
   const listings = useMemo(() => withNearest(loaded, homes), [loaded, homes])
   const props = useMemo(() => filterableProps(schema, properties), [schema, properties])
+  const enabledHomes = useMemo(() => homes.filter((h) => h.enabled), [homes])
 
   const [filters, setFilters] = useState<Filters>(() => ({
     ...BLANK_FILTERS,
@@ -68,6 +70,7 @@ function VanCrm({
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(restoreColumnVisibility)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [mapId, setMapId] = useState<number | null>(null)
   const [dialog, setDialog] = useState<'manual' | 'import' | 'searches' | 'homes' | 'columns' | null>(null)
 
   const { columns, rows, scores } = useTableRows(listings, schema, properties, filters, rank, sort)
@@ -125,6 +128,7 @@ function VanCrm({
         onColumnVisibilityChange={setColumnVisibility}
         selectedId={selectedId}
         onRowClick={(listing) => setSelectedId(listing.id)}
+        onShowMap={(listing) => setMapId(listing.id)}
       />
 
       <DetailDialog
@@ -141,6 +145,14 @@ function VanCrm({
         onListingGone={() => {
           if (at >= 0) setSelectedId(nextId ?? prevId)
         }}
+        onShowMap={(listing) => setMapId(listing.id)}
+      />
+
+      {/* After DetailDialog, so opened from the popup it stacks on top. */}
+      <LocationMapDialog
+        listing={listings.find((l) => l.id === mapId) ?? null}
+        homes={enabledHomes}
+        onClose={() => setMapId(null)}
       />
 
       <ManualEntryDialog

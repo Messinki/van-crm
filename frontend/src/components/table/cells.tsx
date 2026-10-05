@@ -64,6 +64,26 @@ export function PriceCell({ listing }: { listing: Listing }) {
   )
 }
 
+/** Location text that opens the van's location map (D-049) rather than the
+ *  popup — the click stops at the cell, like the +VAT chip. */
+export function LocationCell({ listing, onShowMap }: { listing: Listing; onShowMap?: (listing: Listing) => void }) {
+  if (!listing.location) return null
+  if (!onShowMap) return <>{listing.location}</>
+  return (
+    <button
+      type="button"
+      className="cursor-pointer text-left decoration-dotted underline-offset-2 hover:underline"
+      title="Show on a map"
+      onClick={(e) => {
+        e.stopPropagation()
+        onShowMap(listing)
+      }}
+    >
+      {listing.location}
+    </button>
+  )
+}
+
 export function SourceBadge({ value }: { value: string }) {
   // Source is free text (suggest-only), so only the values we know about get a
   // dedicated colour and a shortened label — anything else shows as-is.

@@ -46,3 +46,14 @@ export function withNearest(listings: Listing[], homes: Home[]): Listing[] {
 export function unplaced(listing: Listing): boolean {
   return Boolean(listing.location?.trim()) && listing.lat === null
 }
+
+/** Why a listing has no distance, for the "—" tooltip. */
+export function missingReason(listing: Listing): string {
+  if (!listing.location?.trim()) return 'No location'
+  if (listing.lat === null) {
+    return listing.geocoded_from === listing.location
+      ? "Couldn't place this location — adding a postcode (even just BS5) fixes it"
+      : 'Not looked up yet — Retry under Homes'
+  }
+  return 'No home switched on — add one under Homes'
+}

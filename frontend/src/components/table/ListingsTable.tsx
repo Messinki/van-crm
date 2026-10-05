@@ -58,6 +58,7 @@ interface Props {
   onColumnVisibilityChange: (updater: React.SetStateAction<VisibilityState>) => void
   selectedId: number | null
   onRowClick: (listing: Listing) => void
+  onShowMap: (listing: Listing) => void
 }
 
 export function ListingsTable({
@@ -73,6 +74,7 @@ export function ListingsTable({
   onColumnVisibilityChange,
   selectedId,
   onRowClick,
+  onShowMap,
 }: Props) {
   const rankOn = rankActive(rank)
 
@@ -83,7 +85,7 @@ export function ListingsTable({
     onColumnVisibilityChange,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => String(row.id),
-    meta: { scores },
+    meta: { scores, onShowMap },
   })
 
   return (

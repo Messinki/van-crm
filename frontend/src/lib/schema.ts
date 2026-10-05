@@ -26,7 +26,7 @@ export interface FieldSpec {
   in_form?: boolean
   section?: 'Details' | 'Images' | 'Notes' | 'MOT'
   cell?: string
-  widget?: 'reg_lookup' | 'notes' | 'price_vat' | 'distance'
+  widget?: 'reg_lookup' | 'notes' | 'price_vat' | 'distance' | 'location'
   sortable?: boolean
   suggest?: boolean
   numeric?: boolean
