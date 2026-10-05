@@ -5,6 +5,7 @@
 
 import type { ColumnDef } from '@tanstack/react-table'
 
+import { DistanceValue } from '@/components/DistanceValue'
 import type { FieldSpec, Listing, PropertyDef, Schema } from '@/lib/schema'
 import type { Scores } from '@/lib/ranking'
 import {
@@ -62,6 +63,8 @@ function specCell(spec: FieldSpec, listing: Listing): React.ReactNode {
       return <PriceCell listing={listing} />
     case 'notes':
       return <NotesCell value={String(listing[spec.key] ?? '')} />
+    case 'distance':
+      return <DistanceValue listing={listing} aligned />
     default:
       return plainCellText(spec, listing[spec.key])
   }

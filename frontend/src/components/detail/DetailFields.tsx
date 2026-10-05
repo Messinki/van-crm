@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { useRegLookup, useUpdateListing } from '@/api/queries'
+import { DistanceValue } from '@/components/DistanceValue'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -166,6 +167,19 @@ export function ReadonlyField({ listing, spec }: { listing: Listing; spec: Field
   return (
     <Field label={spec.label} htmlFor={id}>
       <Input id={id} className="h-8" disabled value={value === null || value === undefined ? '' : specLabel(spec, String(value))} readOnly />
+    </Field>
+  )
+}
+
+/** Miles to the closest enabled home + its pill, the same as the table
+ *  (D-047). Read-only: editing Location is what moves it. */
+export function DistanceField({ listing, spec }: { listing: Listing; spec: FieldSpec }) {
+  const id = 'detail-' + spec.key
+  return (
+    <Field label={spec.label} htmlFor={id}>
+      <output id={id} className="flex h-8 items-center text-sm">
+        <DistanceValue listing={listing} />
+      </output>
     </Field>
   )
 }

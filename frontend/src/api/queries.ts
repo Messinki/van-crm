@@ -15,6 +15,8 @@ import type {
   CheckAllProgress,
   CheckAllResult,
   CheckResult,
+  GeocodeResult,
+  Home,
   Listing,
   MotResponse,
   PropertyDef,
@@ -169,6 +171,68 @@ export function useDeleteSearch() {
         rows ? rows.filter((s) => s.id !== result.deleted) : rows,
       )
     },
+  })
+}
+
+/* ------------------------------------------------------------ homes (D-047) */
+
+export function useHomes() {
+  return useQuery({
+    queryKey: ['homes'],
+    queryFn: () => get<Home[]>('/api/homes'),
+  })
+}
+
+/** Put a saved home into the cache in its place — distances follow at once. */
+function replaceHome(client: QueryClient, updated: Home) {
+  client.setQueryData<Home[]>(['homes'], (rows) =>
+    rows
+      ? rows
+          .map((h) => (h.id === updated.id ? updated : h))
+          .sort((a, b) => a.position - b.position || a.id - b.id)
+      : rows,
+  )
+}
+
+export function useCreateHome() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (fields: { label: string; postcode: string }) => post<Home>('/api/homes', fields),
+    onSuccess: (created) => {
+      client.setQueryData<Home[]>(['homes'], (rows) => [...(rows ?? []), created])
+    },
+  })
+}
+
+export function useUpdateHome() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: number; fields: Record<string, unknown> }) =>
+      patch<Home>(`/api/homes/${id}`, fields),
+    onSuccess: (updated) => replaceHome(client, updated),
+  })
+}
+
+export function useDeleteHome() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => del<{ deleted: number }>(`/api/homes/${id}`),
+    onSuccess: (result) => {
+      client.setQueryData<Home[]>(['homes'], (rows) =>
+        rows ? rows.filter((h) => h.id !== result.deleted) : rows,
+      )
+    },
+  })
+}
+
+/** Look up every listing whose location hasn't been tried yet, or whose last
+ *  try couldn't reach postcodes.io. The new coordinates come back with a
+ *  listings reload. */
+export function useGeocodeMissing() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => post<GeocodeResult>('/api/geocode/missing'),
+    onSettled: () => client.invalidateQueries({ queryKey: ['listings'] }),
   })
 }
 

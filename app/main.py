@@ -128,6 +128,16 @@ FIELD_SPECS = [
         "in_form": True, "section": "Details", "cell": "text", "suggest": True,
     },
     {
+        # Not a column: whole miles to the closest enabled home, with a pill
+        # naming it (D-047). Computed in the browser from the listing's stored
+        # lat/lng and /api/homes, so switching a home off re-sorts instantly.
+        # Sorts and filters on the unrounded miles — see sortValue() in
+        # frontend/src/lib/filtering.ts. Its popup row sits beside Location.
+        "key": "distance", "label": "Distance", "type": "number", "editable": False,
+        "in_form": False, "section": "Details", "cell": "distance", "widget": "distance",
+        "numeric": True,
+    },
+    {
         "key": "seller_name", "label": "Seller", "type": "text", "editable": True,
         "in_form": True, "section": "Details", "cell": "text", "suggest": True,
     },
@@ -192,7 +202,7 @@ FIELD_SPECS = [
 ]
 
 # Registry keys that are not listings columns — computed for display only.
-DERIVED_KEYS = frozenset({"thumb", "mot", "reject"})
+DERIVED_KEYS = frozenset({"thumb", "mot", "reject", "distance"})
 
 # Listings columns deliberately kept out of the UI: identity, bookkeeping, the
 # JSON custom bag (it has its own /api/properties machinery), the dead

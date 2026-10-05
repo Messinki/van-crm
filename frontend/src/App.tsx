@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { VisibilityState } from '@tanstack/react-table'
 
-import { useListings, useProperties, useSchema } from '@/api/queries'
+import { useHomes, useListings, useProperties, useSchema } from '@/api/queries'
 import { FilterBar } from '@/components/filters/FilterBar'
 import { RankPanel } from '@/components/filters/RankPanel'
 import { TableControls } from '@/components/filters/TableControls'
 import { DetailDialog } from '@/components/detail/DetailDialog'
 import { ColumnsDialog } from '@/components/modals/ColumnsDialog'
+import { HomesDialog } from '@/components/modals/HomesDialog'
 import { ImportDialog } from '@/components/modals/ImportDialog'
 import { ManualEntryDialog } from '@/components/modals/ManualEntryDialog'
 import { SearchesDialog } from '@/components/modals/SearchesDialog'
 import { Suggestions } from '@/components/modals/Suggestions'
 import { ListingsTable, useTableRows } from '@/components/table/ListingsTable'
 import { Topbar } from '@/components/Topbar'
+import { withNearest } from '@/lib/distance'
 import { BLANK_FILTERS, filterableProps, type Filters } from '@/lib/filtering'
-import type { Listing, PropertyDef, Schema } from '@/lib/schema'
+import type { Home, Listing, PropertyDef, Schema } from '@/lib/schema'
 import type { Rank } from '@/lib/ranking'
 import {
   restoreColumnVisibility,
@@ -30,24 +32,32 @@ function App() {
   const schema = useSchema()
   const listings = useListings()
   const properties = useProperties()
+  const homes = useHomes()
 
-  if (!schema.data || !listings.data || !properties.data) {
+  if (!schema.data || !listings.data || !properties.data || !homes.data) {
     return <p className="p-8 text-muted-foreground">Loading…</p>
   }
-  return <VanCrm schema={schema.data} listings={listings.data} properties={properties.data} />
+  return (
+    <VanCrm schema={schema.data} listings={listings.data} properties={properties.data} homes={homes.data} />
+  )
 }
 
-/** Mounted only once the three boot queries have landed, so the saved filter
- *  state can be validated against the schema and custom properties on restore. */
+/** Mounted only once the boot queries have landed, so the saved filter state
+ *  can be validated against the schema and custom properties on restore — and
+ *  so distances are there from the first paint rather than popping in. */
 function VanCrm({
   schema,
-  listings,
+  listings: loaded,
   properties,
+  homes,
 }: {
   schema: Schema
   listings: Listing[]
   properties: PropertyDef[]
+  homes: Home[]
 }) {
+  // Everything below reads listings with their closest home attached (D-047).
+  const listings = useMemo(() => withNearest(loaded, homes), [loaded, homes])
   const props = useMemo(() => filterableProps(schema, properties), [schema, properties])
 
   const [filters, setFilters] = useState<Filters>(() => ({
@@ -58,7 +68,7 @@ function VanCrm({
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(restoreColumnVisibility)
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [dialog, setDialog] = useState<'manual' | 'import' | 'searches' | 'columns' | null>(null)
+  const [dialog, setDialog] = useState<'manual' | 'import' | 'searches' | 'homes' | 'columns' | null>(null)
 
   const { columns, rows, scores } = useTableRows(listings, schema, properties, filters, rank, sort)
 
@@ -78,6 +88,7 @@ function VanCrm({
         onAddManual={() => setDialog('manual')}
         onImport={() => setDialog('import')}
         onSearches={() => setDialog('searches')}
+        onHomes={() => setDialog('homes')}
         onColumns={() => setDialog('columns')}
       />
 
@@ -146,6 +157,11 @@ function VanCrm({
       <SearchesDialog
         open={dialog === 'searches'}
         onOpenChange={(open) => setDialog(open ? 'searches' : null)}
+      />
+      <HomesDialog
+        listings={listings}
+        open={dialog === 'homes'}
+        onOpenChange={(open) => setDialog(open ? 'homes' : null)}
       />
       <ColumnsDialog
         open={dialog === 'columns'}

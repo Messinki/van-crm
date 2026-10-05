@@ -1,5 +1,5 @@
 // The topbar: Scrape and Check live (both with D-034 progress polling), the
-// Add dropdown, Searches and Columns dialog openers.
+// Add dropdown, Searches, Homes and Columns dialog openers.
 
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -17,6 +17,7 @@ interface Props {
   onAddManual: () => void
   onImport: () => void
   onSearches: () => void
+  onHomes: () => void
   onColumns: () => void
 }
 
@@ -26,7 +27,7 @@ function toastErrors(errors: string[] | undefined) {
   for (const message of errors || []) toast.error(message)
 }
 
-export function Topbar({ onAddManual, onImport, onSearches, onColumns }: Props) {
+export function Topbar({ onAddManual, onImport, onSearches, onHomes, onColumns }: Props) {
   const scrape = useScrape()
   const checkAll = useCheckAll()
   const [scraping, setScraping] = useState(false)
@@ -107,6 +108,9 @@ export function Topbar({ onAddManual, onImport, onSearches, onColumns }: Props) 
         </DropdownMenu>
         <Button size="sm" variant="outline" onClick={onSearches}>
           Searches
+        </Button>
+        <Button size="sm" variant="outline" onClick={onHomes}>
+          Homes
         </Button>
         <Button size="sm" variant="outline" onClick={onColumns}>
           Columns

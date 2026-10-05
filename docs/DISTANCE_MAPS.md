@@ -150,7 +150,29 @@ Verify with curl: home CRUD incl. a bad postcode; PATCH a test listing's
 location from a town → outcode → blank and watch lat/lng follow; the fill
 counts; the app still boots with the network off.
 
-### Phase 2 — distance column, pill, Homes dialog
+### Phase 2 — distance column, pill, Homes dialog — done 2026-10-05
+
+**Result:** built as below and verified headless (35 checks, own test
+listings and homes, all deleted afterwards): distances and pills match an
+independent haversine; sorting either way keeps blanks last; switching a home
+off moves the pills and re-sorts live; the popup shows the same figure beside
+Location; rename, reorder, postcode change and a refused bad postcode (box put
+back, error toast) all behave; Retry places a listing whose lookup never got
+an answer. How it's wired, beyond the bullets:
+
+- `App` runs every listing through `withNearest(listings, homes)` once, which
+  attaches `nearest: {miles, home} | null`. Table, popup, filters and sorting
+  all read that, so they can't disagree. Homes load with the other boot
+  queries, so distances never pop in after the first paint.
+- The table cell is left-aligned like its header, with the miles in a
+  fixed-width slot, so numbers line up whatever the pill's length.
+- The pill colour is **teal** — Phase 4's home pins should match it.
+- A "—" has a tooltip saying why: no location, not recognised (add a
+  postcode), not looked up yet (Retry), or no home switched on.
+- The Homes dialog's Retry only appears when something is retryable; a
+  location postcodes.io didn't recognise isn't retried (D-048), so the dialog
+  lists those strings and says to edit the Location instead.
+
 
 - Add `distance` to `FIELD_SPECS` + `DERIVED_KEYS` (see Data model).
 - `lib/distance.ts`: haversine in miles; `closestHome(listing, enabledHomes)`
@@ -173,7 +195,11 @@ pill to the next-closest and re-sorts; no homes → all "—".
 
 - Distance shows up as a numeric range filter (check `filterableProps` /
   `NUMERIC_TYPES` take a derived field; it may need a nudge like
-  price did).
+  price did). **Already appears** since Phase 2 — `distance` is `type:
+  number` and `sortValue` handles it — but unverified. Two things to settle:
+  the chip reads "≤ 100" with no "mi"; and the filter compares unrounded
+  miles, so a van showing "100 mi" (really 100.4) fails "≤ 100". Probably
+  compare the rounded figure in the filter (sorting stays unrounded).
 - `RANK_FACTORS` gains `distance` (less is better, via `inverseNormaliser`).
   Saved rank settings in localStorage won't have it — default its weight to 0
   so existing rankings don't shift until Harry gives it weight.

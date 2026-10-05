@@ -26,7 +26,7 @@ export interface FieldSpec {
   in_form?: boolean
   section?: 'Details' | 'Images' | 'Notes' | 'MOT'
   cell?: string
-  widget?: 'reg_lookup' | 'notes' | 'price_vat'
+  widget?: 'reg_lookup' | 'notes' | 'price_vat' | 'distance'
   sortable?: boolean
   suggest?: boolean
   numeric?: boolean
@@ -82,6 +82,15 @@ export interface Listing {
   /** User-defined columns; values validated server-side per property type. */
   custom: Record<string, unknown>
   mot: MotSummary | null
+  /** Where app/geo.py placed `location` (D-048); null when it couldn't. */
+  lat: number | null
+  lng: number | null
+  /** The location string the last lookup ran on — equal to `location` with
+   *  null coordinates means postcodes.io didn't recognise it. */
+  geocoded_from: string | null
+  /** Not from the API: the closest enabled home, attached in the browser by
+   *  withNearest() (lib/distance.ts) so it can't go stale when homes change. */
+  nearest?: Nearest | null
   external_id: string | null
   first_seen_at: string
   last_seen_at: string
@@ -110,6 +119,32 @@ export interface SavedSearch {
   enabled: boolean
   year_min: number | null
   year_max: number | null
+}
+
+/** A place distances are measured from (D-047). Coordinates come from the
+ *  postcode when it's saved, so a home is never unplaced. */
+export interface Home {
+  id: number
+  label: string
+  postcode: string
+  lat: number
+  lng: number
+  enabled: boolean
+  position: number
+  created_at: string
+}
+
+export interface Nearest {
+  /** Straight-line miles, unrounded — display rounds, sorting doesn't. */
+  miles: number
+  home: Home
+}
+
+/** POST /api/geocode/missing — failed means postcodes.io was unreachable. */
+export interface GeocodeResult {
+  located: number
+  not_found: number
+  failed: number
 }
 
 export interface RegLookupResult {
