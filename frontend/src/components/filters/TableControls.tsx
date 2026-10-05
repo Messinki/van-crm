@@ -26,6 +26,8 @@ interface Props {
   onFiltersChange: (next: Filters) => void
   columnVisibility: VisibilityState
   onColumnVisibilityChange: (next: VisibilityState) => void
+  /** Off in the map view, where there are no columns to show or hide. */
+  showColumnsMenu: boolean
 }
 
 export function TableControls({
@@ -35,6 +37,7 @@ export function TableControls({
   onFiltersChange,
   columnVisibility,
   onColumnVisibilityChange,
+  showColumnsMenu,
 }: Props) {
   const statusSpec = schema.fields.find((f) => f.key === 'status') ?? null
 
@@ -95,29 +98,31 @@ export function TableControls({
         Show ended
       </Label>
 
-      <div className="ml-auto">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8">
-              View
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
-            {hideable.map((col) => (
-              <DropdownMenuCheckboxItem
-                key={col.key}
-                checked={columnVisibility[col.key] !== false}
-                onCheckedChange={(checked) =>
-                  onColumnVisibilityChange({ ...columnVisibility, [col.key]: checked })
-                }
-                onSelect={(e) => e.preventDefault()}
-              >
-                {col.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {showColumnsMenu && (
+        <div className="ml-auto">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8">
+                View
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-96 overflow-y-auto">
+              {hideable.map((col) => (
+                <DropdownMenuCheckboxItem
+                  key={col.key}
+                  checked={columnVisibility[col.key] !== false}
+                  onCheckedChange={(checked) =>
+                    onColumnVisibilityChange({ ...columnVisibility, [col.key]: checked })
+                  }
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {col.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </div>
   )
 }

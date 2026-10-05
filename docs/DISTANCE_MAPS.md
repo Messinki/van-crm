@@ -255,7 +255,31 @@ opens the popup. How it's wired, beyond the bullets:
 Verify: the dialog opens from both places, shows the right pins, closes
 cleanly; the row click still opens the popup everywhere else.
 
-### Phase 5 — all-vans map view
+### Phase 5 — all-vans map view — done 2026-10-05
+
+**Result:** verified headless (24 checks) against Harry's real listings and
+homes plus four test listings, deleted afterwards: with no filters the map
+holds exactly the 151 visible vans that have coordinates (3 more noted as
+not on the map); the view survives a reload; a title search narrows the
+pins; two vans on one postcode form a "2" bubble that splits apart when
+clicked; a Plus VAT van's card shows the inc-VAT price, title and distance
++ pill; card → popup → ↑/↓ follows the table's order, including rows that
+aren't on the map; back in Table view the rows and row clicks are as
+before. How it's wired, beyond the bullets:
+
+- `VanMap` gained `cluster` and `renderCard` props; `components/map/AllVansMap.tsx`
+  is the view, taking the same `rows` the table gets from `useTableRows`.
+- Cluster bubbles are van orange with the count in them — the library's
+  default stylesheet colours them green/yellow/orange by size, which would
+  break "all vans one colour", so only its base CSS is imported. No
+  coverage polygon on hover (it reads like the area shapes we left out).
+- The cluster library's types aren't installed (`@types/leaflet.markercluster`);
+  the one callback that needs them is typed structurally instead.
+- The map refits to the pins whenever the set of visible vans changes
+  (filter, search), not on a refetch that leaves them where they were.
+- With a card above the pin, the hover label sits below it.
+- The View (column visibility) menu is hidden in Map view; the toggle is
+  saved under `vancrm.view`.
 
 - Topbar **Table | Map** toggle (persisted to localStorage like other view
   state). The map uses the same visible-rows selector as the table

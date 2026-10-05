@@ -9,6 +9,7 @@ import { DEFAULT_RANK, RANK_FACTORS, type Rank } from './ranking'
 const LS_FILTERS = 'vancrm.filters'
 const LS_RANK = 'vancrm.rank'
 const LS_COLUMNS = 'vancrm.columns'
+const LS_VIEW = 'vancrm.view'
 
 function readStore(key: string): Record<string, unknown> | null {
   try {
@@ -105,4 +106,15 @@ export function restoreColumnVisibility(): Record<string, boolean> {
     if (value === false) out[key] = false
   }
   return out
+}
+
+/** Which main view is showing: the table or the all-vans map (D-049). */
+export type MainView = 'table' | 'map'
+
+export function saveView(view: MainView) {
+  writeStore(LS_VIEW, { view })
+}
+
+export function restoreView(): MainView {
+  return readStore(LS_VIEW)?.view === 'map' ? 'map' : 'table'
 }

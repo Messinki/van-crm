@@ -12,6 +12,7 @@ import { ImportDialog } from '@/components/modals/ImportDialog'
 import { ManualEntryDialog } from '@/components/modals/ManualEntryDialog'
 import { SearchesDialog } from '@/components/modals/SearchesDialog'
 import { Suggestions } from '@/components/modals/Suggestions'
+import { AllVansMap } from '@/components/map/AllVansMap'
 import { LocationMapDialog } from '@/components/map/LocationMapDialog'
 import { ListingsTable, useTableRows } from '@/components/table/ListingsTable'
 import { Topbar } from '@/components/Topbar'
@@ -23,9 +24,12 @@ import {
   restoreColumnVisibility,
   restoreFilterProps,
   restoreRank,
+  restoreView,
   saveColumnVisibility,
   saveFilterProps,
   saveRank,
+  saveView,
+  type MainView,
 } from '@/lib/store'
 import { DEFAULT_SORT, type Sort } from '@/lib/visible'
 
@@ -69,6 +73,7 @@ function VanCrm({
   const [rank, setRank] = useState<Rank>(restoreRank)
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(restoreColumnVisibility)
+  const [view, setView] = useState<MainView>(restoreView)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [mapId, setMapId] = useState<number | null>(null)
   const [dialog, setDialog] = useState<'manual' | 'import' | 'searches' | 'homes' | 'columns' | null>(null)
@@ -84,10 +89,13 @@ function VanCrm({
   useEffect(() => saveFilterProps(filters.props), [filters.props])
   useEffect(() => saveRank(rank), [rank])
   useEffect(() => saveColumnVisibility(columnVisibility), [columnVisibility])
+  useEffect(() => saveView(view), [view])
 
   return (
     <div className="flex h-svh flex-col gap-3 p-4">
       <Topbar
+        view={view}
+        onViewChange={setView}
         onAddManual={() => setDialog('manual')}
         onImport={() => setDialog('import')}
         onSearches={() => setDialog('searches')}
@@ -102,6 +110,7 @@ function VanCrm({
         onFiltersChange={setFilters}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
+        showColumnsMenu={view === 'table'}
       />
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -115,21 +124,27 @@ function VanCrm({
         <RankPanel rank={rank} onRankChange={setRank} />
       </div>
 
-      <ListingsTable
-        listings={listings}
-        columns={columns}
-        rows={rows}
-        scores={scores}
-        rank={rank}
-        sort={sort}
-        onSortChange={setSort}
-        onRankOff={() => setRank({ ...rank, enabled: false })}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-        selectedId={selectedId}
-        onRowClick={(listing) => setSelectedId(listing.id)}
-        onShowMap={(listing) => setMapId(listing.id)}
-      />
+      {/* Both views show the same rows, and the popup steps through the
+          table's order from either. */}
+      {view === 'map' ? (
+        <AllVansMap rows={rows} homes={enabledHomes} onOpen={setSelectedId} />
+      ) : (
+        <ListingsTable
+          listings={listings}
+          columns={columns}
+          rows={rows}
+          scores={scores}
+          rank={rank}
+          sort={sort}
+          onSortChange={setSort}
+          onRankOff={() => setRank({ ...rank, enabled: false })}
+          columnVisibility={columnVisibility}
+          onColumnVisibilityChange={setColumnVisibility}
+          selectedId={selectedId}
+          onRowClick={(listing) => setSelectedId(listing.id)}
+          onShowMap={(listing) => setMapId(listing.id)}
+        />
+      )}
 
       <DetailDialog
         listing={listings.find((l) => l.id === selectedId) ?? null}

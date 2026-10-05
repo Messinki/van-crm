@@ -1,5 +1,6 @@
-// The topbar: Scrape and Check live (both with D-034 progress polling), the
-// Add dropdown, Searches, Homes and Columns dialog openers.
+// The topbar: the Table | Map toggle, Scrape and Check live (both with D-034
+// progress polling), the Add dropdown, Searches, Homes and Columns dialog
+// openers.
 
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -12,8 +13,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import type { MainView } from '@/lib/store'
+import { cn } from '@/lib/utils'
 
 interface Props {
+  view: MainView
+  onViewChange: (view: MainView) => void
   onAddManual: () => void
   onImport: () => void
   onSearches: () => void
@@ -27,7 +32,35 @@ function toastErrors(errors: string[] | undefined) {
   for (const message of errors || []) toast.error(message)
 }
 
-export function Topbar({ onAddManual, onImport, onSearches, onHomes, onColumns }: Props) {
+/** Two buttons joined into one segmented control. */
+function ViewToggle({ view, onViewChange }: { view: MainView; onViewChange: (view: MainView) => void }) {
+  const options: { value: MainView; label: string }[] = [
+    { value: 'table', label: 'Table' },
+    { value: 'map', label: 'Map' },
+  ]
+  return (
+    <div className="mr-2 inline-flex rounded-md border p-0.5" role="group" aria-label="View">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={view === option.value}
+          className={cn(
+            'rounded px-2.5 py-0.5 text-sm transition-colors',
+            view === option.value
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+          )}
+          onClick={() => onViewChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export function Topbar({ view, onViewChange, onAddManual, onImport, onSearches, onHomes, onColumns }: Props) {
   const scrape = useScrape()
   const checkAll = useCheckAll()
   const [scraping, setScraping] = useState(false)
@@ -53,6 +86,7 @@ export function Topbar({ onAddManual, onImport, onSearches, onHomes, onColumns }
   return (
     <header className="flex flex-wrap items-center gap-2">
       <h1 className="mr-2 text-lg font-semibold">VanCRM</h1>
+      <ViewToggle view={view} onViewChange={onViewChange} />
 
       <Button
         size="sm"

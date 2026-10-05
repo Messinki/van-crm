@@ -4,12 +4,12 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 
 ## Current goal
 
-**Distance to homes + maps** — Phases 1–4 of 6 done (backend geocoding +
+**Distance to homes + maps** — Phases 1–5 of 6 done (backend geocoding +
 homes API; Distance column, home pill and Homes dialog; distance in the
-filter bar and rank panel; Leaflet added and the single-van location map).
-Harry's homes are in (Bristol, Mere; Manchester switched off). **Next:
-Phase 5** — the Table | Map toggle and the all-vans map, reusing
-`components/map/VanMap.tsx` (add clustering and the pin card there). The plan, Harry's
+filter bar and rank panel; Leaflet and the single-van location map; the
+Table | Map toggle and the clustered all-vans map). Harry's homes are in
+(Bristol, Mere; Manchester switched off). **Next: Phase 6** — docs wrap-up
+(ARCHITECTURE, CHANGELOG, delete the plan file). The plan, Harry's
 agreed answers and verified API facts are in `docs/DISTANCE_MAPS.md` (D-047–D-050):
 several postcode "homes", whole-mile straight-line distance to the closest enabled
 one with a pill naming it, sortable/filterable/rankable; a per-van location map and
@@ -18,7 +18,8 @@ Work through the phases in order; each ends verified and committed.
 ARCHITECTURE.md is updated in Phase 6, so until then the new pieces
 (`geo.py`, `homes` table, `/api/homes`, `/api/geocode/missing`, and in the
 frontend `lib/distance.ts`, `components/DistanceValue.tsx`,
-`modals/HomesDialog.tsx`, `components/map/`) are described only in the plan.
+`modals/HomesDialog.tsx`, `components/map/`, the `vancrm.view` localStorage
+key) are described only in the plan.
 
 The frontend rebuild it was waiting on finished on 2026-10-04 (CHANGELOG). Notes
 for working in `frontend/`:
