@@ -42,15 +42,21 @@ export function rankActive(rank: Rank): boolean {
 /** Min–max normaliser over `rows` for a numeric field, inverted so less is better.
  *  A row with no value scores a neutral 0.5 rather than winning or losing by default. */
 function inverseNormaliser(rows: Listing[], key: string): (listing: Listing) => number {
+  // Not a bare Number(): Number(null) is 0, which would score a missing
+  // mileage as the lowest — the best — instead of neutral.
+  const value = (listing: Listing) => {
+    const raw = sortValue(listing, key)
+    return raw === null ? NaN : Number(raw)
+  }
   const nums: number[] = []
   for (const row of rows) {
-    const v = Number(sortValue(row, key))
+    const v = value(row)
     if (Number.isFinite(v)) nums.push(v)
   }
   const min = Math.min(...nums)
   const max = Math.max(...nums)
   return (listing) => {
-    const v = Number(sortValue(listing, key))
+    const v = value(listing)
     if (!Number.isFinite(v)) return 0.5
     if (!nums.length || max === min) return 1
     return 1 - (v - min) / (max - min)
