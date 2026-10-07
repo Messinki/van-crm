@@ -2,10 +2,12 @@
 // friends. Every control is derived from the field spec's `type` (or the custom
 // property's), so a new registry field shows up here for free.
 //
-// Inputs are uncontrolled with a `key` on their current value: same behaviour as
-// the old drawer, where a save re-rendered the drawer from the listing the PATCH
-// handed back. A field only remounts when its own value actually changed, so a
-// plate lookup filling six fields doesn't disturb the one being typed in.
+// Selects and checkboxes are uncontrolled with a `key` on their current value
+// (D-040): a change there is the save, and the remount picks up the row the PATCH
+// hands back. Text, number and date boxes can't work that way — a save per
+// keystroke remounted the box and lost focus — so they go through useCommit()
+// instead: the edit is held in the box and saved on blur, Enter, a picked value or
+// unmount (D-052).
 
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -56,11 +58,89 @@ function useSaveField(listing: Listing) {
   return (key: string, value: unknown) => update.mutate({ id: listing.id, fields: { [key]: value } })
 }
 
+/** True when an input event is a value being picked rather than typed: a
+ *  datalist suggestion, a number spinner, a date picker. Chrome sends those as a
+ *  plain Event; Safari and Firefox as an InputEvent with insertReplacementText. */
+function isPick(event: React.ChangeEvent) {
+  const native = event.nativeEvent
+  return !(native instanceof InputEvent) || native.inputType === 'insertReplacementText'
+}
+
+/** Save-on-commit for an uncontrolled text box (D-052). Typing only marks an edit
+ *  in progress; it's saved on blur, on Enter (unless `multiline`), as soon as a
+ *  value is picked, and on unmount — which is how Esc, click-outside and moving
+ *  to another listing keep it, since the dialog's body is keyed on the listing.
+ *
+ *  The box isn't keyed on its value, so a save never remounts it. While there's no
+ *  edit in progress the saved value is written into it, so a plate lookup filling
+ *  the field, or the server tidying what was typed, still shows. */
+function useCommit<T extends HTMLInputElement | HTMLTextAreaElement>(
+  shown: string,
+  commit: (raw: string) => void,
+  { multiline = false }: { multiline?: boolean } = {},
+) {
+  const ref = useRef<T>(null)
+  const pending = useRef<string | null>(null)
+  const latest = useRef({ shown, commit })
+  useEffect(() => {
+    latest.current = { shown, commit }
+  })
+
+  const flush = () => {
+    const raw = pending.current
+    pending.current = null
+    if (raw !== null && raw !== latest.current.shown) latest.current.commit(raw)
+  }
+
+  // Follow the saved value whenever the box isn't holding an edit.
+  useEffect(() => {
+    const el = ref.current
+    if (el && pending.current === null && el.value !== shown) el.value = shown
+  }, [shown])
+
+  // Backstop: an edit still in the box when it goes away is saved, not dropped.
+  useEffect(() => () => flush(), [])
+
+  /** Note the box's new text; a picked value is saved straight away. */
+  const edit = (raw: string, picked = false) => {
+    pending.current = raw
+    if (picked) flush()
+  }
+
+  return {
+    edit,
+    flush,
+    props: {
+      ref,
+      defaultValue: shown,
+      onChange: (e: React.ChangeEvent<T>) => edit(e.target.value, isPick(e)),
+      onBlur: flush,
+      onKeyDown: (e: React.KeyboardEvent<T>) => {
+        if (!multiline && e.key === 'Enter') flush()
+      },
+    },
+  }
+}
+
+/** A box's text as the value to save: blank is null. */
+const asNumber = (raw: string) => (raw === '' ? null : Number(raw))
+const asText = (raw: string) => (raw === '' ? null : raw)
+
 /** One editable control, derived entirely from the field spec's `type`. */
 export function EditableField({ listing, spec }: { listing: Listing; spec: FieldSpec }) {
   const save = useSaveField(listing)
   const value = listing[spec.key]
   const id = 'detail-' + spec.key
+  const numeric = NUMERIC_TYPES.includes(spec.type)
+  const multiline = spec.type === 'urls' || spec.type === 'textarea'
+  // `urls` is a list on the listing and newline-separated text in the box; the
+  // API takes either, so the raw text goes straight back.
+  const shown = spec.type === 'urls' ? ((value as string[] | null) || []).join('\n') : String(value ?? '')
+  const box = useCommit<HTMLInputElement & HTMLTextAreaElement>(
+    shown,
+    (raw) => save(spec.key, multiline ? raw : numeric ? asNumber(raw) : asText(raw)),
+    { multiline },
+  )
 
   if (spec.type === 'select') {
     // Same rule as the manual form: a spec with a form_default is never blank,
@@ -99,25 +179,14 @@ export function EditableField({ listing, spec }: { listing: Listing; spec: Field
     )
   }
 
-  if (spec.type === 'urls' || spec.type === 'textarea') {
-    // `urls` is a list on the listing and newline-separated text in the box; the
-    // API takes either, so the raw text goes straight back.
-    const text = spec.type === 'urls' ? ((value as string[] | null) || []).join('\n') : ((value as string | null) ?? '')
+  if (multiline) {
     return (
       <Field label={spec.label} htmlFor={id}>
-        <Textarea
-          id={id}
-          rows={spec.type === 'urls' ? 4 : 6}
-          key={text}
-          defaultValue={text}
-          placeholder={spec.placeholder}
-          onChange={(e) => save(spec.key, e.target.value)}
-        />
+        <Textarea id={id} rows={spec.type === 'urls' ? 4 : 6} placeholder={spec.placeholder} {...box.props} />
       </Field>
     )
   }
 
-  const numeric = NUMERIC_TYPES.includes(spec.type)
   return (
     <Field label={spec.label} htmlFor={id}>
       <Input
@@ -126,12 +195,7 @@ export function EditableField({ listing, spec }: { listing: Listing; spec: Field
         type={numeric ? 'number' : spec.type === 'date' ? 'date' : 'text'}
         step={numeric ? '1' : undefined}
         list={spec.suggest ? suggestId(spec.key) : undefined}
-        key={String(value ?? '')}
-        defaultValue={(value as string | number | null) ?? ''}
-        onChange={(e) => {
-          const raw = e.target.value
-          save(spec.key, raw === '' ? null : numeric ? Number(raw) : raw)
-        }}
+        {...box.props}
       />
     </Field>
   )
@@ -144,6 +208,7 @@ export function PriceField({ listing, spec }: { listing: Listing; spec: FieldSpe
   const save = useSaveField(listing)
   const id = 'detail-' + spec.key
   const on = plusVat(listing)
+  const box = useCommit<HTMLInputElement>(String(listing.price_gbp ?? ''), (raw) => save(spec.key, asNumber(raw)))
   return (
     <Field label={spec.label} htmlFor={id}>
       <div className="flex items-center gap-2">
@@ -152,9 +217,7 @@ export function PriceField({ listing, spec }: { listing: Listing; spec: FieldSpe
           className="h-8"
           type="number"
           step="1"
-          key={String(listing.price_gbp ?? '')}
-          defaultValue={listing.price_gbp ?? ''}
-          onChange={(e) => save(spec.key, e.target.value === '' ? null : Number(e.target.value))}
+          {...box.props}
         />
         <VatChip on={on} onToggle={(next) => save('vat_status', next ? 'plus_vat' : null)} />
       </div>
@@ -176,17 +239,11 @@ export function LocationField({
 }) {
   const save = useSaveField(listing)
   const id = 'detail-' + spec.key
+  const box = useCommit<HTMLInputElement>(listing.location ?? '', (raw) => save(spec.key, asText(raw)))
   return (
     <Field label={spec.label} htmlFor={id}>
       <div className="flex items-center gap-2">
-        <Input
-          id={id}
-          className="h-8"
-          list={spec.suggest ? suggestId(spec.key) : undefined}
-          key={listing.location ?? ''}
-          defaultValue={listing.location ?? ''}
-          onChange={(e) => save(spec.key, e.target.value === '' ? null : e.target.value)}
-        />
+        <Input id={id} className="h-8" list={spec.suggest ? suggestId(spec.key) : undefined} {...box.props} />
         <Button
           variant="outline"
           size="icon-sm"
@@ -207,18 +264,14 @@ export function LocationField({
 export function UrlField({ listing, spec }: { listing: Listing; spec: FieldSpec }) {
   const save = useSaveField(listing)
   const id = 'detail-' + spec.key
-  const href = ((listing[spec.key] as string | null) ?? '').trim()
+  const saved = (listing[spec.key] as string | null) ?? ''
+  const href = saved.trim()
   const openable = /^https?:\/\//i.test(href)
+  const box = useCommit<HTMLInputElement>(saved, (raw) => save(spec.key, asText(raw)))
   return (
     <Field label={spec.label} htmlFor={id}>
       <div className="flex items-center gap-2">
-        <Input
-          id={id}
-          className="h-8"
-          key={href}
-          defaultValue={(listing[spec.key] as string | null) ?? ''}
-          onChange={(e) => save(spec.key, e.target.value === '' ? null : e.target.value)}
-        />
+        <Input id={id} className="h-8" {...box.props} />
         <Button
           variant="outline"
           size="icon-sm"
@@ -267,18 +320,12 @@ export function RegField({ listing }: { listing: Listing }) {
   const lookup = useRegLookup()
   const save = useSaveField(listing)
   const [state, setState] = useState<LookupState>({ kind: 'idle' })
-  const input = useRef<HTMLInputElement>(null)
-
-  // The server stores the plate cleaned (caps, no spaces), so a keyed remount
-  // would steal focus mid-typing. Sync the box from the listing only when it
-  // isn't being typed in — e.g. after a lookup fills the plate.
-  useEffect(() => {
-    const el = input.current
-    if (el && document.activeElement !== el) el.value = formatReg(listing.reg)
-  }, [listing.reg])
+  // Saved on commit like the other boxes (D-052); PlateField tidies the text
+  // into capitals with the usual space before its blur hands over.
+  const plate = useCommit<HTMLInputElement>(formatReg(listing.reg), (raw) => save('reg', raw || null))
 
   const runLookup = () => {
-    const reg = cleanReg(input.current?.value)
+    const reg = cleanReg(plate.props.ref.current?.value)
     if (!reg) {
       setState({ kind: 'hint', text: 'Enter a number plate first' })
       return
@@ -303,9 +350,11 @@ export function RegField({ listing }: { listing: Listing }) {
     <PlateField
       id="detail-reg"
       labelClassName="text-xs text-muted-foreground"
-      inputRef={input}
-      defaultValue={formatReg(listing.reg)}
-      onChange={(value) => save('reg', value || null)}
+      inputRef={plate.props.ref}
+      defaultValue={plate.props.defaultValue}
+      onChange={(value) => plate.edit(value)}
+      onBlur={plate.flush}
+      onKeyDown={plate.props.onKeyDown}
       state={state}
       lookupTitle="Fill in the empty fields from DVSA/DVLA and load the MOT history below"
       onLookup={runLookup}
@@ -373,6 +422,7 @@ export function CustomField({ listing, prop }: { listing: Listing; prop: Propert
   const id = 'custom-' + prop.key
   const save = (raw: unknown) =>
     update.mutate({ id: listing.id, fields: { custom: { [prop.key]: raw } } })
+  const box = useCommit<HTMLInputElement>(String(value ?? ''), (raw) => save(asText(raw)))
 
   if (prop.type === 'checkbox') {
     return (
@@ -415,9 +465,7 @@ export function CustomField({ listing, prop }: { listing: Listing; prop: Propert
         id={id}
         className="h-8"
         type={prop.type === 'number' ? 'number' : prop.type === 'date' ? 'date' : 'text'}
-        key={String(value ?? '')}
-        defaultValue={(value as string | number | null) ?? ''}
-        onChange={(e) => save(e.target.value === '' ? null : e.target.value)}
+        {...box.props}
       />
     </Field>
   )

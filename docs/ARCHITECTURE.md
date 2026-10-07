@@ -70,7 +70,9 @@ the +VAT chip (D-044), the MOT cell's Check button and the Location cell, which
 opens a small map of that van and the homes (D-049). Clicking a row opens the
 listing popup, where everything is edited: photos on the left (←/→ change photo,
 pinch zooms), fields on the right, ↑/↓ step through the table's current order
-(D-041, D-042, D-045, D-046).
+(D-041, D-042, D-045, D-046). A field saves when you leave it, press Enter, pick a
+suggestion, close the popup or move to another van — not per keystroke (D-052);
+notes autosave on a debounce (D-029).
 The topbar's **Table | Map** toggle swaps the table for a map of the same rows:
 clustered van pins, home pins, and a card per pin that opens the popup (D-049).
 Topbar: **Scrape eBay** (runs all enabled saved searches), **Check live** (bulk liveness

@@ -5,7 +5,7 @@ verified commits. When a phase is done, tick its box here and note anything the
 next phase needs under **Handover** at the bottom.
 
 - [x] Phase 1 — Ranking and every price use the inc-VAT price
-- [ ] Phase 2 — Fix focus loss while typing in the popup's fields
+- [x] Phase 2 — Fix focus loss while typing in the popup's fields
 - [ ] Phase 3 — One spelling per make and model
 - [ ] Phase 4 — "Time until MOT" ranking factor
 - [ ] Phase 5 — Remember rejected plates and flag relisted vans
@@ -243,3 +243,35 @@ form total, both map cards — all correct; scratch vans deleted. Phase 4 note: 
 new rank factor goes in `RANK_FACTORS`, `RANK_LABELS`, `DEFAULT_RANK.weights`,
 `ScoreParts` and `rankScores()` in `lib/ranking.ts`; `store.ts` restores weights
 by iterating `RANK_FACTORS`, so a new factor defaults from `DEFAULT_RANK`.
+
+**Phase 2 (2026-10-07, D-052).** Cause confirmed as planned: every popup box saved
+from `onChange` and was keyed on its saved value, so the first letter remounted it
+(repro: typing "Renault" left "R" in the box and focus on the dialog). New
+`useCommit()` hook in `DetailFields.tsx` holds the edit and saves on blur, Enter
+(not in the image-URL textarea), a picked value, and unmount; boxes are no longer
+keyed — an effect writes the saved value in when no edit is in progress. Applied to
+every text/number/date box, Price, Location, Link, image URLs, text custom
+properties and the plate (`PlateField` gained `onBlur`/`onKeyDown` pass-throughs;
+the plate's old focus-check workaround is gone). Selects and checkboxes unchanged.
+Esc/click-outside/next-van need no dialog-level flush registry: the body is keyed
+on the listing id and closing unmounts it, so each box's unmount saves. Verified
+in headless Chrome (all PASS): focus kept on every key with zero PATCHes until
+commit; Tab and Enter save (focus kept after Enter); Price, Mileage, Year, MOT
+date; Esc and click-outside right after typing save; typing then the next-listing
+chevron saves on the van left and the next van shows its own value; ↑ inside a box
+doesn't change van; image URLs keep Enter as newline; custom property; plate typed
+`pe18ogb` + Enter saves `PE18OGB` and the box tidies to `PE18 OGB` in place;
+plate lookup fills Make/Model into the boxes; manual-entry form unaffected.
+**Not verified:** a real datalist pick in Chrome — headless Chrome never opens the
+suggestion popup, so the pick was simulated with both event shapes (a plain
+`Event` and `insertReplacementText`), both of which save at once. Chrome's own
+spinner and date-picker changes arrive as a plain `Event` (observed), which is why
+the plain-Event rule is believed to match datalist picks too. Worst case, if a real
+pick looked like typing, it would save on blur instead — nothing is lost. Note the
+plan's "type then press →": since D-045, ←/→ are photos and arrows inside a box
+only move the caret, so the next-van path tested was the chevron and Esc.
+For phase 3: once a box commits, whatever the server stores is written back into
+it (even while it keeps focus after Enter), so a server-side make/model tidy will
+show in the popup with no extra frontend work. The lookup still hands the UI raw
+DVSA casing today (`FIAT` / `DUCATO` in the test). Side effect of the test: one real
+lookup of an existing van's plate (PE18OGB) refreshed its MOT cache row.

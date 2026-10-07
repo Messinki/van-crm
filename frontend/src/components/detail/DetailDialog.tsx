@@ -128,8 +128,9 @@ export function DetailDialog({
               <DialogTitle className="pr-8">{listing.title}</DialogTitle>
             </DialogHeader>
             {/* Keyed so moving to another listing remounts the fields: they are
-                uncontrolled (D-040), and the unmount flushes any pending notes
-                save against the listing being left. */}
+                uncontrolled (D-040), and the unmount saves any edit still in a
+                box (D-052) or a notes save still in its debounce against the
+                listing being left. Closing the dialog unmounts them the same way. */}
             <div className="grid min-h-0 grid-cols-2 gap-4">
               <Gallery images={images} index={photoIndex} onStep={stepPhoto} />
               <div className="min-h-0 min-w-0 overflow-y-auto pr-2">

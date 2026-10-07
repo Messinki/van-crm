@@ -17,12 +17,27 @@ interface Props {
   defaultValue?: string
   inputRef?: React.Ref<HTMLInputElement>
   onChange: (value: string) => void
+  /** Called after the box has tidied its text on blur. */
+  onBlur?: () => void
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>
   state: LookupState
   lookupTitle: string
   onLookup: () => void
 }
 
-export function PlateField({ id, labelClassName, value, defaultValue, inputRef, onChange, state, lookupTitle, onLookup }: Props) {
+export function PlateField({
+  id,
+  labelClassName,
+  value,
+  defaultValue,
+  inputRef,
+  onChange,
+  onBlur,
+  onKeyDown,
+  state,
+  lookupTitle,
+  onLookup,
+}: Props) {
   return (
     <div className="space-y-1">
       <Label htmlFor={id} className={labelClassName}>
@@ -39,10 +54,13 @@ export function PlateField({ id, labelClassName, value, defaultValue, inputRef, 
           // Typed as-is; tidied into capitals with the usual space on leaving the box.
           onBlur={(e) => {
             const tidy = formatReg(cleanReg(e.target.value))
-            if (tidy === e.target.value) return
-            e.target.value = tidy
-            onChange(tidy)
+            if (tidy !== e.target.value) {
+              e.target.value = tidy
+              onChange(tidy)
+            }
+            onBlur?.()
           }}
+          onKeyDown={onKeyDown}
         />
         <Button
           type="button"

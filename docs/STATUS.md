@@ -6,8 +6,9 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 
 **Ranking, data clean-up and description hints** — six phases in
 [`docs/PLAN.md`](PLAN.md), worked through one fresh agent per phase. Check its
-boxes and Handover section for progress. Phase 1 (inc-VAT price everywhere,
-D-051) is done; phase 2 (popup focus loss) is next. (Distance to homes + maps finished
+boxes and Handover section for progress. Phases 1 (inc-VAT price everywhere,
+D-051) and 2 (popup fields save on commit, D-052) are done; phase 3 (one spelling
+per make and model) is next. (Distance to homes + maps finished
 2026-10-05; Harry's homes are Bristol and Mere, Manchester switched off.)
 
 Notes for working in `frontend/`:
@@ -16,8 +17,9 @@ Notes for working in `frontend/`:
 - The `View` menu is column visibility; the topbar `Columns` button is the
   custom-properties CRUD.
 - D-039 explains why filtering/ranking live in `lib/` selectors rather than
-  TanStack filter fns; D-040 why the popup's fields are uncontrolled inputs keyed
-  on their value.
+  TanStack filter fns; D-040 why the popup's fields are uncontrolled, and D-052
+  why its text boxes save on blur/Enter/pick/unmount through `useCommit()` rather
+  than per keystroke (only selects and checkboxes are still keyed on their value).
 - `DialogContent` is a CSS grid, so any wide child inside it needs `min-w-0` on
   the content wrapper or the whole dialog overflows sideways.
 - `npm run build` warns that the JS bundle is over 500 kB. Harmless for a

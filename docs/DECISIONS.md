@@ -506,3 +506,30 @@ Why: a rule in the file every session reads is cheaper than another audit.
 Rejected: having the API send a derived `effective_price` field — the backend
 never compares prices (filtering, sorting and ranking run in the browser, D-039),
 so it would be a second copy of the sum for the frontend to keep in step.
+
+## D-052 — Popup text boxes save on commit, not per keystroke (2026-10-07)
+Context: D-040 meant the popup's boxes to save on blur like the old drawer, but
+React's `onChange` fires on every keystroke. Each letter PATCHed, the cache
+updated, the box's `key` (its saved value) changed and it remounted — so focus was
+lost after one letter in Make, Model, Location, Price, Link, custom properties and
+every other text/number/date box.
+Decision: the popup's text, number and date boxes (and the image-URL textarea, the
+plate and text custom properties) hold an edit in progress and save it on commit:
+on blur, on Enter (not in a textarea), straight away when a value is *picked*
+rather than typed — a datalist suggestion, a number spinner, a date picker, i.e. an
+`input` event that isn't an `InputEvent` (Chrome) or has `inputType`
+`insertReplacementText` (Safari, Firefox) — and on unmount, which covers Esc,
+click-outside and ↑/↓ or the chevrons moving to another listing (the body is keyed
+on the listing id, so its fields unmount and save against the listing being left;
+the notes flush of D-029 works the same way). These boxes are no longer keyed on
+their value: while there's no edit in progress, an effect writes the saved value
+into the box, so a plate lookup or a server-side tidy still shows up without
+remounting and the box keeps focus after Enter. Selects and checkboxes keep D-040's
+keyed pattern — a change there *is* the commit. The manual-entry form is controlled
+and unaffected.
+Why: a remount can't keep focus, and saving every letter also sent a PATCH per key
+(with responses that could land out of order). Rejected: keeping per-keystroke saves
+and restoring focus after the remount (caret and selection jump, still a PATCH per
+key), and fully controlled inputs (a second copy of each field to keep in sync —
+the reason for D-040 in the first place).
+Supersedes: D-040 (the save-on-change and keyed-on-value parts, for text-like boxes)
