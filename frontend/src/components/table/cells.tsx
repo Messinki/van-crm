@@ -22,7 +22,7 @@ import {
 } from '@/lib/format'
 import type { FieldSpec, Listing, MotSummary, PropertyDef } from '@/lib/schema'
 import type { ScoreParts } from '@/lib/ranking'
-import { RANK_FACTORS } from '@/lib/ranking'
+import { RANK_FACTORS, RANK_LABELS } from '@/lib/ranking'
 import { cn } from '@/lib/utils'
 
 export function ThumbCell({ listing }: { listing: Listing }) {
@@ -282,14 +282,14 @@ export function RejectButton({
   )
 }
 
-/** The rank score, 0–100, with the three factors behind it in the tooltip. */
+/** The rank score, 0–100, with every factor behind it in the tooltip. */
 export function ScoreCell({ parts }: { parts: ScoreParts | undefined }) {
   if (!parts) return null
   const pct = Math.round(parts.total * 100)
   return (
     <span
       className="flex items-center gap-1.5"
-      title={RANK_FACTORS.map((f) => `${f} ${parts[f].toFixed(2)}`).join(' · ')}
+      title={RANK_FACTORS.map((f) => `${RANK_LABELS[f]} ${parts[f].toFixed(2)}`).join(' · ')}
     >
       <span className="w-6 text-right text-xs font-semibold tabular-nums">{pct}</span>
       <span className="h-1.5 w-10 overflow-hidden rounded bg-muted">

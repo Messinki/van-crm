@@ -570,3 +570,23 @@ suggestions and ranking groups at once. Rejected: tidying only at display time (
 filter and suggestions would each need it, and the DB stays messy), and a per-make
 model list matched only under its own make (misses rows with no make, which are
 common from eBay).
+
+## D-054 — "MOT left" rank factor on a fixed curve, not normalised (2026-10-07)
+Context: a van with a year's MOT is worth more to Harry than one about to need a
+test, but the gain tails off — six months left is still fine. The other numeric
+factors (price, mileage, distance) are min–max normalised over the rows on screen
+(D-039, D-047).
+Decision: a rank factor `mot` ("MOT left"). Days left `d` = expiry − today, where
+expiry is the DVSA one (`listing.mot.expiry`) when cached, else the hand-entered
+`mot_due`. Score = `(1 − e^(−d/τ)) / (1 − e^(−365/τ))`, capped at 1, with τ = 130
+days: ≈0.22 at 1 month, 0.54 at 3, 0.80 at 6, 0.93 at 9, 1.0 from a year on.
+Expired (`d ≤ 0`) scores 0; no date at all scores a neutral 0.5 like the other
+factors. The curve is absolute — **not** min–max normalised — so a van with 11
+months doesn't score 0 just because every other van on screen has 12, and the
+score of a van doesn't change with what else is filtered in. Default weight 0, so
+saved rank settings don't shift until Harry gives it weight (as with distance).
+Why: an exponential approach rises fast in the first months and flattens out,
+which matches "half a year is still OK", and never penalises a long MOT.
+Rejected: min–max over days left (exaggerates tiny differences when every van has
+a fresh MOT, and rewards 2-year-old MOTs over 1-year ones that are just as good)
+and a linear ramp to 365 days (scores six months as only half as good).

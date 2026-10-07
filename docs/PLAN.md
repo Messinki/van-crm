@@ -7,7 +7,7 @@ next phase needs under **Handover** at the bottom.
 - [x] Phase 1 — Ranking and every price use the inc-VAT price
 - [x] Phase 2 — Fix focus loss while typing in the popup's fields
 - [x] Phase 3 — One spelling per make and model
-- [ ] Phase 4 — "Time until MOT" ranking factor
+- [x] Phase 4 — "Time until MOT" ranking factor
 - [ ] Phase 5 — Remember rejected plates and flag relisted vans
 - [ ] Phase 6 — Highlight VAT and size terms in the description
 
@@ -304,3 +304,21 @@ once, and typing `CITROËN` + Enter in the popup shows `Citroen`. Not exercised:
 live eBay scrape/import (only the field-building function was run offline). For
 later phases: a `Relay` no longer carries its trim, so anything wanting `L3H2`
 text from the model must read `length_code`/`height_code` instead.
+
+**Phase 4 (2026-10-07, D-054).** Built as planned, no deviations. `lib/ranking.ts`
+gained factor `mot` ("MOT left", default weight 0), `MOT_TAU_DAYS = 130`,
+`MOT_FULL_DAYS = 365`, an exported `motCurve(days)` and `motScore()` (DVSA
+`mot.expiry`, else `mot_due`, else 0.5; days counted from today's local date).
+It's on the fixed curve, not min–max. The rank panel and `store.ts` picked it up
+through `RANK_FACTORS` with no changes of their own; the score cell's tooltip now
+uses `RANK_LABELS` ("MOT left 0.84") rather than the raw keys. Verified: the real
+`motCurve` bundled with rolldown and run in node gives 0 at ≤0 days, 0.222 (1 mo),
+0.537 (3), 0.803 (6), 0.935 (9), 1.000 at 365/400/730; `rankScores` prefers a
+cached DVSA expiry over `mot_due`. In headless Chrome against the live app with
+four scratch vans and only MOT weighted: order 400 → 200 → no date → 20 days,
+scores 100/84/50/15, tooltip and slider show "MOT left"; old saved rank settings
+without a `mot` weight restore it as 0 and keep their other weights. Across
+Harry's real rows (212 in the payload, 90 with a DVSA expiry) every MOT part
+matched the curve on the expected date. Scratch vans deleted. Not exercised: a
+van with only a hand-entered `mot_due` among the real data (none exist; the
+scratch vans covered that path).

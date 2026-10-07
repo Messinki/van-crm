@@ -7,8 +7,9 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 **Ranking, data clean-up and description hints** — six phases in
 [`docs/PLAN.md`](PLAN.md), worked through one fresh agent per phase. Check its
 boxes and Handover section for progress. Phases 1 (inc-VAT price everywhere,
-D-051), 2 (popup fields save on commit, D-052) and 3 (one spelling per make and
-model, D-053) are done; phase 4 ("Time until MOT" rank factor) is next.
+D-051), 2 (popup fields save on commit, D-052), 3 (one spelling per make and
+model, D-053) and 4 ("MOT left" rank factor, D-054) are done; phase 5 (remember
+rejected plates, flag relisted vans) is next.
 `data/vancrm.db.bak-phase3` is the pre-tidy copy of the DB — delete it once Harry
 is happy with the tidied makes and models. (Distance to homes + maps finished
 2026-10-05; Harry's homes are Bristol and Mere, Manchester switched off.)
@@ -19,7 +20,8 @@ Notes for working in `frontend/`:
 - The `View` menu is column visibility; the topbar `Columns` button is the
   custom-properties CRUD.
 - D-039 explains why filtering/ranking live in `lib/` selectors rather than
-  TanStack filter fns; D-040 why the popup's fields are uncontrolled, and D-052
+  TanStack filter fns (price, mileage and distance scores are min–max over the
+  rows on screen; MOT left is a fixed curve, D-054); D-040 why the popup's fields are uncontrolled, and D-052
   why its text boxes save on blur/Enter/pick/unmount through `useCommit()` rather
   than per keystroke (only selects and checkboxes are still keyed on their value).
 - `DialogContent` is a CSS grid, so any wide child inside it needs `min-w-0` on

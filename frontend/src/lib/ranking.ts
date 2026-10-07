@@ -1,10 +1,11 @@
-// Weighted rank scoring, ported from app.js. Scores are min–max normalised over
-// the rows currently on screen (D-039), so they're computed after filtering.
+// Weighted rank scoring, ported from app.js. Price, mileage and distance are
+// min–max normalised over the rows currently on screen (D-039), so they're
+// computed after filtering; MOT left is on a fixed curve instead (D-054).
 
 import { sortValue } from './filtering'
 import type { Listing } from './schema'
 
-export const RANK_FACTORS = ['price', 'mileage', 'length', 'distance'] as const
+export const RANK_FACTORS = ['price', 'mileage', 'length', 'distance', 'mot'] as const
 export type RankFactor = (typeof RANK_FACTORS)[number]
 
 export const RANK_LABELS: Record<RankFactor, string> = {
@@ -12,6 +13,7 @@ export const RANK_LABELS: Record<RankFactor, string> = {
   mileage: 'Mileage',
   length: 'Length',
   distance: 'Distance',
+  mot: 'MOT left',
 }
 
 export interface Rank {
@@ -22,9 +24,9 @@ export interface Rank {
 
 export const DEFAULT_RANK: Rank = {
   enabled: false,
-  // Distance starts at 0: rank settings saved before it existed restore it
-  // from here, so nobody's ranking shifts until they give it weight.
-  weights: { price: 40, mileage: 30, length: 30, distance: 0 },
+  // Distance and MOT left start at 0: rank settings saved before they existed
+  // restore them from here, so nobody's ranking shifts until they give it weight.
+  weights: { price: 40, mileage: 30, length: 30, distance: 0, mot: 0 },
   lengthOrder: ['L3', 'L2', 'L4', 'L1'],
 }
 
@@ -33,6 +35,7 @@ export interface ScoreParts {
   mileage: number
   length: number
   distance: number
+  mot: number
   total: number
 }
 
@@ -73,6 +76,38 @@ function lengthScore(listing: Listing, order: string[]): number {
   return order.length < 2 ? 1 : 1 - index / (order.length - 1)
 }
 
+/** Days for the MOT curve to get ~63% of the way up; 130 keeps six months at ≈0.8. */
+export const MOT_TAU_DAYS = 130
+/** From this many days left the MOT score is 1 — a longer MOT is no better. */
+export const MOT_FULL_DAYS = 365
+
+/** Score for `days` of MOT left on a fixed curve (D-054), not normalised over the
+ *  rows on screen: 0 when expired, rising fast then flattening to 1 at a year. */
+export function motCurve(days: number): number {
+  if (days <= 0) return 0
+  const score =
+    (1 - Math.exp(-days / MOT_TAU_DAYS)) / (1 - Math.exp(-MOT_FULL_DAYS / MOT_TAU_DAYS))
+  return Math.min(1, score)
+}
+
+/** Whole days from today (local) to an ISO date, or null when it isn't one. */
+function daysUntil(iso: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  if (!m) return null
+  const now = new Date()
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  const target = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return Math.round((target - today) / 86_400_000)
+}
+
+/** MOT left: the DVSA expiry when cached, else the hand-entered due date;
+ *  no date at all is a neutral 0.5 like the other factors. */
+function motScore(listing: Listing): number {
+  const expiry = (listing.mot && listing.mot.expiry) || listing.mot_due
+  const days = expiry ? daysUntil(expiry) : null
+  return days === null ? 0.5 : motCurve(days)
+}
+
 export function rankScores(rows: Listing[], rank: Rank): Scores {
   const w = rank.weights
   const sum = RANK_FACTORS.reduce((acc, f) => acc + w[f], 0)
@@ -87,6 +122,7 @@ export function rankScores(rows: Listing[], rank: Rank): Scores {
       mileage: mileage(row),
       length: lengthScore(row, rank.lengthOrder),
       distance: distance(row),
+      mot: motScore(row),
     }
     const total = RANK_FACTORS.reduce((acc, f) => acc + w[f] * parts[f], 0) / sum
     out.set(row.id, { ...parts, total })
