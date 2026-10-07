@@ -10,7 +10,7 @@ Length only for the models below (D-059; the code copy is
 | Renault Master (2010-on)    | L1  | L2  | L3  | L4 (some)  | checked (L1–L3) |
 | Vauxhall / Opel Movano      | L1  | L2  | L3  | L4 (some)  | Master twin, not checked |
 | Fiat Ducato / Peugeot Boxer / Citroën Relay | L1 | L2 | L3 | L4 | matches stored listings (D-059) |
-| Nissan NV400 / Interstar    | L1  | L2  | L3  | —          | Master twin; matches stored listings |
+| Nissan NV400 / Interstar    | L1  | L2  | L3  | L4 (some)  | Master twin; matches stored listings |
 
 ## Wheelbases (mm)
 
