@@ -1,6 +1,6 @@
-# Plan: ranking, data clean-up and description hints (2026-10-07)
+# Plan: ranking, data clean-up and description hints (2026-10-07) — done
 
-Six phases, done in order, each by a fresh agent. Each phase ends in one or more
+Seven phases (phase 7 added after phase 5), done in order, each by a fresh agent. Each phase ends in one or more
 verified commits. When a phase is done, tick its box here and note anything the
 next phase needs under **Handover** at the bottom.
 
@@ -35,7 +35,7 @@ next phase needs under **Handover** at the bottom.
   backfill), copy the DB to `data/vancrm.db.bak-<phase>` first.
 - Update `docs/STATUS.md` (current goal = this plan, which phase is done) and, if
   structure changed, `docs/ARCHITECTURE.md`, in the commit that caused it. The
-  CHANGELOG entry is written once, after phase 6.
+  CHANGELOG entry is written once, after the last phase.
 
 ---
 

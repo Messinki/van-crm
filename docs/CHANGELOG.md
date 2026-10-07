@@ -17,6 +17,26 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: ranking, data clean-up and description hints (2026-10-07)
+- Every price comparison, sort, filter, rank and total goes through `effectivePrice()`
+  (listed price × 1.2 for Plus VAT); ranking already did, now it's a standing rule (D-051).
+- Popup text boxes save on blur, Enter, a suggestion pick or closing/leaving the van,
+  instead of on every keystroke — typing no longer loses focus (D-052).
+- Make and model are stored in one spelling (`app/normalise.py`): makes title-cased
+  without accents (`Citroen`), models cut to the base model (`Boxer`, `Relay`) after
+  any L/H code is copied into Length/Height. Applied on every write path and once to
+  the existing data (54 rows); suggestion lists merge case variants (D-053).
+- New **MOT left** rank factor on a fixed exponential curve — 0.80 at six months,
+  full marks from a year — using the DVSA expiry, else the hand-entered MOT due (D-054).
+- Rejected plates are remembered in a new `rejected_regs` table (backfilled with 43
+  plates); a listing whose plate was rejected under another listing shows a
+  **Rejected before** pill in the table and popup, and can be filtered on (D-055).
+- VAT wording, size codes (L1H1–L4H3) and wheelbase terms (LWB, MWB, "long wheel
+  base"…) are highlighted yellow in the notes box, in the popup and manual form (D-056).
+- Plates whose age identifier isn't issued yet (e.g. Renault's "LM35dCi" model code)
+  are no longer read from titles or accepted by hand; five bogus regs were cleared,
+  removing three false "Rejected before" flags (D-057).
+
 ## Goal: distance to homes + maps (2026-10-05)
 - Listings are geocoded through postcodes.io (`app/geo.py`) into new `lat`, `lng` and
   `geocoded_from` columns: on create, on a location edit, after each scrape and

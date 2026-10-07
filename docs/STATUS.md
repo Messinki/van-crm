@@ -4,19 +4,14 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 
 ## Current goal
 
-**Ranking, data clean-up and description hints** — seven phases in
-[`docs/PLAN.md`](PLAN.md), worked through one fresh agent per phase. Check its
-boxes and Handover section for progress. Phases 1 (inc-VAT price everywhere,
-D-051), 2 (popup fields save on commit, D-052), 3 (one spelling per make and
-model, D-053), 4 ("MOT left" rank factor, D-054), 5 (remembered rejected
-plates, "Rejected before" pill, D-055), 6 (VAT and size terms highlighted in
-the notes box, D-056) and 7 (model codes like "LM35dCi" no longer read as number
-plates; five bogus regs cleared, D-057) are done; the CHANGELOG entry is next.
-`data/vancrm.db.bak-phase3` is the pre-tidy copy of the DB,
-`data/vancrm.db.bak-phase5` the copy from before the rejected-plates backfill and
-`data/vancrm.db.bak-phase7` the copy from before the bogus regs were cleared —
-delete each once Harry is happy with the result. (Distance to homes + maps finished
-2026-10-05; Harry's homes are Bristol and Mere, Manchester switched off.)
+None in progress. **Ranking, data clean-up and description hints** finished on
+2026-10-07 (CHANGELOG; the phase-by-phase plan and handover notes are in
+[`docs/PLAN.md`](PLAN.md), the why in D-051–D-057). Pick the next goal from
+**Next** below.
+
+`data/vancrm.db.bak-phase3`, `-phase5` and `-phase7` are copies of the DB from
+before each data rewrite (make/model tidy, rejected-plates backfill, bogus regs
+cleared). Delete them once Harry is happy with the result.
 
 Notes for working in `frontend/`:
 
