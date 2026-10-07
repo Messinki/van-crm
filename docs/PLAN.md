@@ -6,7 +6,7 @@ next phase needs under **Handover** at the bottom.
 
 - [x] Phase 1 — Ranking and every price use the inc-VAT price
 - [x] Phase 2 — Fix focus loss while typing in the popup's fields
-- [ ] Phase 3 — One spelling per make and model
+- [x] Phase 3 — One spelling per make and model
 - [ ] Phase 4 — "Time until MOT" ranking factor
 - [ ] Phase 5 — Remember rejected plates and flag relisted vans
 - [ ] Phase 6 — Highlight VAT and size terms in the description
@@ -275,3 +275,32 @@ it (even while it keeps focus after Enter), so a server-side make/model tidy wil
 show in the popup with no extra frontend work. The lookup still hands the UI raw
 DVSA casing today (`FIAT` / `DUCATO` in the test). Side effect of the test: one real
 lookup of an existing van's plate (PE18OGB) refreshed its MOT cache row.
+
+**Phase 3 (2026-10-07, D-053).** New `app/normalise.py` holds the make/model rules
+and `parse_size_codes()` (moved from `main.py`, which re-imports it). `tidy()` runs
+at the end of `clean_listing_fields()` (create + PATCH) and of eBay
+`_listing_fields()` (scrape + import); the plate lookup returns
+`canonical_make()`/`canonical_model()` while its size codes still come from the raw
+DVSA string. Existing rows: an idempotent `tidy_all()` at startup (my call — catches
+anything an older build writes; leaves `updated_at` alone). DB backed up to
+`data/vancrm.db.bak-phase3` first. Real data: 54 rows changed — makes went from 15
+spellings (+ empty) to 8 (Peugeot 86, Citroen 85, Fiat 63, Renault 51, Nissan 24,
+Vauxhall 12, Ford 4, AMC 2; 57 empty), models from 29 to 11 (Relay 90, Boxer 85,
+Ducato 62, Master 50, NV400 18, Movano 12, Transit 3, Sprinter 2, Transit Custom 1,
+Interstar 1, Other 1; 59 empty). Two Boxers gained size codes from their long model
+string (L4H2, L3H2); nothing but make/model/size codes differs from the backup. Two
+deviations from the plan's letter, both in D-053: the base-model list is matched
+across all makes (many eBay rows have no make), and when the make is empty and the
+model began with one (`Renault master`), that make is kept rather than thrown away
+(2 rows). `AMC` is a parts brand on two junk listings; it's in the stay-capitals
+list. `Renault | Other` is left as is — the title says Master but nothing is
+inferred from titles. The frontend `Suggestions` datalists also merge spellings
+case/accent-insensitively (most-used spelling wins). Verified: second pass changes
+0 rows; POST with `citroën` + `RELAY 35 L3H2 EPRISE BHDI S/S` → `Citroen`/`Relay`/L3/H2;
+PATCH `CITROËN` → `Citroen`; PATCH with explicit codes keeps them; lookup PE18OGB
+(from cache, no DVSA call) → `Fiat`/`Ducato`; `_listing_fields` with fake aspects;
+headless Chrome: Make and Model filter chips and both datalists list each value
+once, and typing `CITROËN` + Enter in the popup shows `Citroen`. Not exercised: a
+live eBay scrape/import (only the field-building function was run offline). For
+later phases: a `Relay` no longer carries its trim, so anything wanting `L3H2`
+text from the model must read `length_code`/`height_code` instead.

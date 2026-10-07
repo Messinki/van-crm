@@ -7,8 +7,10 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 **Ranking, data clean-up and description hints** — six phases in
 [`docs/PLAN.md`](PLAN.md), worked through one fresh agent per phase. Check its
 boxes and Handover section for progress. Phases 1 (inc-VAT price everywhere,
-D-051) and 2 (popup fields save on commit, D-052) are done; phase 3 (one spelling
-per make and model) is next. (Distance to homes + maps finished
+D-051), 2 (popup fields save on commit, D-052) and 3 (one spelling per make and
+model, D-053) are done; phase 4 ("Time until MOT" rank factor) is next.
+`data/vancrm.db.bak-phase3` is the pre-tidy copy of the DB — delete it once Harry
+is happy with the tidied makes and models. (Distance to homes + maps finished
 2026-10-05; Harry's homes are Bristol and Mere, Manchester switched off.)
 
 Notes for working in `frontend/`:

@@ -13,14 +13,24 @@ export function Suggestions({ schema, listings }: { schema: Schema; listings: Li
     return schema.fields
       .filter((f) => f.suggest)
       .map((spec) => {
-        const seen = new Set<string>()
+        // Spellings that differ only in case or accents are one suggestion — the
+        // most used one. The server already stores one spelling per make and
+        // model (D-053); this is only a backstop.
+        const counts = new Map<string, Map<string, number>>()
         for (const listing of listings) {
           const value = listing[spec.key]
           if (value === null || value === undefined || value === '') continue
-          seen.add(String(value))
+          const text = String(value)
+          const fold = text.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase()
+          const spellings = counts.get(fold) ?? new Map<string, number>()
+          spellings.set(text, (spellings.get(text) ?? 0) + 1)
+          counts.set(fold, spellings)
         }
+        const seen = Array.from(counts.values(), (spellings) =>
+          Array.from(spellings).reduce((best, next) => (next[1] > best[1] ? next : best))[0],
+        )
         // Years read best newest-first; everything else alphabetically.
-        const values = Array.from(seen).sort(
+        const values = seen.sort(
           NUMERIC_TYPES.includes(spec.type)
             ? (a, b) => Number(b) - Number(a)
             : (a, b) => a.localeCompare(b, 'en-GB', { sensitivity: 'base' }),
