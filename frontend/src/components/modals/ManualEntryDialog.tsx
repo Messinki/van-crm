@@ -53,7 +53,11 @@ export function ManualEntryDialog({ schema, open, onOpenChange, onCreated }: Pro
 
   const specs = schema.fields.filter((f) => f.in_form && f.key !== 'reg')
   const gridSpecs = specs.filter((f) => f.type !== 'urls' && f.type !== 'textarea')
-  const wideSpecs = specs.filter((f) => f.type === 'urls' || f.type === 'textarea')
+  // Image URLs sit at the very bottom, below the notes box.
+  const wideSpecs = [
+    ...specs.filter((f) => f.type === 'textarea'),
+    ...specs.filter((f) => f.type === 'urls'),
+  ]
 
   const runLookup = () => {
     const reg = cleanReg(values.reg)
