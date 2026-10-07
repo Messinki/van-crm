@@ -4,13 +4,14 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 
 ## Current goal
 
-**Ranking, data clean-up and description hints** — six phases in
+**Ranking, data clean-up and description hints** — seven phases in
 [`docs/PLAN.md`](PLAN.md), worked through one fresh agent per phase. Check its
 boxes and Handover section for progress. Phases 1 (inc-VAT price everywhere,
 D-051), 2 (popup fields save on commit, D-052), 3 (one spelling per make and
-model, D-053), 4 ("MOT left" rank factor, D-054) and 5 (remembered rejected
-plates, "Rejected before" pill, D-055) are done; phase 6 (highlight VAT and size
-terms in the description) is next.
+model, D-053), 4 ("MOT left" rank factor, D-054), 5 (remembered rejected
+plates, "Rejected before" pill, D-055) and 6 (VAT and size terms highlighted in
+the notes box, D-056) are done; phase 7 (stop model codes being read as number
+plates — the "Broken" item below) is next, then the CHANGELOG entry.
 `data/vancrm.db.bak-phase3` is the pre-tidy copy of the DB and
 `data/vancrm.db.bak-phase5` the copy from before the rejected-plates backfill —
 delete each once Harry is happy with the result. (Distance to homes + maps finished
@@ -38,6 +39,11 @@ Notes for working in `frontend/`:
   scratchpads, not the repo.
 
 Open, not blocking:
+
+- The notes highlighting (D-056) was only checked in Chrome. Worth Harry opening
+  one long description in Safari to see the yellow sits exactly on the words.
+- Nothing in the app turns on the `.dark` class, so it is always the light theme;
+  the `dark:` colours (pills, notes highlighting) were only checked by forcing it.
 
 - Pinch zoom in the popup (D-042) hasn't been tried on a real trackpad — worth
   Harry pinching once in Safari and Chrome to confirm the zoom speed feels right.

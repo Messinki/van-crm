@@ -15,6 +15,7 @@ import { ExternalLinkIcon, MapPinIcon } from 'lucide-react'
 
 import { useRegLookup, useUpdateListing } from '@/api/queries'
 import { DistanceValue } from '@/components/DistanceValue'
+import { HighlightTextarea } from '@/components/HighlightTextarea'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -363,7 +364,8 @@ export function RegField({ listing }: { listing: Listing }) {
 }
 
 /** Notes: no label, big box, autosaved on a debounce with a Saving…/Saved hint.
- *  Notes absorbed the old read-only description field, so give it room.
+ *  Notes absorbed the old read-only description field, so give it room; VAT and
+ *  size wording in it is highlighted (D-056).
  *
  *  `flushRef` is how the dialog gets a pending save out before it closes — the
  *  same job the old drawer's flushNotes() did. */
@@ -409,7 +411,7 @@ export function NotesField({
 
   return (
     <div className="space-y-1">
-      <Textarea rows={14} value={text} onChange={(e) => onChange(e.target.value)} onBlur={flush} />
+      <HighlightTextarea rows={14} value={text} onChange={(e) => onChange(e.target.value)} onBlur={flush} />
       <p className="h-4 text-xs text-muted-foreground">{hint}</p>
     </div>
   )

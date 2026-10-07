@@ -630,3 +630,33 @@ Why: a table survives deletes; deriving the flag at read time means nothing stor
 goes stale when a plate turns up later. Rejected: storing a flag column on listings
 (would need rewriting whenever any other listing changes) and "latest rejection
 wins" (would flag the original listing as a relist of its own copy).
+
+## D-056 — Highlight VAT and size terms in the description with a backdrop (2026-10-07)
+Context: whether a van is Plus VAT, and its length/height or wheelbase, are often
+only stated in the description (the `notes` field), buried in long eBay prose.
+Harry wants those words to stand out while reading or pasting a description.
+Decision:
+- One matcher, `frontend/src/lib/keywords.ts`: plain case-insensitive regexes, no
+  AI (inside D-036's limits), and a function splitting text into plain and
+  highlighted segments. Terms: VAT — "plus VAT", "+VAT"/"+ VAT", "ex VAT"
+  (also "ex. VAT", "ex-VAT"), "excl VAT"/"excl. VAT"/"excluding VAT", "no VAT"
+  (extended to "no VAT to add" when it follows), "VAT free"/"VAT-free"; size codes
+  `L1H1`–`L4H3` with an optional space; wheelbase — any "wheelbase" or "wheel
+  base", taking a "long/medium/short/extra long" in front with it, and the
+  abbreviations `LWB`, `MWB`, `SWB`, `ELWB`, `XLWB`. Everything matches whole words
+  only, so "Swbxyz" or "vatable" don't light up.
+- A `<textarea>` can't colour its own text, so `HighlightTextarea` puts a `div`
+  behind a transparent-background textarea with the same border, padding, font and
+  wrapping. The backdrop's text is transparent and only its `<mark>`s have a
+  background; the text you see, the caret and the selection are the textarea's
+  own, so a slight misalignment could only shift a yellow box, never the text.
+  Backdrop scroll follows the textarea's; both reserve a stable scrollbar gutter so
+  their wrap widths match when a classic scrollbar appears.
+- Used for the popup's notes box (`NotesField`, its debounce and flush unchanged)
+  and the manual-entry form's notes box. Highlight only — nothing fills
+  `vat_status` or size codes from the matches; that's milestone 4b's job.
+Why: the backdrop is the standard way to mark up a plain textarea without turning
+it into a contenteditable editor (which would bring its own caret, paste and undo
+problems) or adding a library. Rejected: a read-only highlighted preview beside
+the box (the description would show twice) and highlighting only in the table cell
+(it shows a few words).

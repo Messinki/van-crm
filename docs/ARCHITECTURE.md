@@ -59,9 +59,12 @@ Inside `frontend/src/`:
   `ranking.ts` and `visible.ts` (filter model, weighted rank score, the visible-rows
   selector), `distance.ts` (haversine miles, closest enabled home, why a distance is
   missing), `format.ts`, `store.ts` (localStorage), `lookup.ts` (what a plate lookup
-  may fill), `window.ts`.
+  may fill), `window.ts`, `keywords.ts` (the VAT/size/wheelbase terms highlighted
+  in descriptions, D-056).
 - **`components/`** — `Topbar.tsx` (with the Table | Map toggle);
-  `DistanceValue.tsx` ("42 mi" + the home pill, used by every surface); `table/`
+  `DistanceValue.tsx` ("42 mi" + the home pill, used by every surface);
+  `HighlightTextarea.tsx` (the notes box with `keywords.ts` matches marked in
+  yellow on a backdrop behind the text, D-056); `table/`
   (TanStack Table, columns from the registry, cell renderers); `filters/` (filter
   bar, rank panel, View menu); `detail/` (the listing popup, its fields, gallery and
   MOT panel); `map/` (`VanMap`, the one Leaflet component, plus
@@ -84,7 +87,8 @@ listing popup, where everything is edited: photos on the left (←/→ change ph
 pinch zooms), fields on the right, ↑/↓ step through the table's current order
 (D-041, D-042, D-045, D-046). A field saves when you leave it, press Enter, pick a
 suggestion, close the popup or move to another van — not per keystroke (D-052);
-notes autosave on a debounce (D-029).
+notes autosave on a debounce (D-029), and VAT, size-code and wheelbase wording in
+them is highlighted yellow (D-056).
 The topbar's **Table | Map** toggle swaps the table for a map of the same rows:
 clustered van pins, home pins, and a card per pin that opens the popup (D-049).
 Topbar: **Scrape eBay** (runs all enabled saved searches), **Check live** (bulk liveness

@@ -9,7 +9,7 @@ next phase needs under **Handover** at the bottom.
 - [x] Phase 3 — One spelling per make and model
 - [x] Phase 4 — "Time until MOT" ranking factor
 - [x] Phase 5 — Remember rejected plates and flag relisted vans
-- [ ] Phase 6 — Highlight VAT and size terms in the description
+- [x] Phase 6 — Highlight VAT and size terms in the description
 - [ ] Phase 7 — Stop model codes being read as number plates (added after phase 5)
 
 ## Rules for every phase
@@ -383,3 +383,33 @@ rows deleted; real listings identical to the backup. Not exercised: the eBay pat
 (they only insert status `new`, so `sync()` isn't called there — a future
 auto-reject must call it); dark mode (nothing sets the `.dark` class today, so
 the pill's `dark:` colours are untested, like the other pills').
+
+**Phase 6 (2026-10-07, D-056).** Built as planned. `lib/keywords.ts` (patterns +
+`keywordSegments()`) and `components/HighlightTextarea.tsx`, used by the popup's
+`NotesField` (debounce/flush untouched) and the manual form's notes box (image URLs
+stay a plain textarea). Choices beyond the plan's list, in D-056: "ex. VAT",
+"ex-VAT", "excl. VAT" and "VAT-free" also match, "no VAT to add" is marked as one
+phrase, and a bare "wheelbase"/"wheel base" is marked too (with any
+long/medium/short/extra long in front). The backdrop's text is transparent — only
+the marks' yellow shows through — so the visible text, caret and selection are the
+textarea's own. Note the plan's sample text has **five** real terms, not six (plus
+VAT, L3H2, long wheel base, MWB, no vat); all five marked, "Swbxyz" not. Verified:
+a node check of the matcher (30 expected hits and 16 near-misses such as
+"VATable", "Vatican", "swb2", "XL3H2", "inc VAT"; segments always rejoin to the
+input), and headless Chrome against the live app (22 checks, all pass): sample marks; typing marks live with focus kept;
+Esc straight after typing still saves; both layers' computed font/padding/border/
+wrap match and their widths/heights are equal; a 12k-character description, as
+rendered, with the box forced short and scrolled (backdrop scrollTop follows,
+including after typing at a scrolled caret), at a narrow window, and forced dark —
+each compared pixel-wise against a 1px-shifted control and per character against
+the same text without marks. Every character lands within 0.11px horizontally and
+0px vertically (Chrome's run-splitting at a `<mark>` edge, not kerning — turning
+kerning off didn't remove it); invisible, and it can't move the text itself.
+Screenshots checked by eye in light and forced dark (`.dark` on `<html>` — nothing
+in the app sets it): dark gives light text on a muted olive-yellow, readable.
+Scratch listings deleted. Two things to know: the notes box grows to fit its text
+(`field-sizing-content` on the shared Textarea), so in normal use it never scrolls
+inside itself — the scroll sync was exercised by forcing a max-height. And it was
+only run in Chrome; Safari's rendering of the backdrop is unverified (worth Harry
+opening one description in Safari to see the yellow sits on the words).
+

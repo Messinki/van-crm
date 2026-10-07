@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { useCreateListing, useRegLookup } from '@/api/queries'
+import { HighlightTextarea } from '@/components/HighlightTextarea'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -212,10 +213,12 @@ function ManualField({
   }
 
   if (spec.type === 'urls' || spec.type === 'textarea') {
+    // The notes box highlights VAT and size wording, as in the popup (D-056).
+    const Box = spec.widget === 'notes' ? HighlightTextarea : Textarea
     return (
       <div className="space-y-1">
         <Label className="text-xs">{label}</Label>
-        <Textarea
+        <Box
           rows={spec.type === 'urls' ? 3 : 8}
           placeholder={spec.placeholder}
           value={value}
