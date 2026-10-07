@@ -266,6 +266,29 @@ def check_registry_covers_schema() -> None:
         )
 
 
+def clear_unissued_regs(conn) -> list[int]:
+    """Startup pass (D-057): clear any stored reg that is really a model code.
+
+    Before D-057, extract_reg() read Renault Master codes such as "LM35dCi" as a
+    plate. Idempotent — no write path can store such a reg any more, so after the
+    first boot it finds nothing. Leaves updated_at alone: a tidy, not an edit.
+    Returns the ids of the listings it cleared.
+    """
+    cleared = [
+        row["id"]
+        for row in conn.execute("SELECT id, reg FROM listings WHERE reg IS NOT NULL AND reg != ''")
+        if not mot.plate_issued(row["reg"])
+    ]
+    for listing_id in cleared:
+        conn.execute("UPDATE listings SET reg = NULL WHERE id = ?", (listing_id,))
+        rejected.sync(conn, listing_id)
+    # A deleted listing's remembered row isn't reached by sync().
+    for row in conn.execute("SELECT reg FROM rejected_regs").fetchall():
+        if not mot.plate_issued(row["reg"]):
+            rejected.forget(conn, row["reg"])
+    return cleared
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
@@ -275,6 +298,11 @@ async def lifespan(app: FastAPI):
         tidied = normalise.tidy_all(conn)
     if tidied:
         print(f"VanCRM: tidied make/model on {tidied} listing(s)")
+    # Model codes stored as plates before D-057: clear them before the backfill.
+    with db.connect() as conn:
+        cleared = clear_unissued_regs(conn)
+    if cleared:
+        print(f"VanCRM: cleared a model code stored as the plate on listing(s) {cleared}")
     # Remember the plate of every rejected van (D-055).
     with db.connect() as conn:
         remembered = rejected.backfill(conn)

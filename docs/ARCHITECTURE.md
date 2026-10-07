@@ -23,8 +23,11 @@ Backend modules, all under `app/`:
   frontend polls while a scrape or sweep runs.
 - **`mot.py`** — DVSA MOT History API: OAuth (cached token), fetch, 7-day `mot_cache`,
   derived fields (expiry, mileage series, defect flags), plus everything plate-shaped:
-  `clean_reg()`, `extract_reg()`. The DVLA VES merge path lives here too, dormant until
-  `DVLA_VES_API_KEY` is set.
+  `clean_reg()`, `extract_reg()`, and `plate_issued()`, which refuses a current-style
+  plate whose age identifier isn't issued yet (a model code like "LM35dCi", D-057) —
+  `extract_reg()` drops those, hand entry answers 400, and `clear_unissued_regs()` in
+  `main.py` clears any stored one at startup. The DVLA VES merge path lives here too,
+  dormant until `DVLA_VES_API_KEY` is set.
 - **`normalise.py`** — one spelling per make and model (D-053): `canonical_make()`,
   `canonical_model()`, `parse_size_codes()` and `tidy()`, which create/PATCH
   validation, the eBay scrape/import and the plate lookup all run make/model
@@ -32,7 +35,8 @@ Backend modules, all under `app/`:
   New base models or make aliases go in its `BASE_MODELS` / `MAKE_ALIASES`.
 - **`rejected.py`** — remembered plates of rejected vans (D-055): `sync()` runs after
   every create/PATCH and keeps `rejected_regs` in step with the listing's status and
-  plate; `backfill()` runs at startup; `attach()` hangs the derived `rejected_before`
+  plate; `backfill()` runs at startup; `forget()` drops a remembered reg that
+  turned out not to be a plate (D-057); `attach()` hangs the derived `rejected_before`
   flag on listings as they're read. Any new path that writes `status` or `reg` must
   call `sync()`.
 - **`geo.py`** — UK geocoding through postcodes.io (D-048): `locate()` turns a

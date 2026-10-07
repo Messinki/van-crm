@@ -80,6 +80,16 @@ def _hand_on(conn: sqlite3.Connection, reg: str) -> None:
         )
 
 
+def forget(conn: sqlite3.Connection, reg: str) -> None:
+    """Drop a remembered plate that turned out not to be a plate at all (D-057).
+
+    Only for that: a real plate's row is the memory and is never forgotten. Call
+    it after the listings holding the reg have been cleared and synced, so there's
+    no rejected listing left to hand the row on to.
+    """
+    conn.execute("DELETE FROM rejected_regs WHERE reg = ?", (reg,))
+
+
 def backfill(conn: sqlite3.Connection) -> int:
     """Remember every rejected listing's plate that isn't remembered yet.
 

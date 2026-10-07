@@ -10,7 +10,7 @@ next phase needs under **Handover** at the bottom.
 - [x] Phase 4 — "Time until MOT" ranking factor
 - [x] Phase 5 — Remember rejected plates and flag relisted vans
 - [x] Phase 6 — Highlight VAT and size terms in the description
-- [ ] Phase 7 — Stop model codes being read as number plates (added after phase 5)
+- [x] Phase 7 — Stop model codes being read as number plates (added after phase 5)
 
 ## Rules for every phase
 
@@ -413,3 +413,34 @@ inside itself — the scroll sync was exercised by forcing a max-height. And it 
 only run in Chrome; Safari's rendering of the backdrop is unverified (worth Harry
 opening one description in Safari to see the yellow sits on the words).
 
+**Phase 7 (2026-10-07, D-057).** `mot.plate_issued()` / `age_identifier_issued()`
+check a current-style plate's age identifier against today's date; `extract_reg()`
+drops a failing match **before** its two-plates-means-ambiguous rule (so "Master
+MM35dCi, reg PE18 OGB" still gives `PE18OGB`). One deviation from the plan's letter,
+in D-057: March codes also wait for March (in Jan–Feb 2027, `27` is refused), like
+September's do. Hand entry: `main.normalise_reg()` (create, PATCH, plate lookup) now
+answers 400 "LM35DCI isn't a real plate yet — '35' plates haven't been issued" —
+a small change in the one function all three use, and it means the clean-up can't
+wipe a plate Harry typed. Other hand-typed shapes are still not checked. Clean-up:
+an idempotent startup pass, `main.clear_unissued_regs()` (like phases 3/5), clears
+the reg (leaving `updated_at`), runs `rejected.sync()` on each, then the new
+`rejected.forget()` drops any failing remembered reg. DB backed up to
+`data/vancrm.db.bak-phase7` first. Before clearing, every stored reg failing the
+check was listed with its title — all five are Renault Master model codes:
+**2067** and **2302** (`LM35DCI`, new), **2091** (`LM35DCI`, rejected), **2076**
+(`MM35DCI`, new), **2120** (`MM35DCI`, rejected); `rejected_regs` lost `LM35DCI`
+and `MM35DCI` (43 → 41). Nothing else in the DB differs from the backup. The three
+non-current-style regs (FSZ3532 and LGZ6458, Northern Irish; A3OPO, private) are
+untouched. Flags across all 384 listings (active + ended): **7 → 4** — 2302, 2067,
+2076 gone; 2284, 2277, 2043 (BF68VHJ) and 1963 (CF69GFX) still flagged. Verified: a
+script of 26 checks on the rule (the plan's cases, `76` accepted / `77` refused today,
+`00`/`01`/`50` refused, the 1 March and 1 September boundaries via `today=`, NI and
+private plates pass); an API script (create with a model-code title stores no reg,
+typed `lm35 dci` → 400, PATCH `AB77 CDE` → 400, `ab76 cde` → `AB76CDE`, private plate
+accepted, lookup `MM35DCI` → 400 before any DVSA call); the clean-up's hand-on and
+deleted-listing paths on a copy of the DB; a second boot clears nothing. Scratch
+listings deleted. Not exercised: the UI (no frontend change; the pill is driven by
+the `rejected_before` the API now returns as null for the three) and how a 400 on
+the plate box reads in the popup — it arrives through the global mutation-error
+toast like any other validation error, and the box keeps the typed text (from
+reading `useCommit()` and `main.tsx`, not run in a browser).
