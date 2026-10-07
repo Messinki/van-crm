@@ -6,7 +6,8 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 
 **Ranking, data clean-up and description hints** — six phases in
 [`docs/PLAN.md`](PLAN.md), worked through one fresh agent per phase. Check its
-boxes and Handover section for progress. (Distance to homes + maps finished
+boxes and Handover section for progress. Phase 1 (inc-VAT price everywhere,
+D-051) is done; phase 2 (popup focus loss) is next. (Distance to homes + maps finished
 2026-10-05; Harry's homes are Bristol and Mere, Manchester switched off.)
 
 Notes for working in `frontend/`:

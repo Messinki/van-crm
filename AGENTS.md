@@ -39,6 +39,9 @@ Reset the database by deleting `data/vancrm.db`; it is recreated and seeded on n
 - **Never log or echo secrets. Never commit `.env` or `data/`.**
 - The app must always boot with an empty `.env` — an unconfigured integration answers
   503 with a plain-English message; it never crashes the app.
+- **Price means `effectivePrice()`** (D-051): anything that compares, sorts, ranks,
+  filters or totals price uses `effectivePrice()` (`frontend/src/lib/format.ts`),
+  never `price_gbp` directly — a Plus VAT van really costs × 1.2.
 - **A new listing field goes in `main.FIELD_SPECS`, nowhere else.** A new column goes
   in `db.MIGRATIONS`. The startup registry check refuses to boot if the two disagree.
   How the registry works is in `docs/ARCHITECTURE.md`.

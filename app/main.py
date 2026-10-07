@@ -81,6 +81,8 @@ FIELD_SPECS = [
     {
         # The `price_vat` widget pairs the box with the Plus VAT toggle (D-043).
         # The stored value is always the listed price; the UI derives × 1.2.
+        # Anything that compares, sorts, ranks, filters or totals price must use
+        # the frontend's effectivePrice(), never price_gbp directly (D-051).
         "key": "price_gbp", "label": "Price", "type": "money", "editable": True,
         "in_form": True, "section": "Details", "cell": "money", "numeric": True,
         "widget": "price_vat",

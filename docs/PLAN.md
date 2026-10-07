@@ -4,7 +4,7 @@ Six phases, done in order, each by a fresh agent. Each phase ends in one or more
 verified commits. When a phase is done, tick its box here and note anything the
 next phase needs under **Handover** at the bottom.
 
-- [ ] Phase 1 — Ranking and every price use the inc-VAT price
+- [x] Phase 1 — Ranking and every price use the inc-VAT price
 - [ ] Phase 2 — Fix focus loss while typing in the popup's fields
 - [ ] Phase 3 — One spelling per make and model
 - [ ] Phase 4 — "Time until MOT" ranking factor
@@ -227,3 +227,19 @@ in a long description still line up with the text; dark mode readable.
 
 (Each phase adds a few lines here: what was done, anything surprising, anything
 the next phase should know.)
+
+**Phase 1 (2026-10-07, D-051).** Nothing was actually wrong: every compare, sort,
+filter, rank and map read already went through `effectivePrice()`/`sortValue()`,
+and the backend never compares prices (only eBay's search `min_price`/`max_price`,
+which is the listed figure on purpose). The one stray was `VatTotal` ("= £x inc.
+VAT") repeating the × 1.2 sum — now it calls `effectivePrice()`. The table cell and
+map card null-check `effectivePrice()` instead of `price_gbp`; the popup box and
+the "Listed at" tooltip are commented as deliberate listed-price reads. Rule added
+to AGENTS.md, pointer comment beside `price_gbp` in `FIELD_SPECS`. Verified in
+headless Chrome against the live app with two scratch vans (£10,000 Plus VAT,
+£11,000): price-only rank (isolated and across all 142 visible rows), price column
+sort both ways, ≤/≥ £11,500 filters, table cell + tooltip, popup box/total, manual
+form total, both map cards — all correct; scratch vans deleted. Phase 4 note: a
+new rank factor goes in `RANK_FACTORS`, `RANK_LABELS`, `DEFAULT_RANK.weights`,
+`ScoreParts` and `rankScores()` in `lib/ranking.ts`; `store.ts` restores weights
+by iterating `RANK_FACTORS`, so a new factor defaults from `DEFAULT_RANK`.
