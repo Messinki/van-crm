@@ -30,6 +30,11 @@ Backend modules, all under `app/`:
   validation, the eBay scrape/import and the plate lookup all run make/model
   through. `tidy_all()` runs at startup and tidies any stored row that differs.
   New base models or make aliases go in its `BASE_MODELS` / `MAKE_ALIASES`.
+- **`rejected.py`** — remembered plates of rejected vans (D-055): `sync()` runs after
+  every create/PATCH and keeps `rejected_regs` in step with the listing's status and
+  plate; `backfill()` runs at startup; `attach()` hangs the derived `rejected_before`
+  flag on listings as they're read. Any new path that writes `status` or `reg` must
+  call `sync()`.
 - **`geo.py`** — UK geocoding through postcodes.io (D-048): `locate()` turns a
   free-text location into coordinates, `locate_listing()` stores them on one listing,
   `fill_missing()` runs every listing that needs a lookup. See "Geocoding and maps".
@@ -86,11 +91,12 @@ sweep), **Add listing ▾** (manual entry with plate lookup, or import from an e
 
 ## Data model
 
-Five tables, created idempotently on startup: `listings`, `searches` (label, query,
+Six tables, created idempotently on startup: `listings`, `searches` (label, query,
 price/year bounds, enabled), `property_defs` (typed custom columns), `mot_cache`
 (raw DVSA response per reg, 7-day TTL), `homes` (label, postcode, lat/lng, enabled,
 position — coordinates are looked up when a home is saved, so a home is never stored
-unplaced). Conventions:
+unplaced), `rejected_regs` (reg, listing_id, title, rejected_at — one row per
+rejected plate, kept when the listing is deleted, D-055). Conventions:
 
 - Timestamps are ISO-8601 UTC strings via `db.now_iso()`.
 - `image_urls` and `custom` are JSON-encoded TEXT; `row_to_listing()` decodes them.
@@ -119,9 +125,11 @@ nothing. (The popup was a side drawer when the registry was written, hence the
   across listings, built client-side from the loaded listings.
 - Anything absent from `EDITABLE_FIELDS` is rejected with 400 — that's what keeps `id`,
   `external_id` and timestamps out of reach.
-- Pseudo-fields with no column (`thumb`, `mot`, `reject`, `distance`) are listed in
-  `DERIVED_KEYS`; columns deliberately outside the registry go in `UNMANAGED_COLUMNS`
-  (that includes `lat`, `lng`, `geocoded_from` — returned by the API, never edited).
+- Pseudo-fields with no column (`thumb`, `mot`, `reject`, `distance`,
+  `rejected_before`) are listed in `DERIVED_KEYS`; columns deliberately outside the
+  registry go in `UNMANAGED_COLUMNS` (that includes `lat`, `lng`, `geocoded_from` —
+  returned by the API, never edited). Every route that hands out listings runs them
+  through `attach_derived()`, which adds `mot` and `rejected_before`.
 - A spec's `unit` key (`"mi"` for distance) is appended to filter chips and editor
   labels.
 
@@ -195,6 +203,8 @@ interactive personal use is fine.
 │   ├── ebay.py          # eBay auth/scrape/import/liveness
 │   ├── mot.py           # DVSA auth/fetch/cache, reg utilities, dormant VES path
 │   ├── geo.py           # postcodes.io geocoding, fill_missing
+│   ├── normalise.py     # one spelling per make/model, size-code parsing
+│   ├── rejected.py      # remembered rejected plates, "Rejected before" flag
 │   └── static/dist/     # frontend build output, served at /; gitignored
 ├── frontend/            # Vite + React + TypeScript app (src/api, components, lib)
 └── data/vancrm.db       # created on first run; never committed

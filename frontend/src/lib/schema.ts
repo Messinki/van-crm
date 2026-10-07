@@ -60,6 +60,14 @@ export interface MotSummary {
   fetched_at: string
 }
 
+/** A remembered rejection of the same plate (D-055). The listing it names
+ *  may since have been deleted — the memory outlives it. */
+export interface RejectedBefore {
+  listing_id: number
+  title: string
+  rejected_at: string
+}
+
 export interface Listing {
   id: number
   title: string
@@ -84,6 +92,9 @@ export interface Listing {
   /** User-defined columns; values validated server-side per property type. */
   custom: Record<string, unknown>
   mot: MotSummary | null
+  /** The earlier rejection of this listing's plate under another listing
+   *  (D-055), attached by rejected.attach(); null when there isn't one. */
+  rejected_before: RejectedBefore | null
   /** Where app/geo.py placed `location` (D-048); null when it couldn't. */
   lat: number | null
   lng: number | null

@@ -12,7 +12,7 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import db, ebay, geo, mot, normalise
+from app import db, ebay, geo, mot, normalise, rejected
 from app.normalise import parse_size_codes
 
 load_dotenv()
@@ -198,6 +198,16 @@ FIELD_SPECS = [
         "placeholder": "Paste the listing text here, plus anything you want to remember",
     },
     {
+        # Not a column: the earlier rejection of this listing's plate under another
+        # listing, {listing_id, title, rejected_at} or null — attached at read time
+        # by rejected.attach() (D-055). No column of its own: its "Rejected before"
+        # pill shows in the Status cell and the popup's actions row. A checkbox so
+        # the filter bar offers it as Checked / Unchecked — see sortValue().
+        "key": "rejected_before", "label": "Rejected before", "type": "checkbox",
+        "editable": False, "in_table": False, "in_drawer": False, "in_form": False,
+        "sortable": False,
+    },
+    {
         # Not a column: a one-click Reject / Un-reject that writes `status`. It is
         # exactly what picking "Rejected" in the drawer's Status select does, put
         # where the scanning happens — rejecting junk from a scrape shouldn't cost
@@ -210,7 +220,7 @@ FIELD_SPECS = [
 ]
 
 # Registry keys that are not listings columns — computed for display only.
-DERIVED_KEYS = frozenset({"thumb", "mot", "reject", "distance"})
+DERIVED_KEYS = frozenset({"thumb", "mot", "reject", "distance", "rejected_before"})
 
 # Listings columns deliberately kept out of the UI: identity, bookkeeping, the
 # JSON custom bag (it has its own /api/properties machinery), the dead
@@ -265,6 +275,11 @@ async def lifespan(app: FastAPI):
         tidied = normalise.tidy_all(conn)
     if tidied:
         print(f"VanCRM: tidied make/model on {tidied} listing(s)")
+    # Remember the plate of every rejected van (D-055).
+    with db.connect() as conn:
+        remembered = rejected.backfill(conn)
+    if remembered:
+        print(f"VanCRM: remembered {remembered} rejected plate(s)")
     yield
 
 
@@ -430,6 +445,13 @@ def get_listing_or_404(conn: sqlite3.Connection, listing_id: int) -> dict:
     return db.row_to_listing(row)
 
 
+def attach_derived(conn: sqlite3.Connection, listings: list[dict]) -> list[dict]:
+    """Everything a listing payload carries that isn't a column: the cached MOT
+    summary and the "rejected before" flag (D-055). Every route that hands out
+    listings goes through this."""
+    return rejected.attach(conn, attach_mot(conn, listings))
+
+
 def attach_mot(conn: sqlite3.Connection, listings: list[dict]) -> list[dict]:
     """Hang the cached MOT summary (or None) on each listing, in one query.
 
@@ -499,7 +521,7 @@ def list_listings(
     sql += " ORDER BY id DESC"
     with db.connect() as conn:
         rows = conn.execute(sql, params).fetchall()
-        return attach_mot(conn, [db.row_to_listing(r) for r in rows])
+        return attach_derived(conn, [db.row_to_listing(r) for r in rows])
 
 
 @app.post("/api/listings", status_code=201)
@@ -526,9 +548,10 @@ def create_listing(payload: dict = Body(...)):
         cursor = conn.execute(
             f"INSERT INTO listings ({columns}) VALUES ({placeholders})", list(fields.values())
         )
+        rejected.sync(conn, cursor.lastrowid)
         if fields.get("location"):
             geo.locate_listing(conn, cursor.lastrowid, fields["location"])
-        return attach_mot(conn, [get_listing_or_404(conn, cursor.lastrowid)])[0]
+        return attach_derived(conn, [get_listing_or_404(conn, cursor.lastrowid)])[0]
 
 
 @app.patch("/api/listings/{listing_id}")
@@ -543,9 +566,10 @@ def update_listing(listing_id: int, payload: dict = Body(...)):
                 f"UPDATE listings SET {assignments} WHERE id = ?",
                 [*fields.values(), listing_id],
             )
+            rejected.sync(conn, listing_id)
         if "location" in fields and fields["location"] != existing["location"]:
             geo.locate_listing(conn, listing_id, fields["location"])
-        return attach_mot(conn, [get_listing_or_404(conn, listing_id)])[0]
+        return attach_derived(conn, [get_listing_or_404(conn, listing_id)])[0]
 
 
 @app.delete("/api/listings/{listing_id}")
@@ -990,7 +1014,7 @@ def import_ebay(payload: dict = Body(...)):
                 409, {"message": "That listing is already in the table", "listing_id": listing_id}
             )
         fill_missing_quietly(conn)
-        return attach_mot(conn, [get_listing_or_404(conn, listing_id)])[0]
+        return attach_derived(conn, [get_listing_or_404(conn, listing_id)])[0]
 
 
 @app.post("/api/listings/{listing_id}/check")
@@ -1010,7 +1034,7 @@ def check_listing(listing_id: int):
         return {
             "active": result["active"],
             "message": result["message"],
-            "listing": attach_mot(conn, [get_listing_or_404(conn, listing_id)])[0],
+            "listing": attach_derived(conn, [get_listing_or_404(conn, listing_id)])[0],
         }
 
 

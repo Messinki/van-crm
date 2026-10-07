@@ -61,13 +61,16 @@ export function specLabel(spec: FieldSpec | null, value: string): string {
 
 /** The sortable/filterable value of a listing under a column key; null for
  *  missing or blank. The MOT cell is an object — it sorts by expiry date,
- *  price is the inc-VAT figure for a Plus VAT listing (D-043), and distance is
- *  the unrounded miles to the closest enabled home (D-047). */
+ *  price is the inc-VAT figure for a Plus VAT listing (D-043), distance is
+ *  the unrounded miles to the closest enabled home (D-047), and
+ *  rejected_before is whether the plate was rejected before (D-055). */
 export function sortValue(listing: Listing, key: string): string | number | boolean | null {
   if (key === 'id') return listing.id
   if (key === 'price_gbp') return effectivePrice(listing)
   if (key === 'mot') return (listing.mot && listing.mot.expiry) || null
   if (key === 'distance') return listing.nearest ? listing.nearest.miles : null
+  // An object or null from the API; the filter's Checked / Unchecked (D-055).
+  if (key === 'rejected_before') return Boolean(listing.rejected_before)
   if (key.startsWith('custom:')) {
     const value = listing.custom[key.slice(7)]
     return value === undefined || value === '' ? null : (value as string | number | boolean)

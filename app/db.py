@@ -73,6 +73,15 @@ CREATE TABLE IF NOT EXISTS homes (
   position    INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT NOT NULL
 );
+
+-- D-055: plates of rejected vans. Not read off listings, because a rejected
+-- listing can be deleted and the memory must outlive it. reg is clean_reg()'d.
+CREATE TABLE IF NOT EXISTS rejected_regs (
+  reg         TEXT PRIMARY KEY,
+  listing_id  INTEGER NOT NULL,
+  title       TEXT NOT NULL,
+  rejected_at TEXT NOT NULL
+);
 """
 
 # Amendment 01 section A: columns added after v1.0 shipped.

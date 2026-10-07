@@ -590,3 +590,43 @@ which matches "half a year is still OK", and never penalises a long MOT.
 Rejected: min–max over days left (exaggerates tiny differences when every van has
 a fresh MOT, and rewards 2-year-old MOTs over 1-year ones that are just as good)
 and a linear ramp to 365 days (scores six months as only half as good).
+
+## D-055 — Remember rejected plates; flag a relisted van at read time (2026-10-07)
+Context: a van Harry has rejected can come back as a new eBay item or be typed in
+again by hand, and nothing says he has already turned it down. A rejected listing
+may also be deleted, so the memory can't live on the listings themselves.
+Decision:
+- A table `rejected_regs` (`reg` primary key, `listing_id`, `title`, `rejected_at`),
+  regs cleaned with `mot.clean_reg()`; a reg it refuses isn't remembered.
+- One function, `rejected.sync(conn, listing_id)`, runs after every create and PATCH
+  (and must be called by any later path that writes `status` or `reg`, such as
+  milestone 4b's auto-reject). It keeps one rule true: a rejected listing with a
+  plate has that plate remembered. The **first** rejection of a plate keeps the row
+  (its `rejected_at` stays, its title follows edits); a later rejected listing with
+  the same plate is the relist, so it is flagged rather than taking over. A listing
+  that stops being rejected, or whose plate changes or is cleared, gives up its row;
+  if another rejected listing still has that plate, the row passes to it (lowest id,
+  `rejected_at` = its `updated_at`). Deleting a listing leaves its row — that's the
+  memory.
+- Backfill: an idempotent `rejected.backfill()` at startup adds a row for any
+  rejected listing with a plate that has none. No rejection time was ever stored, so
+  `rejected_at` is the listing's `updated_at` (its last edit, at or after the
+  rejection); when several rejected listings share a plate the lowest id wins.
+  Startup rather than a one-shot script, like D-053, so it also catches a path that
+  forgot to sync.
+- The flag is derived when listings are read: `rejected_before` =
+  `{listing_id, title, rejected_at}` when the listing's plate is remembered under a
+  different listing id, else null — so a plate extracted or looked up later still
+  triggers it. It is a registry pseudo-field (`DERIVED_KEYS`, not editable) of type
+  `checkbox`, so the filter bar offers it as Checked/Unchecked. No column of its
+  own (`in_table: False`): the "Rejected before" pill sits in the Status cell,
+  where a mostly empty column would waste width, and in the popup's actions row,
+  where it opens the old listing if it still exists. Tooltip: old title and date.
+- Because one listing's status or plate changes another listing's flag, the
+  frontend reloads the listings after a PATCH that touches `status`, `reg` or
+  `title`, rather than only swapping in the returned row.
+- Flag only: a scrape never auto-rejects a relisted van.
+Why: a table survives deletes; deriving the flag at read time means nothing stored
+goes stale when a plate turns up later. Rejected: storing a flag column on listings
+(would need rewriting whenever any other listing changes) and "latest rejection
+wins" (would flag the original listing as a relist of its own copy).
