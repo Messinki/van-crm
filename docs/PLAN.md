@@ -10,6 +10,7 @@ next phase needs under **Handover** at the bottom.
 - [x] Phase 4 — "Time until MOT" ranking factor
 - [x] Phase 5 — Remember rejected plates and flag relisted vans
 - [ ] Phase 6 — Highlight VAT and size terms in the description
+- [ ] Phase 7 — Stop model codes being read as number plates (added after phase 5)
 
 ## Rules for every phase
 
@@ -220,6 +221,34 @@ there; manual entries are pasted there too), these terms are highlighted yellow:
 L3H2, long wheel base, MWB, no vat, Swbxyz" — the six real terms get marks, "Swbxyz"
 doesn't; typing new matching text highlights live; caret, selection and scrolling
 in a long description still line up with the text; dark mode readable.
+
+## Phase 7 — Stop model codes being read as number plates
+
+Added after phase 5 found it (see STATUS "Broken"). `mot.extract_reg()` reads
+Renault Master model codes such as "LM35dCi" / "MM35dCi" in a title as a plate
+(`LM35DCI`), so those listings carry a bogus reg — and three of them (2302, 2067,
+2076) now show a false "Rejected before" flag.
+
+**Decided:**
+- A current-style plate (two letters, two digits, three letters) is only accepted
+  if its age identifier has been issued: March codes `02`…current two-digit year,
+  September codes `51`…current year + 50 (only once September of that year has
+  begun). Today (2026-10) that allows up to `26` and `76`. Compute from today's
+  date, don't hardcode. Apply it inside `extract_reg()` so every caller benefits.
+- Clean up existing data: back up the DB to `data/vancrm.db.bak-phase7`, then clear
+  `reg` on listings whose stored reg is a current-style plate that fails the
+  check, and remove matching `rejected_regs` rows (use `app/rejected.py`'s own
+  functions so its invariants hold). A one-off startup pass or a one-shot script —
+  match whatever phase 3/5 did and record it. List the cleared listings in Handover.
+- Hand-typed regs through PATCH: check what `clean_reg()` / D-015 validation does
+  today; reject a not-yet-issued age identifier there too only if that's a small,
+  consistent change — otherwise leave hand entry alone and say so.
+
+**Verify:** `extract_reg("Renault Master LM35dCi 2015")` → None,
+`extract_reg("2018 PE18 OGB")` → `PE18OGB`, a `76` September plate accepted, a `77`
+refused; after the clean-up the three false flags are gone and the real relists
+(2043 BF68VHJ, 1963 CF69GFX) are still flagged. Remove the item from STATUS
+"Broken".
 
 ---
 
