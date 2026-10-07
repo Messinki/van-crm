@@ -533,3 +533,40 @@ and restoring focus after the remount (caret and selection jump, still a PATCH p
 key), and fully controlled inputs (a second copy of each field to keep in sync —
 the reason for D-040 in the first place).
 Supersedes: D-040 (the save-on-change and keyed-on-value parts, for text-like boxes)
+
+## D-053 — One spelling per make and model, tidied on every write (2026-10-07)
+Context: the same van came in as `Citroen`, `CITROEN`, `Citroën`; `Relay`, `RELAY`,
+`RELAY 35 L3H2 EPRISE BHDI S/S`, `Renault master`, `nv400` — from eBay aspects,
+DVSA's model string via plate lookup, and typing. Filters and suggestion lists
+showed each spelling separately.
+Decision: `app/normalise.py` (stdlib only) owns both rules, and every write path
+calls it — create/PATCH validation, eBay scrape and import (`_listing_fields`),
+and the plate lookup's suggested make/model.
+- Make: accents stripped, each word title-cased; an alias map (`VW` →
+  `Volkswagen`, `Mercedes`/`Mercedes Benz`/`Merc` → `Mercedes-Benz`) and a short
+  list of brands that stay capitals (`LDV`, `MAN`, `BMW`, `DAF`, `MG`, `AMC`).
+  `Citroen` without the accent — the majority spelling and what eBay and DVSA send.
+- Model: a leading make name is dropped (`Renault master` → `Master`), then the
+  string is matched case-insensitively, whole words, against one list of known base
+  models (grouped by make for reading, but matched across all makes so a van with
+  no or the wrong make still tidies; longest first, so `Transit Custom` beats
+  `Transit`). A match becomes that base model's spelling (`NV400`); the trim detail
+  is dropped (accepted). No match → each word title-cased, words with a digit kept
+  in capitals. Before anything is cut, `parse_size_codes()` (moved into the same
+  module) fills `length_code`/`height_code` when they're empty and not being set in
+  the same write.
+- If the make is empty and the model began with a make name, that make is kept
+  rather than thrown away (`NULL` + `Renault master` → `Renault` + `Master`).
+  Nothing else is inferred — `Relay` alone does not set `Citroen`.
+- Existing rows: an idempotent pass at startup (after migrations) rewrites any make,
+  model or empty size code the rules would change, leaving `updated_at` alone (it's a
+  tidy, not an edit). Startup rather than a one-shot script, so a row written by an
+  older build or an unknown path is caught next boot; with ~400 rows it costs
+  nothing.
+- The frontend's suggestion lists also merge spellings case- and accent-
+  insensitively, as a backstop only.
+Why: one function on every write keeps the stored data clean, which fixes filters,
+suggestions and ranking groups at once. Rejected: tidying only at display time (the
+filter and suggestions would each need it, and the DB stays messy), and a per-make
+model list matched only under its own make (misses rows with no make, which are
+common from eBay).

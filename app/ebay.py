@@ -25,7 +25,7 @@ from urllib.parse import quote, urlparse
 
 import httpx
 
-from app import db, mot
+from app import db, mot, normalise
 
 EBAY_VARS = ("EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET")
 
@@ -329,7 +329,9 @@ def _listing_fields(item: dict, detail: dict | None) -> dict:
         year = title_year(fields["title"])
         if year:
             fields["year"] = year
-    return fields
+    # One spelling per make and model; a long aspect model may fill the size codes
+    # before it's cut down to the base model (D-053).
+    return normalise.tidy(fields)
 
 
 # ---------------------------------------------------------------- search (spec §5.2)

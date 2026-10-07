@@ -25,6 +25,11 @@ Backend modules, all under `app/`:
   derived fields (expiry, mileage series, defect flags), plus everything plate-shaped:
   `clean_reg()`, `extract_reg()`. The DVLA VES merge path lives here too, dormant until
   `DVLA_VES_API_KEY` is set.
+- **`normalise.py`** — one spelling per make and model (D-053): `canonical_make()`,
+  `canonical_model()`, `parse_size_codes()` and `tidy()`, which create/PATCH
+  validation, the eBay scrape/import and the plate lookup all run make/model
+  through. `tidy_all()` runs at startup and tidies any stored row that differs.
+  New base models or make aliases go in its `BASE_MODELS` / `MAKE_ALIASES`.
 - **`geo.py`** — UK geocoding through postcodes.io (D-048): `locate()` turns a
   free-text location into coordinates, `locate_listing()` stores them on one listing,
   `fill_missing()` runs every listing that needs a lookup. See "Geocoding and maps".
@@ -92,6 +97,8 @@ unplaced). Conventions:
   Never leak the raw JSON string to the client.
 - Schema changes go in `db.MIGRATIONS` as `(table, column, type)` — `_migrate()` checks
   `PRAGMA table_info` and only adds what's missing, so existing data survives.
+- `listings.make` and `model` are only ever stored in their one canonical spelling
+  (`Citroen`, `Relay`) — every write goes through `normalise.tidy()` (D-053).
 - `listings.lat`, `lng` and `geocoded_from` are written only by `geo.py`.
   `geocoded_from` is the location string the last lookup ran on; a listing needs a
   lookup when it has a location and `geocoded_from` differs from it.

@@ -12,7 +12,8 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import db, ebay, geo, mot
+from app import db, ebay, geo, mot, normalise
+from app.normalise import parse_size_codes
 
 load_dotenv()
 
@@ -227,13 +228,6 @@ EDITABLE_FIELDS = {f["key"] for f in FIELD_SPECS if f.get("editable")} | {"custo
 
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-# Amendment 01 §C: van size codes as they appear in an MOT model string, e.g.
-# "RELAY 35 L3H2 BLUEHDI". Plenty of models carry no codes at all (Fiat reports a
-# bare "DUCATO") — no match just means the user picks them from the dropdowns.
-MODEL_LENGTH_RE = re.compile(r"\bL([1-4])\b|L([1-4])H", re.IGNORECASE)
-MODEL_HEIGHT_RE = re.compile(r"H([1-3])\b", re.IGNORECASE)
-
-
 def check_registry_covers_schema() -> None:
     """Fail startup if the listings table and FIELD_SPECS have drifted apart.
 
@@ -266,6 +260,11 @@ def check_registry_covers_schema() -> None:
 async def lifespan(app: FastAPI):
     db.init_db()
     check_registry_covers_schema()
+    # One spelling per make and model (D-053): tidy anything stored before.
+    with db.connect() as conn:
+        tidied = normalise.tidy_all(conn)
+    if tidied:
+        print(f"VanCRM: tidied make/model on {tidied} listing(s)")
     yield
 
 
@@ -419,7 +418,9 @@ def clean_listing_fields(payload: dict, existing: dict | None = None) -> dict:
             out[field] = title
         else:
             out[field] = _as_text(value)
-    return out
+    # One spelling per make and model; a long model string may also fill empty
+    # size codes before it's cut down to the base model (D-053).
+    return normalise.tidy(out, existing)
 
 
 def get_listing_or_404(conn: sqlite3.Connection, listing_id: int) -> dict:
@@ -427,18 +428,6 @@ def get_listing_or_404(conn: sqlite3.Connection, listing_id: int) -> dict:
     if row is None:
         raise HTTPException(404, "listing not found")
     return db.row_to_listing(row)
-
-
-def parse_size_codes(model: str | None) -> tuple[str | None, str | None]:
-    """(length_code, height_code) read out of an MOT model string, or (None, None)."""
-    if not model:
-        return None, None
-    length = MODEL_LENGTH_RE.search(model)
-    height = MODEL_HEIGHT_RE.search(model)
-    return (
-        "L" + (length.group(1) or length.group(2)) if length else None,
-        "H" + height.group(1) if height else None,
-    )
 
 
 def attach_mot(conn: sqlite3.Connection, listings: list[dict]) -> list[dict]:
@@ -889,8 +878,10 @@ def lookup_reg(payload: dict = Body(...)):
 
     return {
         "reg": reg,
-        "make": derived["make"] or ves.get("make"),   # MOT is the better-cased one
-        "model": derived["model"],                    # VES has no model at all
+        # One spelling, as a save would store it (D-053). The size codes above
+        # were read from the raw model string before it was cut down.
+        "make": normalise.canonical_make(derived["make"] or ves.get("make")),
+        "model": normalise.canonical_model(derived["model"]),  # VES has no model at all
         "year": year,
         "fuel_type": derived["fuel_type"] or ves.get("fuelType"),
         "colour": derived["colour"] or ves.get("colour"),
