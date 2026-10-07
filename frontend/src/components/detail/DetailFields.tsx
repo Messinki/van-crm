@@ -137,8 +137,9 @@ export function EditableField({ listing, spec }: { listing: Listing; spec: Field
   )
 }
 
-/** Price + the Plus VAT toggle (D-043). The box is the listed price; the
- *  toggle saves vat_status, and the inc-VAT total shows underneath. */
+/** Price + the Plus VAT toggle (D-043). The box deliberately reads and edits
+ *  the listed price_gbp — it's the one place that should (D-051); the toggle
+ *  saves vat_status, and the inc-VAT total shows underneath. */
 export function PriceField({ listing, spec }: { listing: Listing; spec: FieldSpec }) {
   const save = useSaveField(listing)
   const id = 'detail-' + spec.key

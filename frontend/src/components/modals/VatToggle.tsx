@@ -2,7 +2,7 @@
 // the table cell, the detail dialog and the manual form. Solid amber when the
 // price is marked ex-VAT, faint and dashed when not.
 
-import { VAT_MULTIPLIER, money } from '@/lib/format'
+import { effectivePrice, money } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 export function VatChip({
@@ -37,12 +37,14 @@ export function VatChip({
   )
 }
 
-/** "= £12,000 inc. VAT" under the box while the toggle is on. */
+/** "= £12,000 inc. VAT" under the box while the toggle is on. `listed` is the
+ *  box's figure; the total goes through effectivePrice() like every other
+ *  price read (D-051), so the × 1.2 sum lives in one place. */
 export function VatTotal({ on, listed }: { on: boolean; listed: number | null }) {
   if (!on || listed === null || Number.isNaN(listed)) return null
   return (
     <p className="text-xs text-amber-700 dark:text-amber-400">
-      = {money(Math.round(listed * VAT_MULTIPLIER))} inc. VAT
+      = {money(effectivePrice({ price_gbp: listed, vat_status: 'plus_vat' }))} inc. VAT
     </p>
   )
 }

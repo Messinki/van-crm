@@ -488,3 +488,21 @@ never shows its old place against its new location.
 Why: with this ranking all 217 distinct location strings in the table placed
 sensibly, bare "Newport" included; "first result" put Newport in Essex.
 Rejected: dropping place search for manual entries (they're mostly town names).
+
+## D-051 — "Price means effectivePrice()" is a standing rule (2026-10-07)
+Context: D-043 routes every price read through `effectivePrice()`, but only by
+convention. An audit found every compare, sort, filter, rank and map read already
+did; the one stray was the popup/form's "= £x inc. VAT" line, which repeated the
+× 1.2 sum itself. Harry wants any later price feature to get this right without
+anyone remembering D-043.
+Decision: a one-line rule in AGENTS.md — anything that compares, sorts, ranks,
+filters, totals or shows the price you'd pay uses `effectivePrice()` (or
+`sortValue(listing, 'price_gbp')`, which calls it), never `price_gbp` directly —
+plus a pointer comment beside `price_gbp` in `FIELD_SPECS`. The few deliberate
+reads of the listed figure (the popup's price box, the table tooltip's "Listed at
+£x + 20% VAT") carry a comment saying so. The inc-VAT line now calls
+`effectivePrice()` too, so the × 1.2 sum lives in one function.
+Why: a rule in the file every session reads is cheaper than another audit.
+Rejected: having the API send a derived `effective_price` field — the backend
+never compares prices (filtering, sorting and ranking run in the browser, D-039),
+so it would be a second copy of the sum for the frontend to keep in step.

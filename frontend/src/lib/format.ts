@@ -7,7 +7,10 @@ export function money(value: number | null | undefined): string {
 }
 
 /** D-043: price_gbp is the listed price; a Plus VAT listing really costs × 1.2.
- *  Everything that shows, sorts, filters or ranks on price reads this. */
+ *  Everything that shows, sorts, filters, ranks or totals price reads
+ *  effectivePrice() (or sortValue(listing, 'price_gbp'), which calls it) —
+ *  never price_gbp directly. Only the popup's price box and the "Listed at"
+ *  tooltip show the listed figure on purpose (D-051). */
 export const VAT_MULTIPLIER = 1.2
 
 export function plusVat(listing: { vat_status?: string | null }): boolean {

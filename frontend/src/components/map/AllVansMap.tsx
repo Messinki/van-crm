@@ -10,6 +10,7 @@ import { VanMap } from './VanMap'
 
 function PinCard({ listing, onOpen }: { listing: Listing; onOpen: (id: number) => void }) {
   const src = listing.image_urls[0]
+  const price = effectivePrice(listing) // inc. VAT when flagged (D-043, D-051)
   return (
     // Sized in rem, not by Leaflet's 12px popup font, so it reads like the app.
     <button
@@ -23,9 +24,9 @@ function PinCard({ listing, onOpen }: { listing: Listing; onOpen: (id: number) =
       ) : (
         <div className="h-36 w-full rounded bg-muted" />
       )}
-      {listing.price_gbp !== null && (
+      {price !== null && (
         <div className="font-semibold">
-          {money(effectivePrice(listing))}
+          {money(price)}
           {plusVat(listing) && <span className="ml-1.5 text-xs font-normal text-muted-foreground">inc VAT</span>}
         </div>
       )}

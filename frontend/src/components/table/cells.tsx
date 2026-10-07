@@ -47,14 +47,16 @@ export function TitleCell({ listing }: { listing: Listing }) {
  *  opening the popup. */
 export function PriceCell({ listing }: { listing: Listing }) {
   const update = useUpdateListing()
-  if (listing.price_gbp === null) return null
+  const price = effectivePrice(listing)
+  if (price === null) return null
   const on = plusVat(listing)
   return (
     <span
       className="inline-flex items-center gap-1.5"
+      // Deliberately the listed figure: the tooltip says what the ad said.
       title={on ? `Listed at ${money(listing.price_gbp)} + 20% VAT` : undefined}
     >
-      {money(effectivePrice(listing))}
+      {money(price)}
       <VatChip
         on={on}
         disabled={update.isPending}
