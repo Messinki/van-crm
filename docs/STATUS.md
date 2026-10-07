@@ -4,10 +4,10 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 
 ## Current goal
 
-None in progress. **Distance to homes + maps** finished on 2026-10-05 (CHANGELOG;
-how it works is in ARCHITECTURE under "Geocoding and maps", the why in D-047–D-050).
-Harry's homes are Bristol and Mere, with Manchester switched off. Pick the next
-goal from **Next** below.
+**Ranking, data clean-up and description hints** — six phases in
+[`docs/PLAN.md`](PLAN.md), worked through one fresh agent per phase. Check its
+boxes and Handover section for progress. (Distance to homes + maps finished
+2026-10-05; Harry's homes are Bristol and Mere, Manchester switched off.)
 
 Notes for working in `frontend/`:
 
