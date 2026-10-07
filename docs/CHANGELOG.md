@@ -17,6 +17,14 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: fill Length from wheelbase words (2026-10-07)
+- SWB / MWB / LWB / extra-long wording (and "long wheelbase" etc.) fills an empty
+  Length on Relay, Jumper, Boxer, Ducato, Master, Movano, NV400, Interstar and
+  2014-on Transit, using `docs/WHEELBASE.md`; a written `L2H2`-style code still wins.
+  A van with no model counts by the model named in its title (D-059).
+- One-off backfill: 45 listings filled; two conversion-service ads (ids 1967, 2047)
+  left out by hand.
+
 ## Goal: fill size and Plus VAT from descriptions (2026-10-07)
 - An `L1H1`–`L4H3` code in the title or notes fills an empty Length/Height, and
   "plus VAT" / "+VAT" / "ex VAT" / "excl VAT" wording fills an empty VAT, on manual

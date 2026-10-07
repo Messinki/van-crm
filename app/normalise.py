@@ -1,4 +1,4 @@
-"""One spelling per make and model (D-053), and size/VAT hints from the text (D-058).
+"""One spelling per make and model (D-053), and size/VAT hints from the text (D-058, D-059).
 
 Every write path runs make/model through here — create/PATCH validation, the eBay
 scrape and import, and the plate lookup's suggestions — and a pass at startup
@@ -32,8 +32,7 @@ def parse_size_codes(model: str | None) -> tuple[str | None, str | None]:
 # ---------------------------------------------------------------- description hints
 
 # D-058: the same wording D-056 highlights (frontend/src/lib/keywords.ts), read here
-# to fill empty boxes. Wheelbase words are left out — an MWB is L2 on a Movano and
-# L3 on a Transit.
+# to fill empty boxes.
 TEXT_SIZE_RE = re.compile(r"\bL([1-4])\s?H([1-3])\b", re.IGNORECASE)
 PLUS_VAT_RE = re.compile(
     r"\bplus\s+vat\b|\+\s*vat\b|\bex(?:\.?\s+|-)vat\b|\bexcl(?:uding|\.)?\s+vat\b",
@@ -41,20 +40,63 @@ PLUS_VAT_RE = re.compile(
 )
 NO_VAT_RE = re.compile(r"\bno\s+vat\b|\bvat[\s-]?free\b", re.IGNORECASE)
 
+# D-059: wheelbase words mean a different L code per model (docs/WHEELBASE.md), so
+# they only fill Length for the models listed here. A bare "wheelbase" says nothing.
+WHEELBASE_RE = re.compile(
+    r"\b(extra[\s-]+long|long|medium|short)[\s-]+wheel\s?base\b|\b(swb|mwb|lwb|elwb|xlwb)\b",
+    re.IGNORECASE,
+)
+_WHEELBASE_WORDS = {"short": "swb", "medium": "mwb", "long": "lwb", "elwb": "xlwb"}
+_L1_TO_L4 = {"swb": "L1", "mwb": "L2", "lwb": "L3", "xlwb": "L4"}
+WHEELBASE_LENGTHS = {
+    **dict.fromkeys(["Relay", "Jumper", "Boxer", "Ducato"], _L1_TO_L4),
+    **dict.fromkeys(["Master", "Movano", "NV400", "Interstar"], _L1_TO_L4),
+    # 2014-on only; an older Transit fills nothing.
+    "Transit": {"swb": "L2", "mwb": "L3", "lwb": "L4"},
+}
 
-def description_hints(*texts: str | None) -> dict:
+
+def _wheelbase(word: str) -> str:
+    """'Long  wheelbase' -> 'lwb', 'extra-long wheel base' / 'ELWB' -> 'xlwb'."""
+    word = word.lower()
+    if word.startswith("extra"):
+        return "xlwb"
+    return _WHEELBASE_WORDS.get(word, word)
+
+
+def wheelbase_length(text: str, model: str | None, year=None) -> str | None:
+    """The L code the text's wheelbase words give for this model, or None.
+
+    None when the model isn't in WHEELBASE_LENGTHS, or the words disagree
+    ("SWB and LWB available").
+    """
+    table = WHEELBASE_LENGTHS.get(model or "")
+    if not table or (model == "Transit" and isinstance(year, int) and year < 2014):
+        return None
+    words = {_wheelbase(a or b) for a, b in WHEELBASE_RE.findall(text)}
+    codes = {table.get(w) for w in words}
+    return codes.pop() if len(codes) == 1 else None
+
+
+def description_hints(title: str | None, notes: str | None, model=None, year=None) -> dict:
     """{length_code, height_code, vat_status} the title/notes state unambiguously.
 
     A key is left out when the text doesn't say, or says two different things
     ("L2H2 or L3H2" gives H2 but no length; "plus VAT" next to "no VAT" gives nothing).
+    With no size code at all, wheelbase words may give the length (D-059); the model
+    is `model`, else a base model named in the title.
     """
-    text = "\n".join(t for t in texts if t)
+    text = "\n".join(t for t in (title, notes) if t)
     hints = {}
     codes = TEXT_SIZE_RE.findall(text)
     lengths = {length for length, _ in codes}
     heights = {height for _, height in codes}
     if len(lengths) == 1:
         hints["length_code"] = "L" + lengths.pop()
+    elif not codes:
+        length = wheelbase_length(text, model or title_model(title), year)
+        if length:
+            hints["length_code"] = length
     if len(heights) == 1:
         hints["height_code"] = "H" + heights.pop()
     if PLUS_VAT_RE.search(text) and not NO_VAT_RE.search(text):
@@ -63,16 +105,16 @@ def description_hints(*texts: str | None) -> dict:
 
 
 def _fill_from_text(fields: dict, existing: dict) -> None:
-    """Fill empty size/VAT fields from title + notes, in place (D-058).
+    """Fill empty size/VAT fields from title + notes, in place (D-058, D-059).
 
     A field set in this same write (by the caller or from the model string) wins.
-    On an update, a hint the old title/notes already gave is skipped, so a box the
-    user emptied stays empty until new text states it.
+    On an update, a hint the old title/notes/model already gave is skipped, so a box
+    the user emptied stays empty until new text (or a new model) states it.
     """
-    title = fields.get("title", existing.get("title"))
-    notes = fields.get("notes", existing.get("notes"))
-    new = description_hints(title, notes)
-    old = description_hints(existing.get("title"), existing.get("notes")) if existing else {}
+    new = description_hints(
+        *(fields.get(k, existing.get(k)) for k in ("title", "notes", "model", "year"))
+    )
+    old = description_hints(*(existing.get(k) for k in ("title", "notes", "model", "year")))
     for key, value in new.items():
         if key in fields or existing.get(key) or old.get(key) == value:
             continue
@@ -125,6 +167,10 @@ _MAKE_PREFIXES = sorted(
 # Longest first, so "Transit Custom" wins over "Transit".
 _MODEL_NAMES = sorted(
     (name for names in BASE_MODELS.values() for name in names), key=len, reverse=True
+)
+_MODEL_IN_TEXT_RE = re.compile(
+    r"\b(" + "|".join(re.escape(n).replace(r"\ ", r"\s+") for n in _MODEL_NAMES) + r")\b",
+    re.IGNORECASE,
 )
 
 
@@ -187,13 +233,20 @@ def canonical_model(value) -> str | None:
     return split_model(value)[1]
 
 
+def title_model(title: str | None) -> str | None:
+    """The first known base model named anywhere in a title, e.g. 'citroen relay swb' -> 'Relay'."""
+    found = _MODEL_IN_TEXT_RE.search(_plain(title)) if title else None
+    return canonical_model(found.group(1)) if found else None
+
+
 def tidy(fields: dict, existing: dict | None = None) -> dict:
     """Tidy make/model in a dict of listing columns, in place; returns it.
 
     `existing` is the stored row on an update, None on an insert. Size codes are
     filled from the model only when empty in the row and not being set in this
     same write. A make named at the start of the model fills an empty make. When
-    the title or notes are written, they may fill empty size/VAT fields (D-058).
+    the title, notes or model are written, the text may fill empty size/VAT fields
+    (D-058, D-059).
     """
     existing = existing or {}
     if "make" in fields:
@@ -208,7 +261,7 @@ def tidy(fields: dict, existing: dict | None = None) -> dict:
         make_now = fields["make"] if "make" in fields else existing.get("make")
         if leading_make and not make_now:
             fields["make"] = leading_make
-    if "title" in fields or "notes" in fields:
+    if fields.keys() & {"title", "notes", "model"}:
         _fill_from_text(fields, existing)
     return fields
 
@@ -237,19 +290,19 @@ def tidy_all(conn) -> int:
 
 
 def fill_all_from_descriptions(conn) -> list[int]:
-    """One-off pass filling empty size/VAT fields from title + notes (D-058).
+    """One-off pass filling empty size/VAT fields from title + notes (D-058, D-059).
 
     Run by hand, not at startup — on every boot it would refill a box the user
     emptied. Leaves updated_at alone. Returns the ids changed.
     """
     rows = conn.execute(
-        "SELECT id, title, notes, length_code, height_code, vat_status FROM listings"
+        "SELECT id, title, notes, model, year, length_code, height_code, vat_status "
+        "FROM listings"
     ).fetchall()
     changed = []
     for row in rows:
-        updates = {
-            k: v for k, v in description_hints(row["title"], row["notes"]).items() if not row[k]
-        }
+        hints = description_hints(row["title"], row["notes"], row["model"], row["year"])
+        updates = {k: v for k, v in hints.items() if not row[k]}
         if updates:
             assignments = ", ".join(f"{k} = ?" for k in updates)
             conn.execute(

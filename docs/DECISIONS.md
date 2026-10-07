@@ -717,3 +717,29 @@ whole reason D-043 exists. Rejected: waiting for milestone 4b's AI (the regexes
 already find these), mapping wheelbase words per make (a table to maintain, and
 wrong guesses fill boxes), and a startup pass.
 Supersedes: D-056 (its "highlight only — nothing fills" line; the rest stands)
+
+## D-059 — Fill Length from wheelbase words, per model (2026-10-07)
+Context: D-058 left SWB/MWB/LWB filling nothing because the word means a different L
+code on different makes. Harry wrote `docs/WHEELBASE.md` as the per-make table and
+asked for the words to fill Length too. Checked against the 66 stored vans that
+already had a Length and a wheelbase word: 64 agree with the table.
+Decision:
+- `normalise.WHEELBASE_LENGTHS`, keyed by base model: Relay/Jumper/Boxer/Ducato and
+  Master/Movano/NV400/Interstar are SWB L1, MWB L2, LWB L3, extra-long L4; Transit
+  (2014-on) is SWB L2, MWB L3, LWB L4. Any other model — Sprinter, Crafter, Transit
+  Custom, no model at all — fills nothing. A Transit whose year is before 2014 fills
+  nothing.
+- The model is the listing's model, else the first known base model named in the
+  title ("citroen relay swb van" with an empty model still counts as a Relay).
+- Wheelbase words fill `length_code` only, only when every word in the text maps to
+  the same code, and only when the text has no `L1H1`-style code at all — a written
+  code always beats a wheelbase word, even when the codes disagree among themselves.
+  Bare "wheelbase" with no size word counts for nothing.
+- Same fill rules as D-058 (only empty boxes, a value set in the same write wins, a
+  PATCH doesn't refill what the old text already gave). A change of model now also
+  triggers the fill, since it can make an existing wheelbase word readable.
+- Existing rows: `fill_all_from_descriptions()` run by hand once more.
+Why: the table is short, the data bears it out, and empty Length boxes on LWB vans
+hide them from the size filter. Rejected: guessing for unlisted models, and letting
+wheelbase words break a tie between conflicting codes.
+Supersedes: D-058 (its "wheelbase words fill nothing" line; the rest stands)

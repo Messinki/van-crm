@@ -34,8 +34,10 @@ Backend modules, all under `app/`:
   through. `tidy_all()` runs at startup and tidies any stored row that differs.
   New base models or make aliases go in its `BASE_MODELS` / `MAKE_ALIASES`.
   `description_hints()` reads size codes and Plus VAT wording out of the title and
-  notes; `tidy()` uses it to fill empty Length/Height/VAT on any write that sets the
-  title or notes (D-058). Keep its terms in step with `frontend/src/lib/keywords.ts`.
+  notes, and wheelbase words for the models in `WHEELBASE_LENGTHS` (D-059, mirrors
+  `docs/WHEELBASE.md`); `tidy()` uses it to fill empty Length/Height/VAT on any write
+  that sets the title, notes or model (D-058). Keep its terms in step with
+  `frontend/src/lib/keywords.ts`.
   `fill_all_from_descriptions()` is a one-off backfill, run by hand — not at startup.
 - **`rejected.py`** — remembered plates of rejected vans (D-055): `sync()` runs after
   every create/PATCH and keeps `rejected_regs` in step with the listing's status and

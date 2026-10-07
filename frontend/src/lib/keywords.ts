@@ -1,6 +1,7 @@
 // Words in a description worth a second look: VAT wording and size terms (D-056).
 // Plain regexes, no AI. This file only highlights; the backend's
-// normalise.description_hints() reads the same terms to fill empty boxes (D-058).
+// normalise.description_hints() reads the same terms to fill empty boxes (D-058,
+// D-059 for wheelbase words).
 
 export type KeywordKind = 'vat' | 'size' | 'wheelbase'
 
