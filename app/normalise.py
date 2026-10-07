@@ -1,4 +1,4 @@
-"""One spelling per make and model (D-053).
+"""One spelling per make and model (D-053), and size/VAT hints from the text (D-058).
 
 Every write path runs make/model through here — create/PATCH validation, the eBay
 scrape and import, and the plate lookup's suggestions — and a pass at startup
@@ -27,6 +27,56 @@ def parse_size_codes(model: str | None) -> tuple[str | None, str | None]:
         "L" + (length.group(1) or length.group(2)) if length else None,
         "H" + height.group(1) if height else None,
     )
+
+
+# ---------------------------------------------------------------- description hints
+
+# D-058: the same wording D-056 highlights (frontend/src/lib/keywords.ts), read here
+# to fill empty boxes. Wheelbase words are left out — an MWB is L2 on a Movano and
+# L3 on a Transit.
+TEXT_SIZE_RE = re.compile(r"\bL([1-4])\s?H([1-3])\b", re.IGNORECASE)
+PLUS_VAT_RE = re.compile(
+    r"\bplus\s+vat\b|\+\s*vat\b|\bex(?:\.?\s+|-)vat\b|\bexcl(?:uding|\.)?\s+vat\b",
+    re.IGNORECASE,
+)
+NO_VAT_RE = re.compile(r"\bno\s+vat\b|\bvat[\s-]?free\b", re.IGNORECASE)
+
+
+def description_hints(*texts: str | None) -> dict:
+    """{length_code, height_code, vat_status} the title/notes state unambiguously.
+
+    A key is left out when the text doesn't say, or says two different things
+    ("L2H2 or L3H2" gives H2 but no length; "plus VAT" next to "no VAT" gives nothing).
+    """
+    text = "\n".join(t for t in texts if t)
+    hints = {}
+    codes = TEXT_SIZE_RE.findall(text)
+    lengths = {length for length, _ in codes}
+    heights = {height for _, height in codes}
+    if len(lengths) == 1:
+        hints["length_code"] = "L" + lengths.pop()
+    if len(heights) == 1:
+        hints["height_code"] = "H" + heights.pop()
+    if PLUS_VAT_RE.search(text) and not NO_VAT_RE.search(text):
+        hints["vat_status"] = "plus_vat"
+    return hints
+
+
+def _fill_from_text(fields: dict, existing: dict) -> None:
+    """Fill empty size/VAT fields from title + notes, in place (D-058).
+
+    A field set in this same write (by the caller or from the model string) wins.
+    On an update, a hint the old title/notes already gave is skipped, so a box the
+    user emptied stays empty until new text states it.
+    """
+    title = fields.get("title", existing.get("title"))
+    notes = fields.get("notes", existing.get("notes"))
+    new = description_hints(title, notes)
+    old = description_hints(existing.get("title"), existing.get("notes")) if existing else {}
+    for key, value in new.items():
+        if key in fields or existing.get(key) or old.get(key) == value:
+            continue
+        fields[key] = value
 
 
 # ---------------------------------------------------------------- makes
@@ -142,7 +192,8 @@ def tidy(fields: dict, existing: dict | None = None) -> dict:
 
     `existing` is the stored row on an update, None on an insert. Size codes are
     filled from the model only when empty in the row and not being set in this
-    same write. A make named at the start of the model fills an empty make.
+    same write. A make named at the start of the model fills an empty make. When
+    the title or notes are written, they may fill empty size/VAT fields (D-058).
     """
     existing = existing or {}
     if "make" in fields:
@@ -157,6 +208,8 @@ def tidy(fields: dict, existing: dict | None = None) -> dict:
         make_now = fields["make"] if "make" in fields else existing.get("make")
         if leading_make and not make_now:
             fields["make"] = leading_make
+    if "title" in fields or "notes" in fields:
+        _fill_from_text(fields, existing)
     return fields
 
 
@@ -180,4 +233,27 @@ def tidy_all(conn) -> int:
                 f"UPDATE listings SET {assignments} WHERE id = ?", [*updates.values(), row["id"]]
             )
             changed += 1
+    return changed
+
+
+def fill_all_from_descriptions(conn) -> list[int]:
+    """One-off pass filling empty size/VAT fields from title + notes (D-058).
+
+    Run by hand, not at startup — on every boot it would refill a box the user
+    emptied. Leaves updated_at alone. Returns the ids changed.
+    """
+    rows = conn.execute(
+        "SELECT id, title, notes, length_code, height_code, vat_status FROM listings"
+    ).fetchall()
+    changed = []
+    for row in rows:
+        updates = {
+            k: v for k, v in description_hints(row["title"], row["notes"]).items() if not row[k]
+        }
+        if updates:
+            assignments = ", ".join(f"{k} = ?" for k in updates)
+            conn.execute(
+                f"UPDATE listings SET {assignments} WHERE id = ?", [*updates.values(), row["id"]]
+            )
+            changed.append(row["id"])
     return changed

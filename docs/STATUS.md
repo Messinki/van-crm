@@ -9,9 +9,10 @@ None in progress. **Ranking, data clean-up and description hints** finished on
 [`docs/PLAN.md`](PLAN.md), the why in D-051–D-057). Pick the next goal from
 **Next** below.
 
-`data/vancrm.db.bak-phase3`, `-phase5` and `-phase7` are copies of the DB from
-before each data rewrite (make/model tidy, rejected-plates backfill, bogus regs
-cleared). Delete them once Harry is happy with the result.
+`data/vancrm.db.bak-phase3`, `-phase5`, `-phase7` and `-d058` are copies of the DB
+from before each data rewrite (make/model tidy, rejected-plates backfill, bogus regs
+cleared, size/VAT filled from descriptions). Delete them once Harry is happy with
+the result.
 
 Notes for working in `frontend/`:
 
@@ -35,6 +36,12 @@ Notes for working in `frontend/`:
   scratchpads, not the repo.
 
 Open, not blocking:
+
+- D-058's Plus VAT fill trusts any "+ VAT" in the text. The backfill's stray hits
+  were all on rejected engine/body listings ("add £700 + VAT onto the price"); if a
+  van ever shows Plus VAT wrongly, untick it — editing the notes won't re-tick it.
+- Wheelbase words (SWB/MWB/LWB) still fill nothing (D-058). A per-make wheelbase→L
+  table could, if the empty Length boxes on those vans start to matter.
 
 - The notes highlighting (D-056) was only checked in Chrome. Worth Harry opening
   one long description in Safari to see the yellow sits exactly on the words.

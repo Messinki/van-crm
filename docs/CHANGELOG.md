@@ -17,6 +17,13 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: fill size and Plus VAT from descriptions (2026-10-07)
+- An `L1H1`–`L4H3` code in the title or notes fills an empty Length/Height, and
+  "plus VAT" / "+VAT" / "ex VAT" / "excl VAT" wording fills an empty VAT, on manual
+  entry, edits, eBay scrape and import. Conflicting codes, "no VAT" and wheelbase
+  words fill nothing (D-058).
+- One-off backfill over the existing data: 183 listings filled.
+
 ## Goal: ranking, data clean-up and description hints (2026-10-07)
 - Every price comparison, sort, filter, rank and total goes through `effectivePrice()`
   (listed price × 1.2 for Plus VAT); ranking already did, now it's a standing rule (D-051).

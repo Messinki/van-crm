@@ -692,3 +692,28 @@ Why: the age identifier is the one part of a modern plate with a rule that can b
 checked offline, and it is exactly what model codes like `35` (March 2035) break.
 Rejected: a list of known model codes (never complete), refusing letters-then-"dCi"
 patterns (too specific), and leaving the bad regs for Harry to clear by hand.
+
+## D-058 — Fill size codes and Plus VAT from the title and description (2026-10-07)
+Context: D-056 only highlights size and VAT wording, so a listing titled "… MWB
+L2H2 …" still showed empty Length/Height boxes. Harry expected the boxes to fill.
+Decision:
+- `normalise.description_hints(title, notes)`: plain regexes (no AI, inside D-036),
+  mirroring D-056's terms. Size codes `L1H1`–`L4H3` (optional space) fill
+  `length_code`/`height_code`, each only when every code in the text agrees on it —
+  "L2H2 or L3H2" fills H2 and leaves the length empty. Plus VAT wording ("plus
+  VAT", "+VAT", "ex VAT", "excl VAT") sets `vat_status = 'plus_vat'` unless "no VAT"
+  or "VAT free" also appears. Wheelbase words (SWB/MWB/LWB) fill nothing: they map
+  to different L codes on different makes (a Transit MWB is L3, a Movano MWB L2).
+- Applied in `normalise.tidy()`, so every write path gets it: manual create, PATCH,
+  eBay scrape and import. Model-string codes (D-053) and values set in the same
+  write win. Only empty fields fill. On a PATCH, a hint fills only if the old
+  title/notes didn't already give it — so editing the notes of a van whose Length
+  Harry cleared doesn't put it back, but pasting in new text with a code does.
+- Existing rows: a one-off pass, `normalise.fill_all_from_descriptions(conn)`, run by
+  hand once (not at startup — a startup pass would refill a box Harry emptied on
+  every boot). Leaves `updated_at` alone, like D-053's tidy.
+Why: the codes are unambiguous when written out, and "Plus VAT" wording is the
+whole reason D-043 exists. Rejected: waiting for milestone 4b's AI (the regexes
+already find these), mapping wheelbase words per make (a table to maintain, and
+wrong guesses fill boxes), and a startup pass.
+Supersedes: D-056 (its "highlight only — nothing fills" line; the rest stands)

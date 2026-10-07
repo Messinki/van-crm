@@ -33,6 +33,10 @@ Backend modules, all under `app/`:
   validation, the eBay scrape/import and the plate lookup all run make/model
   through. `tidy_all()` runs at startup and tidies any stored row that differs.
   New base models or make aliases go in its `BASE_MODELS` / `MAKE_ALIASES`.
+  `description_hints()` reads size codes and Plus VAT wording out of the title and
+  notes; `tidy()` uses it to fill empty Length/Height/VAT on any write that sets the
+  title or notes (D-058). Keep its terms in step with `frontend/src/lib/keywords.ts`.
+  `fill_all_from_descriptions()` is a one-off backfill, run by hand — not at startup.
 - **`rejected.py`** — remembered plates of rejected vans (D-055): `sync()` runs after
   every create/PATCH and keeps `rejected_regs` in step with the listing's status and
   plate; `backfill()` runs at startup; `forget()` drops a remembered reg that
@@ -64,7 +68,7 @@ Inside `frontend/src/`:
   selector), `distance.ts` (haversine miles, closest enabled home, why a distance is
   missing), `format.ts`, `store.ts` (localStorage), `lookup.ts` (what a plate lookup
   may fill), `window.ts`, `keywords.ts` (the VAT/size/wheelbase terms highlighted
-  in descriptions, D-056).
+  in descriptions, D-056; `normalise.description_hints()` mirrors them, D-058).
 - **`components/`** — `Topbar.tsx` (with the Table | Map toggle);
   `DistanceValue.tsx` ("42 mi" + the home pill, used by every surface);
   `HighlightTextarea.tsx` (the notes box with `keywords.ts` matches marked in
