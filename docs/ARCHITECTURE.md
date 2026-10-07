@@ -72,8 +72,10 @@ Inside `frontend/src/`:
 
 A Notion-style table of van listings: thumbnail, title, price (with a +VAT chip,
 D-043), make/model/year/mileage, L/H size codes, reg, location, distance to the
-closest enabled home with a pill naming it (D-047), seller, source, status pill, MOT
-due, live MOT summary, notes preview, plus user-defined custom columns.
+closest enabled home with a pill naming it (D-047), seller, source, status pill
+(with an orange "Rejected before" pill when the plate was rejected under another
+listing, D-055), MOT due, live MOT summary, notes preview, plus user-defined custom
+columns.
 Above it: title search, status chips, show-ended, a View menu for column visibility,
 the faceted filter bar and the rank panel. The table is read-only (D-025) apart from
 the +VAT chip (D-044), the MOT cell's Check button and the Location cell, which

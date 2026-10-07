@@ -10,7 +10,7 @@ import { ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useCheckListing, useDeleteListing } from '@/api/queries'
-import { RejectButton } from '@/components/table/cells'
+import { RejectButton, RejectedBeforePill } from '@/components/table/cells'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
@@ -44,6 +44,8 @@ interface Props {
   onNext: (() => void) | null
   onListingGone: () => void
   onShowMap: (listing: Listing) => void
+  /** Opens another listing in the popup; null when it no longer exists. */
+  openListing: (id: number) => (() => void) | null
 }
 
 export function DetailDialog({
@@ -56,6 +58,7 @@ export function DetailDialog({
   onNext,
   onListingGone,
   onShowMap,
+  openListing,
 }: Props) {
   const flushNotes = useRef<() => void>(() => {})
   const content = useRef<HTMLDivElement>(null)
@@ -138,6 +141,7 @@ export function DetailDialog({
                   key={listing.id}
                   onListingGone={onListingGone}
                   onShowMap={onShowMap}
+                  openListing={openListing}
                   listing={listing}
                   schema={schema}
                   properties={properties}
@@ -161,6 +165,7 @@ function DetailBody({
   flushNotes,
   onListingGone,
   onShowMap,
+  openListing,
   activeImage,
   onImageClick,
 }: {
@@ -170,6 +175,7 @@ function DetailBody({
   flushNotes: React.RefObject<() => void>
   onListingGone: () => void
   onShowMap: (listing: Listing) => void
+  openListing: (id: number) => (() => void) | null
   /** The photo the gallery is showing, outlined in the strip. */
   activeImage: number
   onImageClick: (index: number) => void
@@ -183,7 +189,7 @@ function DetailBody({
     // widest min-content child — the image strip — and the field grid spills out
     // of the dialog instead of the strip scrolling.
     <div className="min-w-0 space-y-4">
-      <DetailActions listing={listing} onListingGone={onListingGone} />
+      <DetailActions listing={listing} onListingGone={onListingGone} openListing={openListing} />
 
       {listing.image_urls.length > 0 && (
         <div className="flex gap-2 overflow-x-auto">
@@ -284,10 +290,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function DetailActions({
   listing,
   onListingGone,
+  openListing,
 }: {
   listing: Listing
   onListingGone: () => void
+  openListing: (id: number) => (() => void) | null
 }) {
+  const before = listing.rejected_before
+  const openBefore = before ? openListing(before.listing_id) : null
   const check = useCheckListing()
   const remove = useDeleteListing()
 
@@ -331,6 +341,13 @@ function DetailActions({
       >
         Delete
       </Button>
+
+      {/* Beside Reject: "this plate was rejected before" is a reason to (D-055). */}
+      {before && (
+        <span className="flex items-center">
+          <RejectedBeforePill listing={listing} onOpen={openBefore} gone={!openBefore} />
+        </span>
+      )}
     </div>
   )
 }

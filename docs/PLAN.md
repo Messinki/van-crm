@@ -8,7 +8,7 @@ next phase needs under **Handover** at the bottom.
 - [x] Phase 2 — Fix focus loss while typing in the popup's fields
 - [x] Phase 3 — One spelling per make and model
 - [x] Phase 4 — "Time until MOT" ranking factor
-- [ ] Phase 5 — Remember rejected plates and flag relisted vans
+- [x] Phase 5 — Remember rejected plates and flag relisted vans
 - [ ] Phase 6 — Highlight VAT and size terms in the description
 
 ## Rules for every phase
@@ -322,3 +322,35 @@ Harry's real rows (212 in the payload, 90 with a DVSA expiry) every MOT part
 matched the curve on the expected date. Scratch vans deleted. Not exercised: a
 van with only a hand-entered `mot_due` among the real data (none exist; the
 scratch vans covered that path).
+
+**Phase 5 (2026-10-07, D-055).** New `app/rejected.py` and table `rejected_regs`.
+`sync()` runs after every create and PATCH; `backfill()` at startup (idempotent —
+second boot added 0); `attach()` adds `rejected_before` to every listing payload via
+a new `attach_derived()` in `main.py` (MOT + flag; every route that returned
+`attach_mot()` now returns that). Registered as a `checkbox` pseudo-field (in
+`DERIVED_KEYS`, `in_table: False`) so the filter bar offers Checked/Unchecked; the
+pill rides inside the Status cell and in the popup's actions row (a button to the
+old listing while it exists). Choices the plan left open, all in D-055: the
+**first** rejection of a plate keeps the row (a later rejected copy is the relist
+and stays flagged); un-rejecting hands the row to another rejected listing with the
+plate, if any; `rejected_at` for backfilled rows is the listing's `updated_at` (no
+rejection time was ever stored). The frontend reloads all listings after a PATCH
+touching `status`/`reg`/`title`, since one van's change flips another's flag.
+DB backed up to `data/vancrm.db.bak-phase5`. Backfill: **43 plates** (45 rejected
+listings with a reg; two plates were each rejected twice). **7 listings are flagged
+now**: 2284 and 2277 (already rejected copies of 2051/11), 2043 (BF68VHJ) and 1963
+(CF69GFX, both new + ended); and **3 false flags** — 2302, 2067 and 2076 carry
+`LM35DCI` / `MM35DCI`, which are Renault Master model codes ("LM35 dCi") that
+`extract_reg()` mistook for plates, matching rejected 2091/2120 with the same
+"plate". That's an `extract_reg()` bug from before this phase (35 isn't an issued
+age identifier yet); not fixed here — see STATUS "Broken". Verified: an API script
+(19 checks, incl. the plan's reject → relist + `ab12 cde` → un-reject → re-reject →
+delete sequence, plate set/changed later on a rejected listing, create-as-rejected)
+and headless Chrome (15 checks: pills + tooltip in the table, popup pill opens the
+old listing, Un-reject in the popup and Reject in the table update other rows' flags
+without a reload, Checked/Unchecked filters, flag survives deleting the original,
+popup pill goes plain once it's gone). Scratch listings and their `rejected_regs`
+rows deleted; real listings identical to the backup. Not exercised: the eBay paths
+(they only insert status `new`, so `sync()` isn't called there — a future
+auto-reject must call it); dark mode (nothing sets the `.dark` class today, so
+the pill's `dark:` colours are untested, like the other pills').

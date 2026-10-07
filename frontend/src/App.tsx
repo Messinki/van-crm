@@ -161,6 +161,8 @@ function VanCrm({
           if (at >= 0) setSelectedId(nextId ?? prevId)
         }}
         onShowMap={(listing) => setMapId(listing.id)}
+        // The "Rejected before" pill opens the old listing when it's still here.
+        openListing={(id) => (listings.some((l) => l.id === id) ? () => setSelectedId(id) : null)}
       />
 
       {/* After DetailDialog, so opened from the popup it stacks on top. */}

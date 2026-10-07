@@ -53,12 +53,19 @@ export function replaceListing(client: QueryClient, updated: Listing) {
   )
 }
 
+/** A change to these on one listing can flip the "Rejected before" flag (or its
+ *  tooltip) on others with the same plate (D-055), so it reloads every listing. */
+const FLAG_FIELDS = ['status', 'reg', 'title']
+
 export function useUpdateListing() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: ({ id, fields }: { id: number; fields: Record<string, unknown> }) =>
       patch<Listing>(`/api/listings/${id}`, fields),
-    onSuccess: (updated) => replaceListing(client, updated),
+    onSuccess: (updated, { fields }) => {
+      replaceListing(client, updated)
+      if (FLAG_FIELDS.some((key) => key in fields)) void client.invalidateQueries({ queryKey: ['listings'] })
+    },
   })
 }
 
@@ -68,6 +75,8 @@ export function useCreateListing() {
     mutationFn: (fields: Record<string, unknown>) => post<Listing>('/api/listings', fields),
     onSuccess: (created) => {
       client.setQueryData<Listing[]>(['listings'], (rows) => [created, ...(rows ?? [])])
+      // Added as rejected with a plate: other listings may now be flagged (D-055).
+      if (created.status === 'rejected' && created.reg) void client.invalidateQueries({ queryKey: ['listings'] })
     },
   })
 }

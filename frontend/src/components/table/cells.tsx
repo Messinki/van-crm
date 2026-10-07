@@ -124,6 +124,50 @@ export function StatusPill({ value, spec }: { value: string; spec: FieldSpec | n
   )
 }
 
+/** "Rejected before" (D-055): this listing's plate was rejected under another
+ *  listing — most likely the same van relisted. The tooltip names the old
+ *  listing and when it was rejected. With `onOpen` (the popup, when the old
+ *  listing still exists) it's a button that opens it; otherwise a plain pill,
+ *  so a click in the table still opens the row. */
+export function RejectedBeforePill({
+  listing,
+  onOpen,
+  gone = false,
+}: {
+  listing: Listing
+  onOpen?: (() => void) | null
+  /** The old listing has been deleted — only its memory is left. */
+  gone?: boolean
+}) {
+  const before = listing.rejected_before
+  if (!before) return null
+  const tip =
+    `This plate was rejected before: "${before.title}", ${formatDate(before.rejected_at.slice(0, 10))}` +
+    (onOpen ? ' — click to open it' : gone ? ' (that listing has since been deleted)' : '')
+  const className =
+    'whitespace-nowrap rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-950 dark:text-orange-300'
+  if (onOpen) {
+    return (
+      <button
+        type="button"
+        className={cn(className, 'cursor-pointer hover:underline')}
+        title={tip}
+        onClick={(e) => {
+          e.stopPropagation()
+          onOpen()
+        }}
+      >
+        ⚠ Rejected before
+      </button>
+    )
+  }
+  return (
+    <span className={className} title={tip}>
+      ⚠ Rejected before
+    </span>
+  )
+}
+
 export function MotDueCell({ value }: { value: string | null }) {
   // Stored as an ISO date; shown short, and flagged once it's in the past.
   if (!value) return null

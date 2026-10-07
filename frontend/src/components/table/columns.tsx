@@ -16,6 +16,7 @@ import {
   NotesCell,
   PriceCell,
   RejectButton,
+  RejectedBeforePill,
   ScoreCell,
   SourceBadge,
   StatusPill,
@@ -54,7 +55,14 @@ function specCell(spec: FieldSpec, listing: Listing, meta: TableMeta<Listing> | 
     case 'badge':
       return <SourceBadge value={String(listing[spec.key] ?? '')} />
     case 'status_pill':
-      return <StatusPill value={String(listing[spec.key] ?? '')} spec={spec} />
+      // The "Rejected before" flag has no column of its own; it rides beside
+      // the status (D-055).
+      return (
+        <span className="inline-flex items-center gap-1">
+          <StatusPill value={String(listing[spec.key] ?? '')} spec={spec} />
+          <RejectedBeforePill listing={listing} />
+        </span>
+      )
     case 'mot':
       return <MotCell listing={listing} />
     case 'reject':

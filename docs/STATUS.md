@@ -8,10 +8,12 @@ Living document — describes *now*. Rewrite freely; nothing here is history.
 [`docs/PLAN.md`](PLAN.md), worked through one fresh agent per phase. Check its
 boxes and Handover section for progress. Phases 1 (inc-VAT price everywhere,
 D-051), 2 (popup fields save on commit, D-052), 3 (one spelling per make and
-model, D-053) and 4 ("MOT left" rank factor, D-054) are done; phase 5 (remember
-rejected plates, flag relisted vans) is next.
-`data/vancrm.db.bak-phase3` is the pre-tidy copy of the DB — delete it once Harry
-is happy with the tidied makes and models. (Distance to homes + maps finished
+model, D-053), 4 ("MOT left" rank factor, D-054) and 5 (remembered rejected
+plates, "Rejected before" pill, D-055) are done; phase 6 (highlight VAT and size
+terms in the description) is next.
+`data/vancrm.db.bak-phase3` is the pre-tidy copy of the DB and
+`data/vancrm.db.bak-phase5` the copy from before the rejected-plates backfill —
+delete each once Harry is happy with the result. (Distance to homes + maps finished
 2026-10-05; Harry's homes are Bristol and Mere, Manchester switched off.)
 
 Notes for working in `frontend/`:
@@ -91,7 +93,13 @@ Open, not blocking:
 
 ## Broken
 
-- Nothing known to be broken. Two dormant/untested paths, by circumstance not fault:
+- `mot.extract_reg()` takes Renault Master model codes like "LM35dCi" / "MM35dCi"
+  from a title for a plate (`LM35DCI`), so those listings carry a bogus reg — and
+  since D-055, three of them (2302, 2067, 2076) show a false "Rejected before" because
+  another listing with the same code was rejected. Fix idea: refuse current-style
+  plates whose age identifier hasn't been issued yet (35 = March 2035), then clear
+  the bad regs. Not fixed in phase 5 — out of its scope.
+- Otherwise nothing known to be broken. Two dormant/untested paths, by circumstance not fault:
   the DVLA VES merge in `mot.py` (no key issued yet — field names verified against
   docs, path untested end-to-end) and the items in "remaining production eBay checks"
   above.
