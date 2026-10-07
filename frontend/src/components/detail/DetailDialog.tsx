@@ -3,7 +3,7 @@
 // Sections come from the registry: a field is in here unless it opts out with
 // in_drawer: false, and lands in Details unless it names a section. 'Custom'
 // isn't a registry section — it's the user-defined properties from
-// /api/properties, slotted in between Images and Notes.
+// /api/properties, slotted in between Details and Notes.
 
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
@@ -30,7 +30,7 @@ import {
 import { Gallery } from './Gallery'
 import { MotPanel } from './MotPanel'
 
-const SECTIONS = ['Details', 'Images', 'Custom', 'Notes', 'MOT'] as const
+const SECTIONS = ['Details', 'Custom', 'Notes', 'MOT', 'Images'] as const
 
 interface Props {
   listing: Listing | null
