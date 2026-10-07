@@ -660,3 +660,35 @@ it into a contenteditable editor (which would bring its own caret, paste and und
 problems) or adding a library. Rejected: a read-only highlighted preview beside
 the box (the description would show twice) and highlighting only in the table cell
 (it shows a few words).
+
+## D-057 — A current-style plate must carry an issued age identifier (2026-10-07)
+Context: `mot.extract_reg()` read Renault Master model codes in titles ("LM35dCi",
+"MM35dCi") as plates, so five listings carried a bogus reg and, since D-055, three
+showed a false "Rejected before". A real current-style plate (two letters, two
+digits, three letters) can only carry an age identifier that DVLA has issued.
+Decision:
+- `mot.plate_issued(reg, today)` is false only for a current-style plate whose age
+  identifier isn't issued yet, counted from today's date (never hardcoded): March
+  codes `02` up to this year's two digits once March has begun (last year's before),
+  September codes `51` up to this year + 50 once September has begun (last year's +
+  50 before). In 2026-10 that allows `02`–`26` and `51`–`76`. Any other shape (older
+  formats, Northern Irish, private plates) is left alone. The plan said March codes
+  run to "current two-digit year" without the month condition; a `27` plate in
+  January 2027 isn't real either, so the March rule waits for March like September's
+  does. The scheme wraps in 2050 (`00`), which this ignores.
+- `extract_reg()` drops matches that fail it *before* the "two different plates means
+  ambiguous" rule, so "Master LM35dCi, reg PE18 OGB" still yields `PE18OGB`.
+- Hand entry refuses one too: `main.normalise_reg()` (create, PATCH, plate lookup)
+  answers 400 with a plain-English reason. Small and consistent — it's the same
+  function, and it means the clean-up below can never wipe a plate Harry typed.
+  Nothing else about hand-typed plates changes (they're still not shape-checked).
+- Clean-up of stored data: an idempotent startup pass, like D-053/D-055, clears `reg`
+  on any listing whose plate fails the check (leaving `updated_at` alone — a tidy, not
+  an edit), runs `rejected.sync()` on each so D-055's invariants hold, then
+  `rejected.forget()` drops any remembered plate that fails it (a deleted listing's
+  row). After the first boot it finds nothing, because no write path can store such a
+  plate any more.
+Why: the age identifier is the one part of a modern plate with a rule that can be
+checked offline, and it is exactly what model codes like `35` (March 2035) break.
+Rejected: a list of known model codes (never complete), refusing letters-then-"dCi"
+patterns (too specific), and leaving the bad regs for Harry to clear by hand.

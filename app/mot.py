@@ -11,7 +11,7 @@ import json
 import os
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 
@@ -43,6 +43,10 @@ REG_CHARS = re.compile(r"\A[A-Z0-9]{1,15}\Z")
 # a pasted description). It lives here rather than in main.py because both the
 # manual-add route and the eBay importer need it and one regex is enough.
 REG_RE = re.compile(r"\b[A-Z]{2}[0-9]{2}\s?[A-Z]{3}\b", re.IGNORECASE)
+
+# A cleaned current-style plate (2001 on): two letters, the age identifier, three
+# letters. The age identifier is the one part with a rule that can be checked.
+CURRENT_STYLE = re.compile(r"\A[A-Z]{2}([0-9]{2})[A-Z]{3}\Z")
 
 RECENT_YEARS = 3
 KEYWORDS = ("corrod", "rust", "oil leak", "excessively")
@@ -118,18 +122,44 @@ def clean_reg(reg) -> str:
     return cleaned
 
 
-def extract_reg(*texts: str | None) -> str | None:
+def age_identifier_issued(code: int, today: date | None = None) -> bool:
+    """Whether DVLA has issued this two-digit age identifier yet (D-057).
+
+    March codes run 02, 03 … (the year's last two digits) and start on 1 March;
+    September codes run 51, 52 … (year + 50) and start on 1 September. Counted
+    from today, never hardcoded. Good until the scheme wraps to 00 in 2050.
+    """
+    today = today or date.today()
+    year = today.year % 100
+    latest_march = year if today.month >= 3 else year - 1
+    latest_september = (year if today.month >= 9 else year - 1) + 50
+    return 2 <= code <= latest_march or 51 <= code <= latest_september
+
+
+def plate_issued(reg, today: date | None = None) -> bool:
+    """False only for a current-style plate whose age identifier isn't issued yet
+    — a Renault Master's "LM35dCi" model code, say (35 = March 2035). Any other
+    shape (older formats, Northern Irish, private plates) passes untouched."""
+    match = CURRENT_STYLE.match(str(reg or "").replace(" ", "").upper())
+    return match is None or age_identifier_issued(int(match.group(1)), today)
+
+
+def extract_reg(*texts: str | None, today: date | None = None) -> str | None:
     """The single distinct UK plate found across the given texts, else None.
 
     Two different plates in one listing means the seller quoted someone else's van
-    (or a part number that looks like a plate), so ambiguity stores nothing.
+    (or a part number that looks like a plate), so ambiguity stores nothing. A
+    match whose age identifier isn't issued yet is a model code, not a plate, and
+    is dropped before that count (D-057).
     """
     found = set()
     for text in texts:
         if not text:
             continue
         for match in REG_RE.findall(text):
-            found.add(match.replace(" ", "").upper())
+            reg = match.replace(" ", "").upper()
+            if plate_issued(reg, today):
+                found.add(reg)
     return found.pop() if len(found) == 1 else None
 
 

@@ -292,6 +292,13 @@ def normalise_reg(value) -> str | None:
     if value is None:
         return None
     cleaned = str(value).replace(" ", "").upper()
+    # A model code isn't a plate either way it arrives (D-057); the startup
+    # clean-up would otherwise wipe it on the next boot.
+    if cleaned and not mot.plate_issued(cleaned):
+        code = cleaned[2:4]
+        raise HTTPException(
+            400, f"{cleaned} isn't a real plate yet — '{code}' plates haven't been issued"
+        )
     return cleaned or None
 
 
