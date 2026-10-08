@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import {
   type ColumnDef,
   flexRender,
@@ -56,7 +56,8 @@ interface Props {
   onRankOff: () => void
   columnVisibility: VisibilityState
   onColumnVisibilityChange: (updater: React.SetStateAction<VisibilityState>) => void
-  selectedId: number | null
+  /** The listing open in the popup, or the last one it showed. */
+  highlightId: number | null
   onRowClick: (listing: Listing) => void
   onShowMap: (listing: Listing) => void
 }
@@ -72,11 +73,21 @@ export function ListingsTable({
   onRankOff,
   columnVisibility,
   onColumnVisibilityChange,
-  selectedId,
+  highlightId,
   onRowClick,
   onShowMap,
 }: Props) {
   const rankOn = rankActive(rank)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Stepping through the popup can walk off the visible rows, so keep the
+  // highlighted one on screen — it's there behind the popup when it closes.
+  useEffect(() => {
+    if (highlightId === null) return
+    scrollRef.current
+      ?.querySelector(`[data-listing-id="${highlightId}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [highlightId])
 
   const table = useReactTable({
     data: rows,
@@ -90,7 +101,7 @@ export function ListingsTable({
 
   return (
     <div className="flex min-h-0 flex-col">
-      <div className="overflow-auto rounded-md border">
+      <div ref={scrollRef} className="overflow-auto rounded-md border">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -141,11 +152,14 @@ export function ListingsTable({
               return (
                 <TableRow
                   key={row.id}
+                  data-listing-id={listing.id}
                   className={cn(
-                    'cursor-pointer',
+                    // Clears the sticky header when scrolled into view.
+                    'cursor-pointer scroll-mt-10',
                     listing.status === 'rejected' && 'opacity-50',
                     !listing.is_active && 'bg-muted/40 [&_td]:text-muted-foreground',
-                    selectedId === listing.id && 'bg-accent',
+                    highlightId === listing.id &&
+                      'bg-sky-100 hover:bg-sky-100 dark:bg-sky-950 dark:hover:bg-sky-950 [&>td:first-child]:shadow-[inset_3px_0_0_var(--color-sky-500)]',
                   )}
                   onClick={() => onRowClick(listing)}
                 >

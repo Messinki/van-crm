@@ -75,6 +75,9 @@ function VanCrm({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(restoreColumnVisibility)
   const [view, setView] = useState<MainView>(restoreView)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  // The last listing the popup showed stays highlighted in the table after
+  // it closes, so you can see where you were.
+  const [lastViewedId, setLastViewedId] = useState<number | null>(null)
   const [mapId, setMapId] = useState<number | null>(null)
   const [dialog, setDialog] = useState<'manual' | 'import' | 'searches' | 'homes' | 'columns' | null>(null)
 
@@ -86,6 +89,9 @@ function VanCrm({
   const prevId = at > 0 ? rows[at - 1].id : null
   const nextId = at >= 0 && at < rows.length - 1 ? rows[at + 1].id : null
 
+  useEffect(() => {
+    if (selectedId !== null) setLastViewedId(selectedId)
+  }, [selectedId])
   useEffect(() => saveFilterProps(filters.props), [filters.props])
   useEffect(() => saveRank(rank), [rank])
   useEffect(() => saveColumnVisibility(columnVisibility), [columnVisibility])
@@ -140,7 +146,7 @@ function VanCrm({
           onRankOff={() => setRank({ ...rank, enabled: false })}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
-          selectedId={selectedId}
+          highlightId={selectedId ?? lastViewedId}
           onRowClick={(listing) => setSelectedId(listing.id)}
           onShowMap={(listing) => setMapId(listing.id)}
         />

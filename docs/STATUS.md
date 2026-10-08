@@ -52,6 +52,12 @@ Open, not blocking:
 - Nothing in the app turns on the `.dark` class, so it is always the light theme;
   the `dark:` colours (pills, notes highlighting) were only checked by forcing it.
 
+- The table's header row doesn't stay stuck at the top when scrolling: shadcn's
+  `Table` (`components/ui/table.tsx`) wraps the `<table>` in its own
+  `overflow-x-auto` div, which captures `sticky top-0`. Not fixed yet.
+- The table highlights the listing open in the popup, and keeps the last one viewed
+  highlighted (and scrolled into view) after the popup closes. Checked in Chrome only.
+
 - Pinch zoom in the popup (D-042) hasn't been tried on a real trackpad — worth
   Harry pinching once in Safari and Chrome to confirm the zoom speed feels right.
 - The all-vans map re-zooms to fit whenever a filter or search changes the pins.
