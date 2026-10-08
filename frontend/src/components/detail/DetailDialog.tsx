@@ -191,7 +191,12 @@ function DetailBody({
     <div className="min-w-0 space-y-4">
       <DetailActions listing={listing} onListingGone={onListingGone} openListing={openListing} />
 
-      {listing.image_urls.length > 0 && (
+      {/* Same height without photos, so the fields below don't jump. */}
+      {listing.image_urls.length === 0 ? (
+        <div className="flex h-24 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
+          No photos
+        </div>
+      ) : (
         <div className="flex gap-2 overflow-x-auto">
           {listing.image_urls.map((src, index) => (
             <img

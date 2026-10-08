@@ -222,7 +222,7 @@ export function PriceField({ listing, spec }: { listing: Listing; spec: FieldSpe
         />
         <VatChip on={on} onToggle={(next) => save('vat_status', next ? 'plus_vat' : null)} />
       </div>
-      <VatTotal on={on} listed={listing.price_gbp} />
+      <VatTotal reserve on={on} listed={listing.price_gbp} />
     </Field>
   )
 }

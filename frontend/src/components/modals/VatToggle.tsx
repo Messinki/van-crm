@@ -40,8 +40,19 @@ export function VatChip({
 /** "= £12,000 inc. VAT" under the box while the toggle is on. `listed` is the
  *  box's figure; the total goes through effectivePrice() like every other
  *  price read (D-051), so the × 1.2 sum lives in one place. */
-export function VatTotal({ on, listed }: { on: boolean; listed: number | null }) {
-  if (!on || listed === null || Number.isNaN(listed)) return null
+export function VatTotal({
+  on,
+  listed,
+  reserve,
+}: {
+  on: boolean
+  listed: number | null
+  /** Keep the line's height when empty so nothing below it shifts. */
+  reserve?: boolean
+}) {
+  if (!on || listed === null || Number.isNaN(listed)) {
+    return reserve ? <p aria-hidden className="text-xs">&nbsp;</p> : null
+  }
   return (
     <p className="text-xs text-amber-700 dark:text-amber-400">
       = {money(effectivePrice({ price_gbp: listed, vat_status: 'plus_vat' }))} inc. VAT
