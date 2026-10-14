@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(rm *data*)",
+      "Bash(rm *vancrm.db*)",
+      "Bash(mv *data*)",
+      "Bash(mv *vancrm.db*)",
+      "Bash(sqlite3 *)",
+      "Bash(find *data* -delete*)",
+      "Edit(data/**)",
+      "Write(data/**)"
+    ]
+  }
+}

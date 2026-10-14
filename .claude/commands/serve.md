@@ -17,6 +17,4 @@ Run these from the project root, stopping at the first failure:
 4. Start the server in the background (`run_in_background`): `.venv/bin/uvicorn app.main:app --port 8321 --reload`
 5. Wait a few seconds, then check `curl -s -o /dev/null -w "%{http_code}" localhost:8321/api/listings`.
 
-Never delete, move or modify anything in `data/` — if the user asks for a reset, tell them to do it by hand.
-
 Report one line: running at http://localhost:8321 (or what failed). Don't paste build output.
