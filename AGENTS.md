@@ -11,8 +11,8 @@ on localhost, no auth, no deployment.
   then `cd frontend && npm install`.
 - Run (use): `npm run build` in `frontend/`, then `.venv/bin/uvicorn app.main:app --port 8321 --reload`
   — port is fixed so bookmarks keep working. Then open <http://localhost:8321>.
-- One-shot: `./run.sh` does setup (first run only), build and serve; `./run.sh --reset`
-  also deletes `data/vancrm.db`; `./run.sh --fresh` reinstalls dependencies.
+- One-shot: `/serve` (Claude Code command, `.claude/commands/serve.md`) does setup, build
+  and serve; `/serve reset` also deletes `data/vancrm.db`; `/serve fresh` reinstalls dependencies.
 - Dev: `.venv/bin/uvicorn app.main:app --port 8321 --reload` plus `npm run dev` in
   `frontend/` — Vite on <http://localhost:5173> proxies `/api` to :8321.
 - Test: none yet — verification is manual against the running app. A test suite is on
