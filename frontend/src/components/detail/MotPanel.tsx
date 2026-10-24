@@ -180,10 +180,11 @@ function MotReport({ derived }: { derived: MotDerived }) {
 // Severity order, so a test's defects read worst-first however DVSA listed them.
 const DEFECT_ORDER = ['DANGEROUS', 'MAJOR', 'MINOR', 'ADVISORY']
 
+// One colour per level, as the old UI had: red, orange, amber, grey.
 const DEFECT_STYLES: Record<string, string> = {
   dangerous: 'text-destructive font-medium',
   major: 'text-orange-700 dark:text-orange-400',
-  minor: 'text-muted-foreground',
+  minor: 'text-yellow-800 dark:text-yellow-400',
   advisory: 'text-muted-foreground',
 }
 
