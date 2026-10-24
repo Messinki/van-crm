@@ -52,7 +52,13 @@ export function MotPanel({ listing }: { listing: Listing }) {
       {!error && derived && fetchedAt && (
         <p className="text-xs text-muted-foreground">Checked {formatStamp(fetchedAt)}</p>
       )}
-      {!derived && !error && <MotPlaceholder listing={listing} loading={report.isFetching} failed={report.isError} />}
+      {!derived && !error && (
+        <MotPlaceholder
+          listing={listing}
+          loading={report.isFetching}
+          failure={report.isError ? errorMessage(report.error) : ''}
+        />
+      )}
 
       {derived && <MotReport derived={derived} />}
     </div>
@@ -64,18 +70,14 @@ export function MotPanel({ listing }: { listing: Listing }) {
 function MotPlaceholder({
   listing,
   loading,
-  failed,
+  failure,
 }: {
   listing: Listing
   loading: boolean
-  failed: boolean
+  failure: string
 }) {
-  if (failed) {
-    return (
-      <p className="text-xs text-destructive">
-        Could not load the cached report — Refresh re-fetches it.
-      </p>
-    )
+  if (failure) {
+    return <p className="text-xs text-destructive">Could not load the MOT report: {failure}</p>
   }
   if (loading) return <p className="text-xs text-muted-foreground">Loading the report…</p>
   return (

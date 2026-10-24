@@ -23,9 +23,24 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
     opts.headers = { 'Content-Type': 'application/json' }
     opts.body = JSON.stringify(body)
   }
-  const res = await fetch(path, opts)
+  // A stopped server shows up as a thrown fetch (served build) or as a non-JSON
+  // proxy error page (Vite dev); both get one plain message instead of
+  // "Failed to fetch" or a JSON syntax error.
+  const unreachable = new ApiError("Can't reach the VanCRM server — is it still running?", 0, null)
+  let res: Response
+  try {
+    res = await fetch(path, opts)
+  } catch {
+    throw unreachable
+  }
   const text = await res.text()
-  const data: unknown = text ? JSON.parse(text) : null
+  let data: unknown = null
+  try {
+    data = text ? JSON.parse(text) : null
+  } catch {
+    if (!res.ok) throw unreachable
+    throw new ApiError('The server sent back something that is not JSON', res.status, null)
+  }
   if (!res.ok) {
     const detail = (data as { detail?: unknown } | null)?.detail
     const message =
