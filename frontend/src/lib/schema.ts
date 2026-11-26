@@ -43,6 +43,19 @@ export interface Schema {
   fields: FieldSpec[]
   statuses: string[]
   sources: string[]
+  /** Base models a van note can be ticked for, grouped by make (D-061). */
+  models: Record<string, string[]>
+}
+
+/** What Harry has learnt about a van type (D-061). Either year end may be open. */
+export interface VanNote {
+  id: number
+  models: string[]
+  year_min: number | null
+  year_max: number | null
+  comment: string
+  created_at: string
+  updated_at: string
 }
 
 /** The compact MOT blob attach_mot() hangs on every listing (mot.summary). */

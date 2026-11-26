@@ -37,6 +37,7 @@ function ViewToggle({ view, onViewChange }: { view: MainView; onViewChange: (vie
   const options: { value: MainView; label: string }[] = [
     { value: 'table', label: 'Table' },
     { value: 'map', label: 'Map' },
+    { value: 'notes', label: 'Notes' },
   ]
   return (
     <div className="mr-2 inline-flex rounded-md border p-0.5" role="group" aria-label="View">

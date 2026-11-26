@@ -16,6 +16,7 @@ import { AllVansMap } from '@/components/map/AllVansMap'
 import { LocationMapDialog } from '@/components/map/LocationMapDialog'
 import { ListingsTable, useTableRows } from '@/components/table/ListingsTable'
 import { Topbar } from '@/components/Topbar'
+import { NotesView } from '@/components/notes/VanNotes'
 import { withNearest } from '@/lib/distance'
 import { BLANK_FILTERS, filterableProps, type Filters } from '@/lib/filtering'
 import type { Home, Listing, PropertyDef, Schema } from '@/lib/schema'
@@ -109,30 +110,37 @@ function VanCrm({
         onColumns={() => setDialog('columns')}
       />
 
-      <TableControls
-        schema={schema}
-        properties={properties}
-        filters={filters}
-        onFiltersChange={setFilters}
-        columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
-        showColumnsMenu={view === 'table'}
-      />
+      {/* The van filters mean nothing on the Notes view (D-061). */}
+      {view !== 'notes' && (
+        <>
+          <TableControls
+            schema={schema}
+            properties={properties}
+            filters={filters}
+            onFiltersChange={setFilters}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={setColumnVisibility}
+            showColumnsMenu={view === 'table'}
+          />
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <FilterBar
-          schema={schema}
-          properties={properties}
-          listings={listings}
-          filters={filters}
-          onFiltersChange={setFilters}
-        />
-        <RankPanel rank={rank} onRankChange={setRank} />
-      </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <FilterBar
+              schema={schema}
+              properties={properties}
+              listings={listings}
+              filters={filters}
+              onFiltersChange={setFilters}
+            />
+            <RankPanel rank={rank} onRankChange={setRank} />
+          </div>
+        </>
+      )}
 
       {/* Both views show the same rows, and the popup steps through the
           table's order from either. */}
-      {view === 'map' ? (
+      {view === 'notes' ? (
+        <NotesView schema={schema} />
+      ) : view === 'map' ? (
         <AllVansMap rows={rows} homes={enabledHomes} onOpen={setSelectedId} />
       ) : (
         <ListingsTable

@@ -17,6 +17,7 @@ import type {
   CheckResult,
   GeocodeResult,
   Home,
+  VanNote,
   Listing,
   MotResponse,
   PropertyDef,
@@ -229,6 +230,51 @@ export function useDeleteHome() {
     onSuccess: (result) => {
       client.setQueryData<Home[]>(['homes'], (rows) =>
         rows ? rows.filter((h) => h.id !== result.deleted) : rows,
+      )
+    },
+  })
+}
+
+/* -------------------------------------------------------- van notes (D-061) */
+
+export function useVanNotes() {
+  return useQuery({
+    queryKey: ['van-notes'],
+    queryFn: () => get<VanNote[]>('/api/van-notes'),
+  })
+}
+
+export function useCreateVanNote() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => post<VanNote>('/api/van-notes', {}),
+    // Newest first, so a new box appears right under the plus button.
+    onSuccess: (created) => {
+      client.setQueryData<VanNote[]>(['van-notes'], (rows) => [created, ...(rows ?? [])])
+    },
+  })
+}
+
+export function useUpdateVanNote() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: number; fields: Partial<Omit<VanNote, 'id'>> }) =>
+      patch<VanNote>(`/api/van-notes/${id}`, fields),
+    onSuccess: (updated) => {
+      client.setQueryData<VanNote[]>(['van-notes'], (rows) =>
+        rows ? rows.map((n) => (n.id === updated.id ? updated : n)) : rows,
+      )
+    },
+  })
+}
+
+export function useDeleteVanNote() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => del<{ deleted: number }>(`/api/van-notes/${id}`),
+    onSuccess: (result) => {
+      client.setQueryData<VanNote[]>(['van-notes'], (rows) =>
+        rows ? rows.filter((n) => n.id !== result.deleted) : rows,
       )
     },
   })

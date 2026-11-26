@@ -17,6 +17,14 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: van-type notes (2026-11-26)
+- A **Notes** view joins Table and Map: add a note with the plus button, tick the base
+  models it applies to, give an optional year range and a comment; everything stays
+  editable, and each note has a delete button (D-061).
+- The listing popup shows the notes that match the van's model and year in the right
+  third of the thumbnail row (thumbnails take the other two thirds); the box scrolls,
+  and comments can be edited there too.
+
 ## Goal: No plates chip replaces New (2026-11-26)
 - The New status chip is gone; a **No plates** chip lists every non-rejected van with
   no plate, so after a scrape you can work down it filling plates in (D-060).

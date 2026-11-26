@@ -75,7 +75,7 @@ function isPick(event: React.ChangeEvent) {
  *  The box isn't keyed on its value, so a save never remounts it. While there's no
  *  edit in progress the saved value is written into it, so a plate lookup filling
  *  the field, or the server tidying what was typed, still shows. */
-function useCommit<T extends HTMLInputElement | HTMLTextAreaElement>(
+export function useCommit<T extends HTMLInputElement | HTMLTextAreaElement>(
   shown: string,
   commit: (raw: string) => void,
   { multiline = false }: { multiline?: boolean } = {},

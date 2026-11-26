@@ -109,12 +109,13 @@ export function restoreColumnVisibility(): Record<string, boolean> {
 }
 
 /** Which main view is showing: the table or the all-vans map (D-049). */
-export type MainView = 'table' | 'map'
+export type MainView = 'table' | 'map' | 'notes'
 
 export function saveView(view: MainView) {
   writeStore(LS_VIEW, { view })
 }
 
 export function restoreView(): MainView {
-  return readStore(LS_VIEW)?.view === 'map' ? 'map' : 'table'
+  const view = readStore(LS_VIEW)?.view
+  return view === 'map' || view === 'notes' ? view : 'table'
 }

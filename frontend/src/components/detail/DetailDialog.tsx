@@ -28,6 +28,7 @@ import {
   UrlField,
 } from './DetailFields'
 import { Gallery } from './Gallery'
+import { ListingNotes } from '@/components/notes/VanNotes'
 import { MotPanel } from './MotPanel'
 
 const SECTIONS = ['Details', 'Custom', 'Notes', 'MOT', 'Images'] as const
@@ -191,28 +192,32 @@ function DetailBody({
     <div className="min-w-0 space-y-4">
       <DetailActions listing={listing} onListingGone={onListingGone} openListing={openListing} />
 
-      {/* Same height without photos, so the fields below don't jump. */}
-      {listing.image_urls.length === 0 ? (
-        <div className="flex h-24 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
-          No photos
-        </div>
-      ) : (
-        <div className="flex gap-2 overflow-x-auto">
-          {listing.image_urls.map((src, index) => (
-            <img
-              key={src}
-              src={src}
-              alt=""
-              loading="lazy"
-              className={cn(
-                'h-24 w-32 shrink-0 cursor-pointer rounded bg-muted object-cover',
-                index === activeImage && 'outline-2 -outline-offset-2 outline-primary',
-              )}
-              onClick={() => onImageClick(index)}
-            />
-          ))}
-        </div>
-      )}
+      {/* Thumbnails in two thirds, matching van notes (D-061) in the last.
+          Same height without photos, so the fields below don't jump. */}
+      <div className="grid grid-cols-3 gap-2">
+        {listing.image_urls.length === 0 ? (
+          <div className="col-span-2 flex h-24 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
+            No photos
+          </div>
+        ) : (
+          <div className="col-span-2 flex min-w-0 gap-2 overflow-x-auto">
+            {listing.image_urls.map((src, index) => (
+              <img
+                key={src}
+                src={src}
+                alt=""
+                loading="lazy"
+                className={cn(
+                  'h-24 w-32 shrink-0 cursor-pointer rounded bg-muted object-cover',
+                  index === activeImage && 'outline-2 -outline-offset-2 outline-primary',
+                )}
+                onClick={() => onImageClick(index)}
+              />
+            ))}
+          </div>
+        )}
+        <ListingNotes listing={listing} schema={schema} />
+      </div>
 
       {listing.url && (
         <p>

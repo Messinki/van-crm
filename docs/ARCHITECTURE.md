@@ -71,7 +71,7 @@ Inside `frontend/src/`:
   missing), `format.ts`, `store.ts` (localStorage), `lookup.ts` (what a plate lookup
   may fill), `window.ts`, `keywords.ts` (the VAT/size/wheelbase terms highlighted
   in descriptions, D-056; `normalise.description_hints()` mirrors them, D-058).
-- **`components/`** — `Topbar.tsx` (with the Table | Map toggle);
+- **`components/`** — `Topbar.tsx` (with the Table | Map | Notes toggle);
   `DistanceValue.tsx` ("42 mi" + the home pill, used by every surface);
   `HighlightTextarea.tsx` (the notes box with `keywords.ts` matches marked in
   yellow on a backdrop behind the text, D-056); `table/`
@@ -79,7 +79,8 @@ Inside `frontend/src/`:
   bar, rank panel, View menu); `detail/` (the listing popup, its fields, gallery and
   MOT panel); `map/` (`VanMap`, the one Leaflet component, plus
   `LocationMapDialog` and `AllVansMap`); `modals/` (manual entry, import, searches,
-  homes, columns); `ui/` (shadcn/ui primitives).
+  homes, columns); `notes/` (the Notes view and the popup's matching-notes box,
+  D-061); `ui/` (shadcn/ui primitives).
 
 ## What the app does
 
@@ -101,18 +102,23 @@ notes autosave on a debounce (D-029), and VAT, size-code and wheelbase wording i
 them is highlighted yellow (D-056).
 The topbar's **Table | Map** toggle swaps the table for a map of the same rows:
 clustered van pins, home pins, and a card per pin that opens the popup (D-049).
+**Notes** swaps it for a list of van-type notes (common faults): each box ticks base
+models, an optional year range and a comment, all editable in place. A van's popup
+shows the notes that match its model and year in the right third of the thumbnail
+row, editable there too (D-061; matching in `lib/vanNotes.ts`).
 Topbar: **Scrape eBay** (runs all enabled saved searches), **Check live** (bulk liveness
 sweep), **Add listing ▾** (manual entry with plate lookup, or import from an eBay URL),
 **Searches**, **Homes** and **Columns** modals.
 
 ## Data model
 
-Six tables, created idempotently on startup: `listings`, `searches` (label, query,
+Seven tables, created idempotently on startup: `listings`, `searches` (label, query,
 price/year bounds, enabled), `property_defs` (typed custom columns), `mot_cache`
 (raw DVSA response per reg, 7-day TTL), `homes` (label, postcode, lat/lng, enabled,
 position — coordinates are looked up when a home is saved, so a home is never stored
 unplaced), `rejected_regs` (reg, listing_id, title, rejected_at — one row per
-rejected plate, kept when the listing is deleted, D-055). Conventions:
+rejected plate, kept when the listing is deleted, D-055), `van_notes` (models as a
+JSON list of base model names, year_min/year_max, comment — D-061). Conventions:
 
 - Timestamps are ISO-8601 UTC strings via `db.now_iso()`.
 - `image_urls` and `custom` are JSON-encoded TEXT; `row_to_listing()` decodes them.
@@ -152,7 +158,7 @@ nothing. (The popup was a side drawer when the registry was written, hence the
 ## API surface
 
 - `GET /api/listings` · `POST /api/listings` · `PATCH|DELETE /api/listings/{id}`
-- `GET /api/schema` — the field registry
+- `GET /api/schema` — the field registry, plus `models` (base models by make, D-061)
 - `POST /api/scrape` + `GET /api/scrape/progress`
 - `POST /api/import/ebay` — from a pasted URL, short link, or bare item id
 - `POST /api/listings/{id}/check` — single liveness check
@@ -162,6 +168,7 @@ nothing. (The popup was a side drawer when the registry was written, hence the
 - `GET/POST/PATCH/DELETE /api/searches[/{id}]` and `/api/properties[/{id}]`
 - `GET/POST/PATCH/DELETE /api/homes[/{id}]` — a new or changed postcode is geocoded;
   unknown → 422, postcodes.io unreachable → 503
+- `GET/POST/PATCH/DELETE /api/van-notes[/{id}]` — van-type notes (D-061)
 - `POST /api/geocode/missing` — look up every listing that needs it; returns
   `{located, not_found, failed}`
 

@@ -37,6 +37,11 @@ Notes for working in `frontend/`:
 
 Open, not blocking:
 
+- Van-type notes (D-061) were added on 2026-11-26 and checked in the in-app browser
+  against a scratch database. Model ticks and year ranges are edited on the Notes
+  view only; the popup edits comments. A van with no model matches by the first base
+  model in its title.
+
 - The New chip was replaced by **No plates** on 2026-11-26 (D-060); `new` still exists
   as the stored default, labelled "No status". Checked in Chrome only.
 
