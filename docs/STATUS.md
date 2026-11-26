@@ -37,10 +37,11 @@ Notes for working in `frontend/`:
 
 Open, not blocking:
 
-- Van-type notes (D-061) were added on 2026-11-26 and checked in the in-app browser
-  against a scratch database. Model ticks and year ranges are edited on the Notes
-  view only; the popup edits comments. A van with no model matches by the first base
-  model in its title.
+- Van-type notes (D-061, D-062): 13 researched fault notes were added through the API
+  on 2026-11-26, each ending in a `Src:` line. Sources were thin in places (Honest John's
+  van guides are gone since it became Drive) and end years are capped at what the
+  sources cover. Most vans in the table are 2017-2021 Boxer/Relay, which only match
+  the sparse 2014-2021 note — worth adding to as Harry learns more.
 
 - The New chip was replaced by **No plates** on 2026-11-26 (D-060); `new` still exists
   as the stored default, labelled "No status". Checked in Chrome only.

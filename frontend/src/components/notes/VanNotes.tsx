@@ -160,29 +160,40 @@ function CommentBox({
 
 /* ------------------------------------------------------- popup (D-061) */
 
-/** The notes that apply to this van, beside the thumbnail strip. Keeps the
- *  strip's height and scrolls; comments are editable in place. */
+/** One note's comment as a list: each line is an item, a leading bullet or
+ *  dash dropped. */
+function CommentLines({ comment }: { comment: string }) {
+  const lines = comment
+    .split('\n')
+    .map((line) => line.replace(/^\s*[•\-*]\s*/, '').trim())
+    .filter(Boolean)
+  return (
+    <ul className="list-disc space-y-0.5 pl-4 text-xs">
+      {lines.map((line, i) => (
+        <li key={i}>{line}</li>
+      ))}
+    </ul>
+  )
+}
+
+/** The known issues for this van, beside the MOT report. Read-only: a note can
+ *  cover many vans, so it's edited on the Notes view, not from one van. */
 export function ListingNotes({ listing, schema }: { listing: Listing; schema: Schema }) {
   const { data: notes = [] } = useVanNotes()
   const matching = matchingNotes(notes, listing, schema)
 
   return (
-    <div className="h-24 min-w-0 overflow-y-auto rounded border bg-muted/40 p-1.5">
+    <div className="min-w-0 space-y-3">
+      <div className="text-xs font-medium">Known issues</div>
       {matching.length === 0 ? (
-        <div className="flex h-full items-center justify-center text-center text-xs text-muted-foreground">
-          No notes for this van
-        </div>
+        <p className="text-xs text-muted-foreground">No notes for this van type and year.</p>
       ) : (
-        <div className="space-y-2">
-          {matching.map((note) => (
-            <div key={note.id} className="space-y-0.5">
-              <div className="truncate text-[11px] font-medium text-muted-foreground" title={noteScope(note)}>
-                {noteScope(note)}
-              </div>
-              <CommentBox note={note} className="min-h-0 bg-background px-1.5 py-1 text-xs md:text-xs" />
-            </div>
-          ))}
-        </div>
+        matching.map((note) => (
+          <div key={note.id} className="space-y-1">
+            <div className="text-[11px] font-medium text-muted-foreground">{noteScope(note)}</div>
+            <CommentLines comment={note.comment} />
+          </div>
+        ))
       )}
     </div>
   )

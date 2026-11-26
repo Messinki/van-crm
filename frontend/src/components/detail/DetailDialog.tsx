@@ -192,32 +192,28 @@ function DetailBody({
     <div className="min-w-0 space-y-4">
       <DetailActions listing={listing} onListingGone={onListingGone} openListing={openListing} />
 
-      {/* Thumbnails in two thirds, matching van notes (D-061) in the last.
-          Same height without photos, so the fields below don't jump. */}
-      <div className="grid grid-cols-3 gap-2">
-        {listing.image_urls.length === 0 ? (
-          <div className="col-span-2 flex h-24 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
-            No photos
-          </div>
-        ) : (
-          <div className="col-span-2 flex min-w-0 gap-2 overflow-x-auto">
-            {listing.image_urls.map((src, index) => (
-              <img
-                key={src}
-                src={src}
-                alt=""
-                loading="lazy"
-                className={cn(
-                  'h-24 w-32 shrink-0 cursor-pointer rounded bg-muted object-cover',
-                  index === activeImage && 'outline-2 -outline-offset-2 outline-primary',
-                )}
-                onClick={() => onImageClick(index)}
-              />
-            ))}
-          </div>
-        )}
-        <ListingNotes listing={listing} schema={schema} />
-      </div>
+      {/* Same height without photos, so the fields below don't jump. */}
+      {listing.image_urls.length === 0 ? (
+        <div className="flex h-24 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
+          No photos
+        </div>
+      ) : (
+        <div className="flex gap-2 overflow-x-auto">
+          {listing.image_urls.map((src, index) => (
+            <img
+              key={src}
+              src={src}
+              alt=""
+              loading="lazy"
+              className={cn(
+                'h-24 w-32 shrink-0 cursor-pointer rounded bg-muted object-cover',
+                index === activeImage && 'outline-2 -outline-offset-2 outline-primary',
+              )}
+              onClick={() => onImageClick(index)}
+            />
+          ))}
+        </div>
+      )}
 
       {listing.url && (
         <p>
@@ -248,15 +244,21 @@ function DetailBody({
         const grid = name === 'Details'
         return (
           <Section key={name} title={name}>
-            <div className={grid ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
-              {specs.map((spec) => (
-                <div key={spec.key} className={grid && spec.widget === 'reg_lookup' ? 'col-span-2' : undefined}>
-                  <DetailField listing={listing} spec={spec} flushNotes={flushNotes} onShowMap={onShowMap} />
+            {/* MOT: the fields and the DVSA report on the left, the known
+                issues for this van type (D-061) on the right. */}
+            <div className={name === 'MOT' ? 'grid grid-cols-2 gap-4' : undefined}>
+              <div className="min-w-0 space-y-2">
+                <div className={grid ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
+                  {specs.map((spec) => (
+                    <div key={spec.key} className={grid && spec.widget === 'reg_lookup' ? 'col-span-2' : undefined}>
+                      <DetailField listing={listing} spec={spec} flushNotes={flushNotes} onShowMap={onShowMap} />
+                    </div>
+                  ))}
                 </div>
-              ))}
+                {name === 'MOT' && <MotPanel listing={listing} />}
+              </div>
+              {name === 'MOT' && <ListingNotes listing={listing} schema={schema} />}
             </div>
-            {/* The DVSA report hangs off the end of the MOT section. */}
-            {name === 'MOT' && <MotPanel listing={listing} />}
           </Section>
         )
       })}

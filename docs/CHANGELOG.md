@@ -17,6 +17,13 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: van notes beside the MOT report (2026-11-26)
+- The popup's matching van notes moved from beside the thumbnails to the right half of
+  the MOT section, as a read-only **Known issues** list (D-062).
+- The MOT report's list of all tests is always open.
+- 13 researched fault notes added for the Relay family, Transit, Master family,
+  Sprinter and Crafter.
+
 ## Goal: van-type notes (2026-11-26)
 - A **Notes** view joins Table and Map: add a note with the plus button, tick the base
   models it applies to, give an optional year range and a comment; everything stays

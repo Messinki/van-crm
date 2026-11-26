@@ -162,16 +162,16 @@ function MotReport({ derived }: { derived: MotDerived }) {
       )}
 
       {derived.tests.length > 0 && (
-        <details className="rounded-md border p-2">
-          <summary className="cursor-pointer text-xs font-medium">
+        <div className="rounded-md border p-2">
+          <div className="text-xs font-medium">
             All {derived.tests.length} test{derived.tests.length === 1 ? '' : 's'}
-          </summary>
+          </div>
           <div className="mt-2 space-y-3">
             {derived.tests.map((test, i) => (
               <MotTestBlock key={(test.date ?? '') + i} test={test} />
             ))}
           </div>
-        </details>
+        </div>
       )}
     </div>
   )

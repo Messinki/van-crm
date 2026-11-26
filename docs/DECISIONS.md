@@ -780,3 +780,17 @@ Why: matching on the tidied base model (D-053) is exact and needs no new data.
 Rejected: free-text van types (typos), make-level notes (sister vans across makes
 — Ducato/Relay/Boxer — are better ticked together), a row that grows to fit
 (fields below would jump between vans).
+
+## D-062 — Van notes move beside the MOT report, read-only (2026-11-26)
+Context: once real fault notes went in (D-061), the 96px box beside the thumbnails was
+far too small, and editing a shared note from one van's popup risked writing
+something only true of that van into a note that shows on many.
+Decision: the popup's MOT section is two columns — fields and DVSA report on the
+left, **Known issues** (the matching notes) on the right. The notes are read-only
+there, one list item per line of the comment; they're edited on the Notes view only.
+The thumbnails go back to the full width. The MOT report's "All N tests" list is
+always open rather than behind a `<details>` toggle.
+Why: the MOT history and the known faults are read together when judging a van.
+Rejected: keeping the popup editable (see Context), and a row that grows beside the
+thumbnails (pushes every field down).
+Supersedes: D-061 (its popup placement and "editable there too" lines; the rest stands)

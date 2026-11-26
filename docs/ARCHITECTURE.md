@@ -104,8 +104,8 @@ The topbar's **Table | Map** toggle swaps the table for a map of the same rows:
 clustered van pins, home pins, and a card per pin that opens the popup (D-049).
 **Notes** swaps it for a list of van-type notes (common faults): each box ticks base
 models, an optional year range and a comment, all editable in place. A van's popup
-shows the notes that match its model and year in the right third of the thumbnail
-row, editable there too (D-061; matching in `lib/vanNotes.ts`).
+shows the notes that match its model and year as a read-only **Known issues** list in
+the right half of the MOT section (D-061, D-062; matching in `lib/vanNotes.ts`).
 Topbar: **Scrape eBay** (runs all enabled saved searches), **Check live** (bulk liveness
 sweep), **Add listing ▾** (manual entry with plate lookup, or import from an eBay URL),
 **Searches**, **Homes** and **Columns** modals.
