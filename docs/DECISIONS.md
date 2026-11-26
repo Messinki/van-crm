@@ -841,3 +841,55 @@ are backed up to GitHub with a history. They're general knowledge, not personal 
 Rejected: keeping the table and using the API (needs the server up, and deletes trip
 the permission checker); widening the deny rules (they protect the listings).
 Supersedes: D-061 (its "`van_notes` table" line; the rest stands)
+
+## D-066 — Engine, gearbox and VIN on listings; DVSA build date and recall flag (2026-11-26)
+Context: van notes need to match on more than model + year (D-067), and the MOT
+History API already returns more than the app read. Checked against DVSA's live
+spec (documentation.history.mot.api.gov.uk, VehicleWithMotResponse) on 2026-11-26:
+`manufactureDate` and `registrationDate` (YYYY-MM-DD), `engineSize` (cc, string),
+`hasOutstandingRecall` (`Yes` / `No` / `Unknown` / `Unavailable`), and a
+`/v1/trade/vehicles/vin/{vin}` endpoint returning the same vehicle shape.
+Decision:
+- `mot.summary` carries `built` (manufactureDate), `engine_size`, `recall`
+  (hasOutstandingRecall) and `engine_guess`. They come from the cached response,
+  so nothing is stored on the listing and every looked-up van has them at once.
+- `engine_guess` comes from `normalise.ENGINES`: the engine whose model, cc range
+  and build window fit. Exactly one must fit, otherwise no guess (a 2.2 Relay built
+  2016–2019 is left blank). Only the Sevel family is in the table for now — the
+  only notes that depend on an engine.
+- New listing columns `engine` (typed by hand; wins over the guess), `gearbox`
+  (manual/automatic) and `vin`. A VIN check calls the VIN endpoint live, not
+  cached, and reports the plate DVSA has for it (a mismatch with the listing's
+  plate is flagged), the recall flag and the build date.
+- `Unknown` recall is shown as "none on record", not "no recalls".
+Why: the build month and engine come for free from data already fetched, and the
+recall flag answers per van what hand-written recall notes can only guess at.
+The VIN check is for viewings: it catches a plate that doesn't belong to the van.
+Rejected: storing the guessed engine on the listing (goes stale if a lookup
+changes, and needs a backfill); caching VIN checks (a viewing-time check, run once).
+Supersedes: D-063 (its "an engine field on listings" rejection: the field now fills
+itself, which was the objection)
+
+## D-067 — Van notes match on build window, engine, gearbox and mileage, with "may apply" (2026-11-26)
+Context: model + whole years was too coarse (a recall built Apr–Jun 2019 matched
+every 2019–2020 van, and its line had to repeat the dates), and engine notes stood
+in for an engine with year ranges.
+Decision:
+- A note has `kind` (`fault` or `recall`), `models`, `built_from`/`built_to`
+  (`YYYY` or `YYYY-MM`, either open), and optional `engines`, `gearbox`,
+  `mileage_min`/`mileage_max`. The Notes view shows models, kind and build window
+  on every note; the others are chips added only when needed. A "Sevel family"
+  shortcut ticks Ducato, Relay, Jumper and Boxer at once.
+- Matching gives yes, no or maybe per condition. The van's build date is DVSA's
+  `manufactureDate` when cached, else its listed year, read as built between July
+  of the year before and the end of that year (a reg year trails the build). A
+  van that lacks a detail a note checks gets "may apply", shown greyed under the
+  definite matches with the reason ("engine unknown").
+- Recall notes show under one "Recalls — check the VIN" heading, each line with its
+  build window written from the note's own dates, so lines don't repeat them.
+Why: each fact is written once, and a van only sees what can apply to it, or is
+told why it can't tell.
+Rejected: a condition per line (messy to edit); hiding notes that can't be checked
+(silently loses advice for vans with no plate).
+Supersedes: D-061 (its year_min/year_max matching), D-064 (its +1 year on recall
+ranges: build months replace it)

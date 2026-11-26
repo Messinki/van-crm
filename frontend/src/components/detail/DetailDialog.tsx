@@ -20,12 +20,14 @@ import {
   CustomField,
   DistanceField,
   EditableField,
+  EngineField,
   LocationField,
   NotesField,
   PriceField,
   ReadonlyField,
   RegField,
   UrlField,
+  VinField,
 } from './DetailFields'
 import { Gallery } from './Gallery'
 import { ListingNotes } from '@/components/notes/VanNotes'
@@ -251,7 +253,7 @@ function DetailBody({
                 <div className={grid ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
                   {specs.map((spec) => (
                     <div key={spec.key} className={grid && spec.widget === 'reg_lookup' ? 'col-span-2' : undefined}>
-                      <DetailField listing={listing} spec={spec} flushNotes={flushNotes} onShowMap={onShowMap} />
+                      <DetailField listing={listing} schema={schema} spec={spec} flushNotes={flushNotes} onShowMap={onShowMap} />
                     </div>
                   ))}
                 </div>
@@ -268,16 +270,20 @@ function DetailBody({
 
 function DetailField({
   listing,
+  schema,
   spec,
   flushNotes,
   onShowMap,
 }: {
   listing: Listing
+  schema: Schema
   spec: FieldSpec
   flushNotes: React.RefObject<() => void>
   onShowMap: (listing: Listing) => void
 }) {
   if (spec.widget === 'reg_lookup') return <RegField listing={listing} />
+  if (spec.widget === 'engine') return <EngineField listing={listing} schema={schema} />
+  if (spec.widget === 'vin_check') return <VinField listing={listing} />
   if (spec.widget === 'notes') return <NotesField listing={listing} flushRef={flushNotes} />
   if (spec.widget === 'price_vat') return <PriceField listing={listing} spec={spec} />
   if (spec.widget === 'distance') return <DistanceField listing={listing} spec={spec} />

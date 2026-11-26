@@ -219,6 +219,14 @@ function MotBadges({ summary }: { summary: MotSummary }) {
           M{summary.major}
         </span>
       )}
+      {summary.recall === 'Yes' && (
+        <span
+          className="rounded bg-red-100 px-1 text-xs font-semibold text-red-800 dark:bg-red-950 dark:text-red-300"
+          title="DVSA: at least one safety recall on this van hasn't been fixed"
+        >
+          Recall
+        </span>
+      )}
       {warnings.length > 0 && (
         <span
           className="rounded bg-amber-100 px-1 text-xs dark:bg-amber-950"

@@ -12,7 +12,7 @@ import { errorMessage } from '@/api/client'
 import { useFetchMot, useMotReport } from '@/api/queries'
 import { Button } from '@/components/ui/button'
 import { formatDate, formatStamp, isoInDays, number } from '@/lib/format'
-import type { Listing, MotDerived, MotTest } from '@/lib/schema'
+import type { Listing, MotDerived, MotTest, RecallFlag } from '@/lib/schema'
 import { cn } from '@/lib/utils'
 
 export function MotPanel({ listing }: { listing: Listing }) {
@@ -89,13 +89,44 @@ function MotPlaceholder({
   )
 }
 
+/** "Mar 2019" from a YYYY-MM-DD date. */
+export function formatMonth(iso: string): string {
+  const [year, month] = iso.split('-').map(Number)
+  return new Date(year, (month || 1) - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+}
+
+/** DVSA's recall flag in words (D-066). Unknown is no data, not a clean bill. */
+export function RecallLine({ recall }: { recall: RecallFlag | null }) {
+  if (!recall) return null
+  const text = {
+    Yes: 'Outstanding recall — at least one safety recall not fixed',
+    No: 'Recalls: all fixed',
+    Unknown: 'Recalls: none on record',
+    Unavailable: 'Recalls: DVSA couldn\'t check just now',
+  }[recall]
+  return (
+    <p className={recall === 'Yes' ? 'font-medium text-destructive' : 'text-muted-foreground'}>
+      {text}
+      {recall === 'Yes' && (
+        <>
+          {' · '}
+          <a className="underline" href="https://www.themotorombudsman.org/vehicle-recalls" target="_blank" rel="noreferrer">
+            which one? (VIN check)
+          </a>
+        </>
+      )}
+    </p>
+  )
+}
+
 function MotReport({ derived }: { derived: MotDerived }) {
   const vehicle = [
     derived.make,
     derived.model,
     derived.fuel_type,
     derived.colour,
-    derived.first_used_date ? 'first used ' + derived.first_used_date.slice(0, 4) : null,
+    derived.built ? 'built ' + formatMonth(derived.built) : null,
+    !derived.built && derived.first_used_date ? 'first used ' + derived.first_used_date.slice(0, 4) : null,
   ]
     .filter(Boolean)
     .join(' · ')
@@ -126,6 +157,8 @@ function MotReport({ derived }: { derived: MotDerived }) {
           </span>
         )}
       </p>
+
+      <RecallLine recall={derived.recall} />
 
       {counts && (
         <p

@@ -310,3 +310,48 @@ def fill_all_from_descriptions(conn) -> list[int]:
             )
             changed.append(row["id"])
     return changed
+
+
+# ---------------------------------------------------------------- engines (D-066)
+
+SEVEL = ["Ducato", "Relay", "Jumper", "Boxer"]
+
+# Shortcuts the Notes view's model picker offers: badges that are one van.
+MODEL_FAMILIES = {
+    "Sevel (Ducato, Relay, Jumper, Boxer)": SEVEL,
+}
+
+# (name, models, cc_min, cc_max, built_from, built_to) — build months 'YYYY-MM',
+# either end open. engine_guess() names an engine only when exactly one row fits,
+# so two engines of the same size are told apart by build date or left blank.
+# Only the Sevel family so far: the only notes that depend on an engine.
+ENGINES = [
+    ("2.3 MultiJet", ["Ducato"], 2250, 2320, None, None),
+    ("2.0 MultiJet", ["Ducato"], 1920, 1990, None, None),
+    ("2.2 MultiJet", ["Ducato"], 2150, 2210, "2021-07", None),
+    ("3.0 MultiJet", ["Ducato"], 2950, 3020, None, None),
+    ("2.2 HDi", ["Relay", "Jumper", "Boxer"], 2170, 2210, None, "2016-12"),
+    ("3.0 HDi", ["Relay", "Jumper", "Boxer"], 2950, 3020, None, "2016-12"),
+    ("2.0 BlueHDi", ["Relay", "Jumper", "Boxer"], 1960, 2010, "2016-01", None),
+    ("2.2 BlueHDi", ["Relay", "Jumper", "Boxer"], 2170, 2210, "2019-05", None),
+]
+
+
+def engine_guess(model, engine_size, built) -> str | None:
+    """The engine a van has, from its base model, DVSA's engineSize (cc) and its
+    build date ('YYYY-MM-DD' or None). None unless exactly one engine fits; with no
+    build date, any engine whose size fits counts as fitting."""
+    model = canonical_model(model) if model else None
+    try:
+        cc = int(float(str(engine_size)))
+    except (TypeError, ValueError):
+        return None
+    month = str(built)[:7] if built else None
+    fits = [
+        name
+        for name, models, lo, hi, start, end in ENGINES
+        if model in models
+        and lo <= cc <= hi
+        and (month is None or ((start is None or month >= start) and (end is None or month <= end)))
+    ]
+    return fits[0] if len(fits) == 1 else None

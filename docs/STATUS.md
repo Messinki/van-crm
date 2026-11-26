@@ -37,14 +37,19 @@ Notes for working in `frontend/`:
 
 Open, not blocking:
 
-- Van-type notes (D-061–D-065): 32 researched fault notes in `notes/van-notes.json`
-  (committed; edit it directly or through the Notes view). No sources kept, and a
-  note whose details weren't found is left out. The Relay/Boxer/Jumper/Ducato ones are
-  layered (body, engine by years) and each build-dated recall is its own note ranged
-  to its build years + 1 (D-064) — keep new notes to that shape. Honest John's van
-  guides are gone since it became Drive. Movano was dropped from the 2019–2024 Master
-  note (later Movanos are Ducato-based); no note covers 2019+ Movanos. The old
-  `van_notes` table is still in the DB, unused (D-065).
+- Van-type notes (D-061–D-067): 29 notes in `notes/van-notes.json` (committed; edit
+  it directly or through the Notes view), 11 of them recalls. No sources kept, and a
+  note whose details weren't found is left out. Sevel notes are layered: a body note
+  for all four badges, engine notes limited by **engine** rather than years, recalls
+  one per build window (merged across badges where Fiat and PSA recalled the same
+  part — the window is the wider of the two). Honest John's van guides are gone since
+  it became Drive. No note covers 2019+ Movanos. The old `van_notes` table is still
+  in the DB, unused (D-065).
+- Engine guessing (D-066) covers the Sevel family only. Of 253 looked-up vans, 33 have
+  DVSA's outstanding-recall flag set (shown as a red **Recall** badge in the MOT
+  column). The VIN check's not-found and bad-VIN paths were tried against live DVSA;
+  a successful VIN lookup hasn't been seen yet — no real VIN to hand. Try one at the
+  next viewing.
 - Edits made in the Notes view change `notes/van-notes.json`, so they show as an
   uncommitted change until the next commit.
 

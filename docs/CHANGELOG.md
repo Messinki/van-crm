@@ -17,6 +17,19 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: richer van-note matching, engine, VIN and recall flag (2026-11-26)
+- The MOT lookup's cached data now gives each van a build date, an outstanding-recall
+  flag (red **Recall** badge in the MOT column, a line in the MOT report) and a
+  guessed engine (D-066).
+- New listing fields: Engine (guess shown as placeholder; title wording used too),
+  Gearbox, and VIN with a live DVSA **Check** for plate mismatches and recalls (D-066).
+- Van notes match on build month, engine, gearbox and mileage; unknowns show greyed
+  as "may apply" with the reason; recalls get their own heading with dates written
+  from the note (D-067).
+- Notes rewritten to match: engine notes use the engine condition, recalls are one
+  line each with month windows, duplicated Sevel recalls merged, Sprinter's undated
+  fuel-leak recall dropped.
+
 ## Goal: van notes in a file, recalls by build year (2026-11-26)
 - Van notes moved from the database to `notes/van-notes.json`, committed to git; the
   Notes view and API are unchanged (D-065).

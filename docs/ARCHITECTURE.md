@@ -22,7 +22,10 @@ Backend modules, all under `app/`:
   the bulk `check_all` sweep. `PROGRESS` and `CHECK_PROGRESS` are module-level dicts the
   frontend polls while a scrape or sweep runs.
 - **`mot.py`** — DVSA MOT History API: OAuth (cached token), fetch, 7-day `mot_cache`,
-  derived fields (expiry, mileage series, defect flags), plus everything plate-shaped:
+  derived fields (expiry, mileage series, defect flags; since D-066 also the build
+  date `manufactureDate`, the `hasOutstandingRecall` flag and an `engine_guess` —
+  all in `summary()`, read from the cache), `fetch_by_vin()` for the live VIN check,
+  plus everything plate-shaped:
   `clean_reg()`, `extract_reg()`, and `plate_issued()`, which refuses a current-style
   plate whose age identifier isn't issued yet (a model code like "LM35dCi", D-057) —
   `extract_reg()` drops those, hand entry answers 400, and `clear_unissued_regs()` in
@@ -33,6 +36,9 @@ Backend modules, all under `app/`:
   validation, the eBay scrape/import and the plate lookup all run make/model
   through. `tidy_all()` runs at startup and tidies any stored row that differs.
   New base models or make aliases go in its `BASE_MODELS` / `MAKE_ALIASES`.
+  `ENGINES` + `engine_guess()` name a van's engine from model, cc and build month
+  when exactly one fits (Sevel family only so far, D-066); `MODEL_FAMILIES` are the
+  Notes view's "tick all of these" shortcuts.
   `description_hints()` reads size codes and Plus VAT wording out of the title and
   notes, and wheelbase words for the models in `WHEELBASE_LENGTHS` (D-059, mirrors
   `docs/WHEELBASE.md`); `tidy()` uses it to fill empty Length/Height/VAT on any write
@@ -48,7 +54,9 @@ Backend modules, all under `app/`:
 - **`vannotes.py`** — van-type notes (D-061) live in `notes/van-notes.json`, not the
   DB (D-065): read on every request, rewritten whole (via a temp file) on every save.
   Each note's comment is a `lines` list in the file and one `comment` string in the
-  API. Hand edits show on the next page load; a broken file answers 500 with the
+  API. A note also has `kind` (fault/recall), `models`, `built_from`/`built_to`
+  ('YYYY' or 'YYYY-MM') and optional `engines`, `gearbox`, `mileage_min`/`max`
+  (D-067); a key left out of a hand edit reads as unset. Hand edits show on the next page load; a broken file answers 500 with the
   parse error. `import_from_db()` copied the old `van_notes` table across once at startup.
 - **`geo.py`** — UK geocoding through postcodes.io (D-048): `locate()` turns a
   free-text location into coordinates, `locate_listing()` stores them on one listing,
@@ -107,10 +115,16 @@ notes autosave on a debounce (D-029), and VAT, size-code and wheelbase wording i
 them is highlighted yellow (D-056).
 The topbar's **Table | Map** toggle swaps the table for a map of the same rows:
 clustered van pins, home pins, and a card per pin that opens the popup (D-049).
-**Notes** swaps it for a list of van-type notes (common faults): each box ticks base
-models, an optional year range and a comment, all editable in place. A van's popup
-shows the notes that match its model and year as a read-only **Known issues** list in
-the right half of the MOT section (D-061, D-062; matching in `lib/vanNotes.ts`).
+**Notes** swaps it for a list of van-type notes (faults and recalls): each box has
+its kind, ticked base models, a build window and a comment, plus engine / gearbox /
+mileage chips when a note needs them, all editable in place. A van's popup shows the
+matching notes as a read-only **Known issues** list in the right half of the MOT
+section: definite matches, then recalls under one heading with their build dates,
+then "may apply" notes greyed with the reason (D-061, D-062, D-067; matching in
+`lib/vanNotes.ts`, where `vanFacts()` takes the build month from DVSA, else the
+listed year, and the engine from the Engine field, else DVSA, else the title).
+The popup's Details also has **Engine** (placeholder shows the guessed engine) and
+**Gearbox**; the MOT section has **VIN** with a **Check** button (D-066).
 Topbar: **Scrape eBay** (runs all enabled saved searches), **Check live** (bulk liveness
 sweep), **Add listing ▾** (manual entry with plate lookup, or import from an eBay URL),
 **Searches**, **Homes** and **Columns** modals.
@@ -163,13 +177,16 @@ nothing. (The popup was a side drawer when the registry was written, hence the
 ## API surface
 
 - `GET /api/listings` · `POST /api/listings` · `PATCH|DELETE /api/listings/{id}`
-- `GET /api/schema` — the field registry, plus `models` (base models by make, D-061)
+- `GET /api/schema` — the field registry, plus `models` (base models by make, D-061),
+  `model_families` and `engines` (D-066/D-067)
 - `POST /api/scrape` + `GET /api/scrape/progress`
 - `POST /api/import/ebay` — from a pasted URL, short link, or bare item id
 - `POST /api/listings/{id}/check` — single liveness check
 - `POST /api/listings/check-all` + `GET /api/listings/check-all/progress` — bulk sweep
 - `GET|POST /api/listings/{id}/mot` — cached MOT / fetch (`?force=true` bypasses cache)
 - `POST /api/lookup/reg` — merged DVSA (+ VES when configured) plate lookup
+- `POST /api/listings/{id}/vin-check` — live DVSA lookup of the listing's VIN: the
+  plate DVSA has for it (`reg_matches`), recall flag, build date (D-066)
 - `GET/POST/PATCH/DELETE /api/searches[/{id}]` and `/api/properties[/{id}]`
 - `GET/POST/PATCH/DELETE /api/homes[/{id}]` — a new or changed postcode is geocoded;
   unknown → 422, postcodes.io unreachable → 503

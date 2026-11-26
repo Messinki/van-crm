@@ -13,7 +13,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ExternalLinkIcon, MapPinIcon } from 'lucide-react'
 
-import { useRegLookup, useUpdateListing } from '@/api/queries'
+import { errorMessage } from '@/api/client'
+import { useRegLookup, useUpdateListing, useVinCheck } from '@/api/queries'
+import { formatMonth, RecallLine } from './MotPanel'
 import { DistanceValue } from '@/components/DistanceValue'
 import { HighlightTextarea } from '@/components/HighlightTextarea'
 import { Button } from '@/components/ui/button'
@@ -27,7 +29,8 @@ import { VatChip, VatTotal } from '@/components/modals/VatToggle'
 import { NUMERIC_TYPES, specLabel } from '@/lib/filtering'
 import { cleanReg, formatReg, plusVat } from '@/lib/format'
 import { LOOKUP_FILLS, type LookupState } from '@/lib/lookup'
-import type { FieldSpec, Listing, PropertyDef } from '@/lib/schema'
+import type { FieldSpec, Listing, PropertyDef, Schema, VinCheckResult } from '@/lib/schema'
+import { vanEngine } from '@/lib/vanNotes'
 
 /** Label + control, the shape every row in the dialog takes. `htmlFor` ties the
  *  two together — the control carries the matching id. */
@@ -308,6 +311,113 @@ export function DistanceField({ listing, spec }: { listing: Listing; spec: Field
       <output id={id} className="flex h-8 items-center text-sm">
         <DistanceValue listing={listing} />
       </output>
+    </Field>
+  )
+}
+
+/** Engine (D-066): typed by hand, or left empty to go by the engine DVSA's
+ *  engine size and build date point to — shown as the placeholder. The
+ *  suggestions are the known engines for this model. */
+export function EngineField({ listing, schema }: { listing: Listing; schema: Schema }) {
+  const save = useSaveField(listing)
+  const id = 'detail-engine'
+  const box = useCommit<HTMLInputElement>(listing.engine ?? '', (raw) => save('engine', asText(raw.trim())))
+  const found = vanEngine(listing, schema)
+  const guess = found && found.source !== 'typed' ? found : null
+  const size = listing.mot?.engine_size
+  const options = schema.engines.filter((e) => !listing.model || e.models.includes(listing.model))
+  return (
+    <Field label="Engine" htmlFor={id}>
+      <Input
+        {...box.props}
+        id={id}
+        className="h-8"
+        list={id + '-options'}
+        placeholder={guess ? `${guess.name} (from ${guess.source})` : size ? `${size}cc — type the engine` : ''}
+        title={
+          guess
+            ? guess.source === 'DVSA'
+              ? 'From DVSA engine size and build date — type to override'
+              : 'Named in the title — type to override'
+            : undefined
+        }
+      />
+      <datalist id={id + '-options'}>
+        {options.map((e) => (
+          <option key={e.name} value={e.name} />
+        ))}
+      </datalist>
+    </Field>
+  )
+}
+
+/** VIN + DVSA check (D-066), for viewings: which plate DVSA has for this VIN,
+ *  and whether any recall is outstanding. Live each time, not cached. */
+export function VinField({ listing }: { listing: Listing }) {
+  const save = useSaveField(listing)
+  const update = useUpdateListing()
+  const check = useVinCheck()
+  const id = 'detail-vin'
+  const box = useCommit<HTMLInputElement>(listing.vin ?? '', (raw) =>
+    save('vin', asText(raw.replace(/\s+/g, '').toUpperCase())),
+  )
+  const [result, setResult] = useState<VinCheckResult | null>(null)
+  const [error, setError] = useState('')
+
+  const run = () => {
+    setError('')
+    setResult(null)
+    const doCheck = () =>
+      check.mutate(listing.id, { onSuccess: setResult, onError: (err) => setError(errorMessage(err)) })
+    // The check reads the stored VIN, so a just-typed one is saved first.
+    const typed = (box.props.ref.current?.value ?? '').replace(/\s+/g, '').toUpperCase() || null
+    if (typed === (listing.vin ?? null)) return doCheck()
+    update.mutate(
+      { id: listing.id, fields: { vin: typed } },
+      { onSuccess: doCheck, onError: (err) => setError(errorMessage(err)) },
+    )
+  }
+
+  return (
+    <Field label="VIN" htmlFor={id}>
+      <div className="flex gap-2">
+        <Input {...box.props} id={id} className="h-8 font-mono uppercase" placeholder="17 characters, from the V5C or windscreen" />
+        <Button variant="outline" size="sm" disabled={check.isPending} onClick={run} title="Look this VIN up at DVSA">
+          {check.isPending ? 'Checking…' : 'Check'}
+        </Button>
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      {result && (
+        <div className="space-y-0.5 text-sm">
+          <p>
+            {[result.make, result.model, result.built ? 'built ' + formatMonth(result.built) : null, result.engine_size ? result.engine_size + 'cc' : null]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+          {result.registration && result.reg_matches === false && (
+            <p className="font-medium text-destructive">
+              DVSA has this VIN on {formatReg(result.registration)}, not {formatReg(listing.reg)} — ask why before going further
+            </p>
+          )}
+          {result.registration && result.reg_matches === true && (
+            <p className="text-green-700 dark:text-green-400">Matches the plate {formatReg(listing.reg)}</p>
+          )}
+          {result.registration && result.reg_matches === null && (
+            <p>
+              Registered as {formatReg(result.registration)}{' '}
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0"
+                onClick={() => update.mutate({ id: listing.id, fields: { reg: result.registration } })}
+              >
+                use this plate
+              </Button>
+            </p>
+          )}
+          <RecallLine recall={result.recall} />
+        </div>
+      )}
     </Field>
   )
 }

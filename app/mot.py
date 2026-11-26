@@ -15,11 +15,13 @@ from datetime import date, datetime, timedelta, timezone
 
 import httpx
 
-from app import db
+from app import db, normalise
 
 DVSA_VARS = ("DVSA_CLIENT_ID", "DVSA_CLIENT_SECRET", "DVSA_API_KEY", "DVSA_TOKEN_URL", "DVSA_SCOPE")
 
 HISTORY_URL = "https://history.mot.api.gov.uk/v1/trade/vehicles/registration/{reg}"
+# Same response shape as HISTORY_URL (D-066, checked against the live spec 2026-11-26).
+VIN_URL = "https://history.mot.api.gov.uk/v1/trade/vehicles/vin/{vin}"
 VES_URL = "https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles"
 
 TIMEOUT = 30.0
@@ -47,6 +49,10 @@ REG_RE = re.compile(r"\b[A-Z]{2}[0-9]{2}\s?[A-Z]{3}\b", re.IGNORECASE)
 # A cleaned current-style plate (2001 on): two letters, the age identifier, three
 # letters. The age identifier is the one part with a rule that can be checked.
 CURRENT_STYLE = re.compile(r"\A[A-Z]{2}([0-9]{2})[A-Z]{3}\Z")
+
+# A VIN (ISO 3779): 17 letters and digits, never I, O or Q. Checked before it goes
+# into the URL path, like the plate.
+VIN_RE = re.compile(r"\A[A-HJ-NPR-Z0-9]{17}\Z")
 
 RECENT_YEARS = 3
 KEYWORDS = ("corrod", "rust", "oil leak", "excessively")
@@ -163,9 +169,29 @@ def extract_reg(*texts: str | None, today: date | None = None) -> str | None:
     return found.pop() if len(found) == 1 else None
 
 
+def clean_vin(vin) -> str:
+    """The VIN as the API wants it in a path segment, or MotError(400)."""
+    cleaned = str(vin or "").replace(" ", "").upper()
+    if not cleaned:
+        raise MotError(400, "enter a VIN")
+    if not VIN_RE.match(cleaned):
+        raise MotError(400, f"'{cleaned}' is not a VIN — 17 letters and digits, never I, O or Q")
+    return cleaned
+
+
+def fetch_by_vin(vin: str) -> dict:
+    """The vehicle and its MOT history by VIN (D-066). Not cached: a viewing-time check."""
+    vin = clean_vin(vin)
+    return _fetch(VIN_URL.format(vin=vin), f"No vehicle found for VIN {vin}", vin)
+
+
 def fetch_history(reg: str) -> dict:
     """The vehicle's full MOT history, verbatim. Raises MotError on anything else."""
     reg = clean_reg(reg)
+    return _fetch(HISTORY_URL.format(reg=reg), f"No MOT record found for {reg}", reg)
+
+
+def _fetch(url: str, not_found: str, what: str) -> dict:
 
     def call(fresh_token: bool):
         headers = {
@@ -174,7 +200,7 @@ def fetch_history(reg: str) -> dict:
             "Accept": "application/json",
         }
         try:
-            return httpx.get(HISTORY_URL.format(reg=reg), headers=headers, timeout=TIMEOUT)
+            return httpx.get(url, headers=headers, timeout=TIMEOUT)
         except httpx.HTTPError:
             raise MotError(502, "Could not reach the DVSA MOT History API — check your connection")
 
@@ -189,9 +215,9 @@ def fetch_history(reg: str) -> dict:
     if response.status_code == 200:
         return response.json()
     if response.status_code == 404:
-        raise MotError(404, f"No MOT record found for {reg}")
+        raise MotError(404, not_found)
     if response.status_code == 400:
-        raise MotError(400, f"'{reg}' is not a registration the DVSA API accepts")
+        raise MotError(400, f"'{what}' is not something the DVSA API accepts")
     # Reaching here means the token call already succeeded, so the client id and
     # secret are good and only the two remaining credentials are suspects. Naming
     # the likely one beats sending you back to re-check all five.
@@ -349,6 +375,10 @@ def derive(raw: dict) -> dict:
         "first_used_date": raw.get("firstUsedDate"),
         "colour": raw.get("primaryColour"),
         "engine_size": raw.get("engineSize"),
+        # D-066: build date, first registration and the DVSA Recalls flag.
+        "built": raw.get("manufactureDate"),
+        "registered": raw.get("registrationDate"),
+        "recall": raw.get("hasOutstandingRecall"),
         "latest_result": latest["result"] if latest else None,
         "latest_expiry": latest_expiry,
         "latest_test_date": latest["date"] if latest else None,
@@ -382,4 +412,9 @@ def summary(raw: dict, fetched_at: str) -> dict:
         "mileage_warning": d["mileage_warning"],
         "flagged": bool(d["keyword_flags"]),
         "fetched_at": fetched_at,
+        # D-066: what van notes match on (D-067), and the recall flag.
+        "built": d["built"],
+        "engine_size": d["engine_size"],
+        "engine_guess": normalise.engine_guess(d["model"], d["engine_size"], d["built"]),
+        "recall": d["recall"],
     }

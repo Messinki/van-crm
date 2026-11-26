@@ -112,6 +112,10 @@ MIGRATIONS = [
     ("listings", "lat", "REAL"),
     ("listings", "lng", "REAL"),
     ("listings", "geocoded_from", "TEXT"),
+    # D-066: engine (typed; wins over the DVSA-derived guess), gearbox, VIN.
+    ("listings", "engine", "TEXT"),
+    ("listings", "gearbox", "TEXT"),
+    ("listings", "vin", "TEXT"),
 ]
 
 SEED_SEARCHES = [

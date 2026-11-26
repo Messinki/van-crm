@@ -1,14 +1,19 @@
 [
   {
     "id": 21,
+    "kind": "fault",
     "models": [
       "Relay",
       "Jumper",
       "Boxer",
       "Ducato"
     ],
-    "year_min": null,
-    "year_max": 2013,
+    "built_from": null,
+    "built_to": "2013",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "Front crossmember + front-right chassis leg trap water – heavy rust = big bill",
       "Rust: fuel filler neck, step panels, sump, exhaust",
@@ -20,14 +25,19 @@
   },
   {
     "id": 22,
+    "kind": "fault",
     "models": [
       "Relay",
       "Jumper",
       "Boxer",
       "Ducato"
     ],
-    "year_min": 2006,
-    "year_max": 2014,
+    "built_from": "2006",
+    "built_to": "2014",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "Judder reversing uphill (worse on 6-speed)",
       "Worn 5th/6th gear bearings",
@@ -40,24 +50,37 @@
   },
   {
     "id": 23,
+    "kind": "recall",
     "models": [
+      "Relay",
+      "Jumper",
+      "Boxer",
       "Ducato"
     ],
-    "year_min": 2006,
-    "year_max": 2011,
+    "built_from": "2006",
+    "built_to": "2010",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Recall: spare wheel may detach – built Apr 2006–Mar 2010 – check VIN on gov.uk"
+      "Spare wheel may detach (winch)"
     ],
     "created_at": "2026-11-26T15:33:49Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 25,
+    "kind": "fault",
     "models": [
       "Transit"
     ],
-    "year_min": 2014,
-    "year_max": 2019,
+    "built_from": "2014",
+    "built_to": "2019",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "Clutch slip/judder pulling away in 2nd",
       "Rear suspension tired",
@@ -73,11 +96,16 @@
   },
   {
     "id": 26,
+    "kind": "fault",
     "models": [
       "Transit Custom"
     ],
-    "year_min": 2012,
-    "year_max": 2016,
+    "built_from": "2012",
+    "built_to": "2016",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "Turbo actuator seizes – limp mode",
       "DPF clogs on short trips; EGR carbon build-up",
@@ -88,14 +116,19 @@
   },
   {
     "id": 27,
+    "kind": "fault",
     "models": [
       "Master",
       "Movano",
       "NV400",
       "Interstar"
     ],
-    "year_min": 2010,
-    "year_max": 2019,
+    "built_from": "2010",
+    "built_to": "2019",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "EGR valve fails – power loss, black smoke",
       "EGR cooler leaks – coolant loss, white smoke",
@@ -110,13 +143,18 @@
   },
   {
     "id": 28,
+    "kind": "fault",
     "models": [
       "Master",
       "NV400",
       "Interstar"
     ],
-    "year_min": 2019,
-    "year_max": 2024,
+    "built_from": "2019",
+    "built_to": "2024",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "AdBlue faults – NOx sensors, crystallised injector, pump/heater",
       "DPF regen faults tied to EGR – limp mode",
@@ -128,17 +166,21 @@
   },
   {
     "id": 29,
+    "kind": "fault",
     "models": [
       "Sprinter"
     ],
-    "year_min": 2006,
-    "year_max": 2018,
+    "built_from": "2006",
+    "built_to": "2018",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "Injector seals leak – chuffing, fuel smell, black carbon (£150–500)",
       "Propshaft fails ~100k miles (~£800 dealer)",
       "Brake-light switch fails",
       "Door check straps fail; sliding doors jam",
-      "Recall: fuel leaks – check VIN on gov.uk",
       "Rust: rear arches, sliding-door sill, rear crossmember",
       "Service history matters most"
     ],
@@ -147,11 +189,16 @@
   },
   {
     "id": 30,
+    "kind": "fault",
     "models": [
       "Crafter"
     ],
-    "year_min": 2011,
-    "year_max": 2016,
+    "built_from": "2011",
+    "built_to": "2016",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "Rust: rear arches, sliding-door sill, rear crossmember (Sprinter body)",
       "EGR clogging, injector seals",
@@ -169,11 +216,16 @@
   },
   {
     "id": 31,
+    "kind": "fault",
     "models": [
       "Crafter"
     ],
-    "year_min": 2017,
-    "year_max": null,
+    "built_from": "2017",
+    "built_to": null,
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "Early vans: injection teething trouble; 2019+ better",
       "DPF sensor faults – constant regens, fuel dilution",
@@ -187,14 +239,19 @@
   },
   {
     "id": 32,
+    "kind": "fault",
     "models": [
       "Relay",
       "Jumper",
       "Boxer",
       "Ducato"
     ],
-    "year_min": 2006,
-    "year_max": null,
+    "built_from": "2006",
+    "built_to": null,
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "Scuttle water ingress – #1 check: blocked drains flood engine bay, kill injectors/wiring/ECU (up to €1,500)",
       "Look for water between cam covers, wet injector plugs, damp passenger footwell",
@@ -208,12 +265,17 @@
   },
   {
     "id": 33,
+    "kind": "fault",
     "models": [
       "Transit Custom",
       "Transit"
     ],
-    "year_min": 2017,
-    "year_max": null,
+    "built_from": "2017",
+    "built_to": null,
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "Wet cambelt (runs in oil): change every 10 yrs / 144k miles",
       "Ask when done + what oil used",
@@ -224,29 +286,39 @@
   },
   {
     "id": 34,
+    "kind": "fault",
     "models": [
       "Ducato"
     ],
-    "year_min": 2006,
-    "year_max": 2021,
+    "built_from": null,
+    "built_to": null,
+    "engines": [
+      "2.3 MultiJet"
+    ],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Fiat 2.3 MultiJet engine (replaced by a 2.2 end of 2021 – check VIN on 2021 vans)",
-      "Some Ducatos have a 2.0 MultiJet instead – this note is the 2.3 only",
       "Cambelt, not chain, on 130/150/180hp – ask for the receipt",
       "Injectors wear; retaining bolts seize on removal (up to €2,500)",
       "Turbo vanes/actuator stick (up to €2,200)",
       "ECU fails from water or heat (up to €800)"
     ],
     "created_at": "2026-11-26T15:33:49Z",
-    "updated_at": "2026-11-26T15:33:49Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 35,
+    "kind": "fault",
     "models": [
       "Ducato"
     ],
-    "year_min": 2016,
-    "year_max": 2019,
+    "built_from": "2016",
+    "built_to": "2019",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "Twin EGR (Euro 6 without AdBlue) – low-pressure EGR clogs, very hard to reach (up to €2,000)",
       "Some 2016-19 vans had AdBlue instead – check papers/VIN, not reg year"
@@ -256,11 +328,16 @@
   },
   {
     "id": 36,
+    "kind": "fault",
     "models": [
       "Ducato"
     ],
-    "year_min": 2019,
-    "year_max": 2021,
+    "built_from": "2019",
+    "built_to": "2021",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
       "AdBlue/SCR: injector crystallises, NOx sensor, tank sender – start countdown (up to €1,500)"
     ],
@@ -269,253 +346,287 @@
   },
   {
     "id": 37,
+    "kind": "fault",
     "models": [
       "Relay",
       "Jumper",
       "Boxer"
     ],
-    "year_min": 2006,
-    "year_max": 2016,
+    "built_from": null,
+    "built_to": null,
+    "engines": [
+      "2.2 HDi"
+    ],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Ford-built 2.2 HDi engine (2.0 BlueHDi took over in 2016 – check logbook)",
       "Oil pump chain tensioner can snap – no warning, oil starvation (up to €4,000)",
       "Timing chain stretch – metallic rattle on cold start (up to €1,800)",
       "EGR clogs – rough running (up to €800)",
       "Turbo fails ~95–125k miles (up to €2,500)"
     ],
     "created_at": "2026-11-26T15:33:49Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 38,
+    "kind": "fault",
     "models": [
       "Relay",
       "Jumper",
       "Boxer"
     ],
-    "year_min": 2016,
-    "year_max": 2019,
+    "built_from": null,
+    "built_to": null,
+    "engines": [
+      "2.0 BlueHDi"
+    ],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "2.0 BlueHDi engine (2016–mid 2019 – check logbook)",
       "AdBlue faults common as they age: low-pressure code P20E8, temp sensor stuck – often a new AdBlue tank",
       "NOx sensor fault (U059E) – usually a new sensor"
     ],
     "created_at": "2026-11-26T15:33:49Z",
-    "updated_at": "2026-11-26T15:33:49Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 39,
+    "kind": "fault",
     "models": [
       "Relay",
       "Jumper",
       "Boxer"
     ],
-    "year_min": 2019,
-    "year_max": null,
+    "built_from": null,
+    "built_to": null,
+    "engines": [
+      "2.2 BlueHDi"
+    ],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "2.2 BlueHDi engine (from June 2019 – check logbook)",
       "AdBlue/SCR: NOx sensor, pump or injector – start inhibit (up to €1,500)",
       "Vans that sat for months: crystallised AdBlue injector",
       "EGR clogs (up to €800); turbo actuator sticks (up to €2,000)"
     ],
     "created_at": "2026-11-26T15:33:49Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 40,
+    "kind": "recall",
     "models": [
       "Ducato"
     ],
-    "year_min": 2011,
-    "year_max": 2012,
+    "built_from": "2011-09",
+    "built_to": "2011-09",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Recall: rear axle may move – built Sept 2011 – check VIN on gov.uk"
+      "Rear axle may move"
     ],
     "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 41,
+    "kind": "recall",
     "models": [
+      "Relay",
+      "Jumper",
+      "Boxer",
       "Ducato"
     ],
-    "year_min": 2014,
-    "year_max": 2016,
+    "built_from": "2014-09",
+    "built_to": "2015-06",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Recall: ignition switch can cut dash + ABS – built Oct 2014–Jun 2015 – check VIN on gov.uk"
+      "Ignition switch can cut dash + ABS"
     ],
     "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 42,
+    "kind": "recall",
     "models": [
       "Ducato"
     ],
-    "year_min": 2014,
-    "year_max": 2020,
+    "built_from": "2014",
+    "built_to": "2019",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Recall: brake pipes rubbing – built 2014–2019 – check VIN on gov.uk"
+      "Brake pipes rubbing"
     ],
     "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 43,
+    "kind": "recall",
     "models": [
       "Ducato"
     ],
-    "year_min": 2016,
-    "year_max": 2018,
+    "built_from": "2016",
+    "built_to": "2017",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Recall: EGR pipe fracture, fire risk – built 2016–2017 – check VIN on gov.uk",
-      "Recall: intercooler sleeve detaches – built 2016–2017 – check VIN on gov.uk"
+      "EGR pipe fracture, fire risk",
+      "Intercooler sleeve detaches"
     ],
     "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 44,
+    "kind": "recall",
     "models": [
       "Ducato"
     ],
-    "year_min": 2018,
-    "year_max": 2020,
+    "built_from": "2018",
+    "built_to": "2019",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Recall: alternator cable near driveshaft, fire risk – built 2018–2019 – check VIN on gov.uk"
+      "Alternator cable near driveshaft, fire risk"
     ],
     "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 45,
-    "models": [
-      "Ducato"
-    ],
-    "year_min": 2019,
-    "year_max": 2020,
-    "lines": [
-      "Recall: wheel axle defect – built 2019 – check VIN on gov.uk"
-    ],
-    "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
-  },
-  {
-    "id": 46,
+    "kind": "recall",
     "models": [
       "Relay",
       "Jumper",
-      "Boxer"
+      "Boxer",
+      "Ducato"
     ],
-    "year_min": 2006,
-    "year_max": 2011,
+    "built_from": "2019",
+    "built_to": "2019",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Recall (Relay): spare wheel winch – built 2006–2010 – check VIN on gov.uk"
+      "Wheel axle defect (critical)"
     ],
     "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 47,
+    "kind": "recall",
     "models": [
       "Relay",
       "Jumper",
       "Boxer"
     ],
-    "year_min": 2014,
-    "year_max": 2015,
+    "built_from": "2014-09",
+    "built_to": "2014-11",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Recall (Relay): injector fault – built Sep–Nov 2014 – check VIN on gov.uk"
+      "Injector fault"
     ],
     "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
-  },
-  {
-    "id": 48,
-    "models": [
-      "Relay",
-      "Jumper",
-      "Boxer"
-    ],
-    "year_min": 2014,
-    "year_max": 2016,
-    "lines": [
-      "Recall (Relay): ignition switch – built Sep 2014–Jun 2015 – check VIN on gov.uk"
-    ],
-    "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 49,
+    "kind": "fault",
     "models": [
       "Relay",
       "Jumper",
       "Boxer"
     ],
-    "year_min": 2019,
-    "year_max": 2022,
+    "built_from": "2019-09",
+    "built_to": "2021-05",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "'Engine start in 100 km no longer possible' + P20EE – built Sept 2019–May 2021 – dealer software update"
-    ],
-    "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
-  },
-  {
-    "id": 50,
-    "models": [
-      "Relay",
-      "Jumper",
-      "Boxer"
-    ],
-    "year_min": 2019,
-    "year_max": 2020,
-    "lines": [
-      "Recall: wheel axle (critical) – built Apr–Jun 2019 – check VIN on gov.uk"
+      "'Engine start in 100 km no longer possible' + P20EE – dealer software update"
     ],
     "created_at": "2026-11-26T15:44:11Z",
     "updated_at": "2026-11-26T15:44:11Z"
   },
   {
     "id": 51,
+    "kind": "recall",
     "models": [
       "Relay",
       "Jumper",
       "Boxer"
     ],
-    "year_min": 2020,
-    "year_max": 2023,
+    "built_from": "2020-05",
+    "built_to": "2022-12",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Recall: ECU warning lamp – built May 2020–Dec 2022 – check VIN on gov.uk"
+      "ECU warning lamp"
     ],
     "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 52,
+    "kind": "recall",
     "models": [
       "Relay",
       "Jumper",
       "Boxer"
     ],
-    "year_min": 2023,
-    "year_max": 2024,
+    "built_from": "2023-03",
+    "built_to": "2023-09",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Recall: steering line leak – built Mar–Sep 2023 – check VIN on gov.uk"
+      "Steering line leak"
     ],
     "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   },
   {
     "id": 53,
+    "kind": "recall",
     "models": [
       "Sprinter"
     ],
-    "year_min": 2008,
-    "year_max": 2009,
+    "built_from": "2008",
+    "built_to": "2008",
+    "engines": [],
+    "gearbox": null,
+    "mileage_min": null,
+    "mileage_max": null,
     "lines": [
-      "Recall: axle – 2008 vans – check VIN on gov.uk"
+      "Axle"
     ],
     "created_at": "2026-11-26T15:44:11Z",
-    "updated_at": "2026-11-26T15:44:11Z"
+    "updated_at": "2026-11-26T16:25:52Z"
   }
 ]

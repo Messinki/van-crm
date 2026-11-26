@@ -18,6 +18,7 @@ import type {
   GeocodeResult,
   Home,
   VanNote,
+  VinCheckResult,
   Listing,
   MotResponse,
   PropertyDef,
@@ -325,6 +326,14 @@ export function useFetchMot(silent = false) {
 }
 
 /* ------------------------------------------------------------- reg lookup */
+
+/** The DVSA VIN check (D-066). Live, never cached; errors show beside the box. */
+export function useVinCheck() {
+  return useMutation({
+    mutationFn: (id: number) => post<VinCheckResult>(`/api/listings/${id}/vin-check`),
+    meta: { silent: true },
+  })
+}
 
 export function useRegLookup() {
   return useMutation({

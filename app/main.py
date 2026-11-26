@@ -34,6 +34,7 @@ PROPERTY_TYPES = ("text", "number", "checkbox", "select", "date")
 VAT_STATUSES = ("plus_vat",)
 HEIGHT_CODES = ("H1", "H2", "H3")
 LENGTH_CODES = ("L1", "L2", "L3", "L4")
+GEARBOXES = ("manual", "automatic")
 
 # ---------------------------------------------------------------- field registry
 #
@@ -126,6 +127,19 @@ FIELD_SPECS = [
         "section": "Details", "cell": "text",
     },
     {
+        # D-066: typed by hand. The popup's widget shows the engine DVSA's data
+        # points to (mot.engine_guess) when this is empty; van notes match on
+        # this, else on that guess (D-067).
+        "key": "engine", "label": "Engine", "type": "text", "editable": True,
+        "in_table": False, "in_form": True, "section": "Details", "widget": "engine",
+        "suggest": True,
+    },
+    {
+        "key": "gearbox", "label": "Gearbox", "type": "select", "options": list(GEARBOXES),
+        "labels": {"manual": "Manual", "automatic": "Automatic"}, "editable": True,
+        "in_table": False, "in_form": True, "section": "Details",
+    },
+    {
         "key": "reg", "label": "Reg", "type": "text", "editable": True,
         "in_form": True, "section": "Details", "cell": "reg", "widget": "reg_lookup",
     },
@@ -182,6 +196,11 @@ FIELD_SPECS = [
     {
         "key": "mot_due", "label": "MOT due", "type": "date", "editable": True,
         "in_form": True, "section": "MOT", "cell": "mot_due",
+    },
+    {
+        # D-066: typed at a viewing; its widget runs the DVSA VIN check.
+        "key": "vin", "label": "VIN", "type": "text", "editable": True,
+        "in_table": False, "in_form": False, "section": "MOT", "widget": "vin_check",
     },
     {
         # Not a column: the cached DVSA summary attached to every listing by
@@ -438,6 +457,19 @@ def clean_listing_fields(payload: dict, existing: dict | None = None) -> dict:
             if code and code not in LENGTH_CODES:
                 raise HTTPException(400, "length_code must be L1-L4")
             out[field] = code
+        elif field == "gearbox":
+            gearbox = _as_text(value)
+            if gearbox and gearbox not in GEARBOXES:
+                raise HTTPException(400, "gearbox must be manual or automatic")
+            out[field] = gearbox
+        elif field == "vin":
+            vin = _as_text(value)
+            if vin:
+                try:
+                    vin = mot.clean_vin(vin)
+                except mot.MotError as err:
+                    raise HTTPException(400, err.message)
+            out[field] = vin
         elif field == "mot_due":
             date = _as_text(value)
             if date:
@@ -538,6 +570,9 @@ def get_schema():
         "sources": list(SOURCES),
         # D-061: the van types a note can be ticked for, grouped by make.
         "models": normalise.BASE_MODELS,
+        # D-066/D-067: badge shortcuts and engines a note can be limited to.
+        "model_families": normalise.MODEL_FAMILIES,
+        "engines": [{"name": e[0], "models": e[1]} for e in normalise.ENGINES],
     }
 
 
@@ -891,20 +926,45 @@ def delete_home(home_id: int):
 _KNOWN_MODELS = [m for names in normalise.BASE_MODELS.values() for m in names]
 
 
+BUILT_RE = re.compile(r"^\d{4}(-(0[1-9]|1[0-2]))?$")
+NOTE_KINDS = ("fault", "recall")
+
+
 def _van_note_fields(payload: dict) -> dict:
-    """The columns a van-note payload sets, checked; 400 on anything unusable."""
-    allowed = {"models", "year_min", "year_max", "comment"}
+    """The fields a van-note payload sets (D-067), checked; 400 on anything unusable."""
+    allowed = {"kind", "models", "built_from", "built_to", "engines", "gearbox",
+               "mileage_min", "mileage_max", "comment"}
     unknown = set(payload) - allowed
     if unknown:
         raise HTTPException(400, f"cannot set field(s): {', '.join(sorted(unknown))}")
     fields = {}
+    if "kind" in payload:
+        if payload["kind"] not in NOTE_KINDS:
+            raise HTTPException(400, "kind must be fault or recall")
+        fields["kind"] = payload["kind"]
     if "models" in payload:
         models = payload["models"]
         if not isinstance(models, list) or any(m not in _KNOWN_MODELS for m in models):
             raise HTTPException(400, "models must be a list of known base models")
         # Stored in the registry's order, once each.
         fields["models"] = [m for m in _KNOWN_MODELS if m in models]
-    for key in ("year_min", "year_max"):
+    for key in ("built_from", "built_to"):
+        if key in payload:
+            value = _as_text(payload[key])
+            if value and not BUILT_RE.match(value):
+                raise HTTPException(400, f"{key} must be a year (2019) or a month (2019-04)")
+            fields[key] = value
+    if "engines" in payload:
+        engines = payload["engines"]
+        if not isinstance(engines, list) or not all(isinstance(e, str) and e.strip() for e in engines):
+            raise HTTPException(400, "engines must be a list of engine names")
+        fields["engines"] = list(dict.fromkeys(e.strip() for e in engines))
+    if "gearbox" in payload:
+        gearbox = _as_text(payload["gearbox"])
+        if gearbox and gearbox not in GEARBOXES:
+            raise HTTPException(400, "gearbox must be manual or automatic")
+        fields["gearbox"] = gearbox
+    for key in ("mileage_min", "mileage_max"):
         if key in payload:
             fields[key] = _as_number(payload[key], key, integer=True)
     if "comment" in payload:
@@ -925,7 +985,8 @@ def list_van_notes():
 
 @app.post("/api/van-notes", status_code=201)
 def create_van_note(payload: dict = Body(default={})):
-    fields = {"models": [], "year_min": None, "year_max": None, "comment": "", **_van_note_fields(payload)}
+    fields = {"kind": "fault", "models": [], "built_from": None, "built_to": None, "comment": "",
+              **_van_note_fields(payload)}
     fields["created_at"] = fields["updated_at"] = db.now_iso()
     return vannotes.create(fields)
 
@@ -1073,6 +1134,34 @@ def fetch_mot(listing_id: int, force: bool = Query(False)):
         except mot.MotError as err:
             raise HTTPException(err.status, err.message)
     return mot_response(raw, fetched_at, from_cache)
+
+
+@app.post("/api/listings/{listing_id}/vin-check")
+def vin_check(listing_id: int):
+    """D-066: look the listing's VIN up at DVSA, live. Says which plate DVSA has
+    for it (and whether that's the listing's plate), the recall flag and build date."""
+    if not mot.configured():
+        not_configured("The MOT History API", "add the five DVSA_* values to .env")
+    with db.connect() as conn:
+        listing = get_listing_or_404(conn, listing_id)
+    if not listing.get("vin"):
+        raise HTTPException(422, "add the VIN to this listing first")
+    try:
+        raw = mot.fetch_by_vin(listing["vin"])
+    except mot.MotError as err:
+        raise HTTPException(err.status, err.message)
+    found = mot.clean_reg(raw.get("registration")) if raw.get("registration") else None
+    return {
+        "vin": listing["vin"],
+        "registration": found,
+        # None when the listing has no plate to compare with.
+        "reg_matches": (found == listing["reg"]) if listing.get("reg") and found else None,
+        "make": normalise.canonical_make(raw.get("make")),
+        "model": normalise.canonical_model(raw.get("model")),
+        "built": raw.get("manufactureDate"),
+        "engine_size": raw.get("engineSize"),
+        "recall": raw.get("hasOutstandingRecall"),
+    }
 
 
 # ---------------------------------------------------------------- eBay

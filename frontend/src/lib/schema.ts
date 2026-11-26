@@ -26,7 +26,7 @@ export interface FieldSpec {
   in_form?: boolean
   section?: 'Details' | 'Images' | 'Notes' | 'MOT'
   cell?: string
-  widget?: 'reg_lookup' | 'notes' | 'price_vat' | 'distance' | 'location'
+  widget?: 'reg_lookup' | 'notes' | 'price_vat' | 'distance' | 'location' | 'engine' | 'vin_check'
   sortable?: boolean
   suggest?: boolean
   numeric?: boolean
@@ -45,14 +45,26 @@ export interface Schema {
   sources: string[]
   /** Base models a van note can be ticked for, grouped by make (D-061). */
   models: Record<string, string[]>
+  /** Badge shortcuts for the note model picker: label -> models (D-067). */
+  model_families: Record<string, string[]>
+  /** Engines a note can be limited to, and the models each fits (D-066). */
+  engines: { name: string; models: string[] }[]
 }
 
 /** What Harry has learnt about a van type (D-061). Either year end may be open. */
 export interface VanNote {
   id: number
+  /** A recall shows under the popup's Recalls heading (D-067). */
+  kind: 'fault' | 'recall'
   models: string[]
-  year_min: number | null
-  year_max: number | null
+  /** Build window, 'YYYY' or 'YYYY-MM'; either end may be open (D-067). */
+  built_from: string | null
+  built_to: string | null
+  /** Empty = any engine. */
+  engines: string[]
+  gearbox: string | null
+  mileage_min: number | null
+  mileage_max: number | null
   comment: string
   created_at: string
   updated_at: string
@@ -71,6 +83,28 @@ export interface MotSummary {
   mileage_warning: boolean
   flagged: boolean
   fetched_at: string
+  /** D-066: DVSA's manufactureDate (YYYY-MM-DD), engine size (cc, a string),
+   *  the engine those point to, and the DVSA Recalls flag. */
+  built: string | null
+  engine_size: string | null
+  engine_guess: string | null
+  recall: RecallFlag | null
+}
+
+/** DVSA's hasOutstandingRecall. Unknown means no recall data, not "no recalls". */
+export type RecallFlag = 'Yes' | 'No' | 'Unknown' | 'Unavailable'
+
+/** POST /api/listings/{id}/vin-check (D-066). */
+export interface VinCheckResult {
+  vin: string
+  registration: string | null
+  /** null when the listing has no plate to compare with. */
+  reg_matches: boolean | null
+  make: string | null
+  model: string | null
+  built: string | null
+  engine_size: string | null
+  recall: RecallFlag | null
 }
 
 /** A remembered rejection of the same plate (D-055). The listing it names
@@ -92,6 +126,9 @@ export interface Listing {
   mileage: number | null
   height_code: string | null
   length_code: string | null
+  engine: string | null
+  gearbox: string | null
+  vin: string | null
   reg: string | null
   location: string | null
   seller_name: string | null
@@ -212,6 +249,9 @@ export interface MotDerived {
   colour: string | null
   engine_size: number | null
   first_used_date: string | null
+  built: string | null
+  registered: string | null
+  recall: RecallFlag | null
   latest_expiry: string | null
   latest_result: string | null
   latest_test_date: string | null

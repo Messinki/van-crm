@@ -1,4 +1,4 @@
-// Which van notes apply to a listing (D-061).
+// Which van notes apply to a listing (D-061, D-067).
 
 import type { Listing, Schema, VanNote } from './schema'
 
@@ -25,31 +25,128 @@ export function listingModel(listing: Listing, schema: Schema): string | null {
   return best?.name ?? null
 }
 
-/** A note applies when the van's model is ticked on it and its year is in range.
- *  A van with no year matches any range; a note with no models or no comment
- *  matches nothing. */
-export function noteApplies(note: VanNote, model: string | null, year: number | null): boolean {
-  if (!note.comment.trim() || !model) return false
-  if (!note.models.some((m) => m.toLowerCase() === model.toLowerCase())) return false
-  if (year === null) return true
-  if (note.year_min !== null && year < note.year_min) return false
-  if (note.year_max !== null && year > note.year_max) return false
-  return true
+/** What a van is known to be, for matching notes against (D-067). */
+export interface VanFacts {
+  model: string | null
+  /** Build window as 'YYYY-MM' months: exact from DVSA's manufactureDate, else
+   *  read from the listed year (a reg year trails the build), else null. */
+  built: [string, string] | null
+  engine: string | null
+  gearbox: string | null
+  mileage: number | null
 }
 
-/** How many years a note spans, open ends counted as wide (D-063). */
-function yearSpan(note: VanNote): number {
-  return (note.year_max ?? 2100) - (note.year_min ?? 1980)
-}
-
-/** The notes for a van, most specific first: fewest models ticked, then the
- *  narrowest years (D-063). An engine or recall note is more to the point than
- *  one covering the whole family. */
-export function matchingNotes(notes: VanNote[], listing: Listing, schema: Schema): VanNote[] {
+/** The van's engine and where it came from (D-066): typed on the listing, else
+ *  DVSA's engine size + build date, else a known engine for its model named in
+ *  the title ("2.3 MULTIJET"). */
+export function vanEngine(
+  listing: Listing,
+  schema: Schema,
+): { name: string; source: 'typed' | 'DVSA' | 'title' } | null {
+  if (listing.engine) return { name: listing.engine, source: 'typed' }
+  if (listing.mot?.engine_guess) return { name: listing.mot.engine_guess, source: 'DVSA' }
   const model = listingModel(listing, schema)
+  const title = (listing.title ?? '').toLowerCase().replace(/\s+/g, ' ')
+  const named = schema.engines.filter((e) => model && e.models.includes(model) && title.includes(e.name.toLowerCase()))
+  return named.length === 1 ? { name: named[0].name, source: 'title' } : null
+}
+
+export function vanFacts(listing: Listing, schema: Schema): VanFacts {
+  const dvsa = listing.mot?.built?.slice(0, 7)
+  const built: [string, string] | null = dvsa
+    ? [dvsa, dvsa]
+    : listing.year
+      ? [`${listing.year - 1}-07`, `${listing.year}-12`]
+      : null
+  const miles = [listing.mileage, listing.mot?.odometer_miles].filter((m): m is number => m != null)
+  return {
+    model: listingModel(listing, schema),
+    built,
+    engine: vanEngine(listing, schema)?.name ?? null,
+    gearbox: listing.gearbox,
+    mileage: miles.length ? Math.max(...miles) : null,
+  }
+}
+
+/** A note's build window as months; a bare year covers the whole year. */
+export function noteWindow(note: VanNote): [string | null, string | null] {
+  const from = note.built_from ? (note.built_from.length === 4 ? note.built_from + '-01' : note.built_from) : null
+  const to = note.built_to ? (note.built_to.length === 4 ? note.built_to + '-12' : note.built_to) : null
+  return [from, to]
+}
+
+export interface NoteMatch {
+  /** yes: every condition holds; maybe: none fails but some can't be checked. */
+  state: 'yes' | 'maybe' | 'no'
+  /** Why it's only a maybe: "engine unknown", … */
+  unknown: string[]
+}
+
+const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+
+/** Does this note apply to this van? A note with no models or no comment
+ *  matches nothing; a van with no model matches nothing. */
+export function noteMatch(note: VanNote, van: VanFacts): NoteMatch {
+  const no: NoteMatch = { state: 'no', unknown: [] }
+  if (!note.comment.trim() || !van.model) return no
+  if (!note.models.some((m) => same(m, van.model!))) return no
+  const unknown: string[] = []
+
+  const [from, to] = noteWindow(note)
+  if (from || to) {
+    if (!van.built) unknown.push('build date unknown')
+    else {
+      const [vanFrom, vanTo] = van.built
+      if ((from && vanTo < from) || (to && vanFrom > to)) return no
+      if ((from && vanFrom < from) || (to && vanTo > to)) unknown.push('build month unknown')
+    }
+  }
+  if (note.engines.length) {
+    if (!van.engine) unknown.push('engine unknown')
+    else if (!note.engines.some((e) => same(e, van.engine!))) return no
+  }
+  if (note.gearbox) {
+    if (!van.gearbox) unknown.push('gearbox unknown')
+    else if (note.gearbox !== van.gearbox) return no
+  }
+  if (note.mileage_min !== null || note.mileage_max !== null) {
+    if (van.mileage === null) unknown.push('mileage unknown')
+    else if (
+      (note.mileage_min !== null && van.mileage < note.mileage_min) ||
+      (note.mileage_max !== null && van.mileage > note.mileage_max)
+    )
+      return no
+  }
+  return { state: unknown.length ? 'maybe' : 'yes', unknown }
+}
+
+const months = (ym: string) => Number(ym.slice(0, 4)) * 12 + Number(ym.slice(5, 7))
+
+/** How specific a note is, for ordering (D-063): fewest models, then most extra
+ *  conditions, then the narrowest build window. */
+function specificity(note: VanNote): [number, number, number] {
+  const [from, to] = noteWindow(note)
+  const extras = (note.engines.length ? 1 : 0) + (note.gearbox ? 1 : 0) +
+    (note.mileage_min !== null || note.mileage_max !== null ? 1 : 0)
+  return [note.models.length, -extras, months(to ?? '2100-12') - months(from ?? '1980-01')]
+}
+
+/** The notes for a van: definite matches first, then the maybes, each most
+ *  specific first (D-063, D-067). */
+export function matchingNotes(
+  notes: VanNote[],
+  listing: Listing,
+  schema: Schema,
+): { note: VanNote; match: NoteMatch }[] {
+  const van = vanFacts(listing, schema)
   return notes
-    .filter((note) => noteApplies(note, model, listing.year))
-    .sort((a, b) => a.models.length - b.models.length || yearSpan(a) - yearSpan(b) || a.id - b.id)
+    .map((note) => ({ note, match: noteMatch(note, van) }))
+    .filter(({ match }) => match.state !== 'no')
+    .sort((a, b) => {
+      if (a.match.state !== b.match.state) return a.match.state === 'yes' ? -1 : 1
+      const [x, y] = [specificity(a.note), specificity(b.note)]
+      return x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || a.note.id - b.note.id
+    })
 }
 
 /** A comment as list items: one per line, a leading bullet or dash dropped. */
@@ -61,37 +158,58 @@ export function commentLines(comment: string): string[] {
 }
 
 /** Each matching note's lines, with any line an earlier note already showed
- *  dropped (D-063). `Src:` lines are never dropped — they belong to their note.
- *  A note left with nothing but its source is left out. */
-export function dedupedNotes(notes: VanNote[]): { note: VanNote; lines: string[] }[] {
+ *  dropped (D-063). A note left with no lines is left out. */
+export function dedupedNotes<T extends { note: VanNote }>(entries: T[]): (T & { lines: string[] })[] {
   const seen = new Set<string>()
-  return notes
-    .map((note) => {
-      const lines = commentLines(note.comment).filter((line) => {
-        if (/^src:/i.test(line)) return true
+  return entries
+    .map((entry) => {
+      const lines = commentLines(entry.note.comment).filter((line) => {
         const key = line.toLowerCase().replace(/\s+/g, ' ')
         if (seen.has(key)) return false
         seen.add(key)
         return true
       })
-      return { note, lines }
+      return { ...entry, lines }
     })
-    .filter(({ lines }) => lines.some((line) => !/^src:/i.test(line)))
+    .filter(({ lines }) => lines.length > 0)
 }
 
-/** "Relay, Boxer · 2014–2016", "Ducato · 2019 on", "Transit · up to 2013". */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const monthLabel = (v: string) => (v.length === 4 ? v : `${MONTHS[Number(v.slice(5, 7)) - 1]} ${v.slice(0, 4)}`)
+
+/** "Apr–Jun 2019", "2006–2016", "Oct 2014–Jun 2015", "2019 on", "up to 2013". */
+export function builtLabel(note: VanNote): string {
+  const { built_from: from, built_to: to } = note
+  if (from && to) {
+    if (from === to) return monthLabel(from)
+    if (from.length === 7 && to.length === 7 && from.slice(0, 4) === to.slice(0, 4))
+      return `${MONTHS[Number(from.slice(5, 7)) - 1]}–${monthLabel(to)}`
+    return `${monthLabel(from)}–${monthLabel(to)}`
+  }
+  if (from) return `${monthLabel(from)} on`
+  if (to) return `up to ${monthLabel(to)}`
+  return 'all years'
+}
+
+/** What a note's extra conditions say: "2.2 BlueHDi · automatic · over 90,000 mi". */
+export function conditionsLabel(note: VanNote): string {
+  const miles = (n: number) => n.toLocaleString('en-GB')
+  const mileage =
+    note.mileage_min !== null && note.mileage_max !== null
+      ? `${miles(note.mileage_min)}–${miles(note.mileage_max)} mi`
+      : note.mileage_min !== null
+        ? `over ${miles(note.mileage_min)} mi`
+        : note.mileage_max !== null
+          ? `under ${miles(note.mileage_max)} mi`
+          : null
+  return [note.engines.join(' / ') || null, note.gearbox, mileage].filter(Boolean).join(' · ')
+}
+
+/** "Relay, Boxer · 2014–2016 · 2.2 HDi". */
 export function noteScope(note: VanNote): string {
   const models = note.models.length ? note.models.join(', ') : 'No van types'
-  const { year_min: from, year_max: to } = note
-  const years =
-    from !== null && to !== null
-      ? from === to
-        ? `${from}`
-        : `${from}–${to}`
-      : from !== null
-        ? `${from} on`
-        : to !== null
-          ? `up to ${to}`
-          : 'all years'
-  return `${models} · ${years}`
+  const conditions = conditionsLabel(note)
+  // "all years" only when nothing else narrows the note.
+  const built = note.built_from || note.built_to || !conditions ? builtLabel(note) : null
+  return [models, built, conditions || null].filter(Boolean).join(' · ')
 }

@@ -21,21 +21,34 @@ class NotesFileError(Exception):
 
 
 def _to_api(note: dict) -> dict:
-    out = {k: v for k, v in note.items() if k != "lines"}
-    out["comment"] = "\n".join(note.get("lines") or [])
+    """Every key present, whatever a hand edit left out; `lines` as `comment`."""
+    full = _to_file({**note, "comment": "\n".join(note.get("lines") or [])})
+    out = {k: v for k, v in full.items() if k != "lines"}
+    out["comment"] = "\n".join(full["lines"])
     return out
 
 
+def _year(value) -> str | None:
+    return None if value is None else str(value)
+
+
 def _to_file(note: dict) -> dict:
-    """Keys in a fixed, readable order: what the note covers, its lines, then dates."""
+    """Keys in a fixed, readable order: what the note covers (D-067), its lines,
+    then dates. A note from before D-067 has year_min/year_max; they become the
+    build window."""
     lines = (note.get("comment") or "").split("\n")
     while lines and not lines[-1].strip():
         lines.pop()
     return {
         "id": note["id"],
+        "kind": note.get("kind") or "fault",
         "models": note.get("models") or [],
-        "year_min": note.get("year_min"),
-        "year_max": note.get("year_max"),
+        "built_from": note.get("built_from", _year(note.get("year_min"))),
+        "built_to": note.get("built_to", _year(note.get("year_max"))),
+        "engines": note.get("engines") or [],
+        "gearbox": note.get("gearbox"),
+        "mileage_min": note.get("mileage_min"),
+        "mileage_max": note.get("mileage_max"),
         "lines": lines,
         "created_at": note.get("created_at"),
         "updated_at": note.get("updated_at"),
