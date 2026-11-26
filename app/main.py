@@ -527,7 +527,13 @@ def get_schema():
     Custom properties are deliberately NOT merged in here — they live at
     /api/properties because they're user-defined at runtime.
     """
-    return {"fields": FIELD_SPECS, "statuses": list(STATUSES), "sources": list(SOURCES)}
+    return {
+        "fields": FIELD_SPECS,
+        "statuses": list(STATUSES),
+        "sources": list(SOURCES),
+        # D-061: the van types a note can be ticked for, grouped by make.
+        "models": normalise.BASE_MODELS,
+    }
 
 
 # ---------------------------------------------------------------- listings
@@ -873,6 +879,74 @@ def delete_home(home_id: int):
             raise HTTPException(404, "home not found")
         conn.execute("DELETE FROM homes WHERE id = ?", (home_id,))
     return {"deleted": home_id}
+
+
+# ---------------------------------------------------------------- van notes (D-061)
+
+_KNOWN_MODELS = [m for names in normalise.BASE_MODELS.values() for m in names]
+
+
+def _van_note_fields(payload: dict) -> dict:
+    """The columns a van-note payload sets, checked; 400 on anything unusable."""
+    allowed = {"models", "year_min", "year_max", "comment"}
+    unknown = set(payload) - allowed
+    if unknown:
+        raise HTTPException(400, f"cannot set field(s): {', '.join(sorted(unknown))}")
+    fields = {}
+    if "models" in payload:
+        models = payload["models"]
+        if not isinstance(models, list) or any(m not in _KNOWN_MODELS for m in models):
+            raise HTTPException(400, "models must be a list of known base models")
+        # Stored in the registry's order, once each.
+        fields["models"] = json.dumps([m for m in _KNOWN_MODELS if m in models])
+    for key in ("year_min", "year_max"):
+        if key in payload:
+            fields[key] = _as_number(payload[key], key, integer=True)
+    if "comment" in payload:
+        fields["comment"] = str(payload["comment"] or "")
+    return fields
+
+
+@app.get("/api/van-notes")
+def list_van_notes():
+    with db.connect() as conn:
+        rows = conn.execute("SELECT * FROM van_notes ORDER BY id DESC").fetchall()
+    return [db.row_to_van_note(r) for r in rows]
+
+
+@app.post("/api/van-notes", status_code=201)
+def create_van_note(payload: dict = Body(default={})):
+    fields = {"models": "[]", "comment": "", **_van_note_fields(payload)}
+    fields["created_at"] = fields["updated_at"] = db.now_iso()
+    with db.connect() as conn:
+        cols = ", ".join(fields)
+        marks = ", ".join("?" for _ in fields)
+        cursor = conn.execute(f"INSERT INTO van_notes ({cols}) VALUES ({marks})", list(fields.values()))
+        row = conn.execute("SELECT * FROM van_notes WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return db.row_to_van_note(row)
+
+
+@app.patch("/api/van-notes/{note_id}")
+def update_van_note(note_id: int, payload: dict = Body(...)):
+    fields = _van_note_fields(payload)
+    with db.connect() as conn:
+        if conn.execute("SELECT 1 FROM van_notes WHERE id = ?", (note_id,)).fetchone() is None:
+            raise HTTPException(404, "note not found")
+        if fields:
+            fields["updated_at"] = db.now_iso()
+            assignments = ", ".join(f"{f} = ?" for f in fields)
+            conn.execute(f"UPDATE van_notes SET {assignments} WHERE id = ?", [*fields.values(), note_id])
+        row = conn.execute("SELECT * FROM van_notes WHERE id = ?", (note_id,)).fetchone()
+        return db.row_to_van_note(row)
+
+
+@app.delete("/api/van-notes/{note_id}")
+def delete_van_note(note_id: int):
+    with db.connect() as conn:
+        if conn.execute("SELECT 1 FROM van_notes WHERE id = ?", (note_id,)).fetchone() is None:
+            raise HTTPException(404, "note not found")
+        conn.execute("DELETE FROM van_notes WHERE id = ?", (note_id,))
+    return {"deleted": note_id}
 
 
 @app.post("/api/geocode/missing")

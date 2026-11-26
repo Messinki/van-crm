@@ -756,3 +756,27 @@ Why: a plate-based list empties as you work through it, and needs no new data. R
 "vans from the last scrape" (no scrape time is stored, and the next scrape would wipe an
 unfinished list), and renaming the stored `new` value (SQLite can't alter the CHECK
 constraint without rebuilding the listings table, for no gain).
+
+## D-061 — Van-type notes, shown in the popup when they match (2026-11-26)
+Context: Harry collects knowledge about common faults per van type and year (a
+timing-chain issue on 2014–2016 Ducato/Relay/Boxer, say) and wants it in front of
+him while looking at a matching van, not in a separate document.
+Decision:
+- A `van_notes` table: `models` (JSON list of base model names), `year_min`,
+  `year_max` (both nullable), `comment`. A new table, not a listing field, so it
+  stays out of `FIELD_SPECS`/`MIGRATIONS`. CRUD at `/api/van-notes`.
+- Models are ticked from `normalise.BASE_MODELS`, handed to the frontend in
+  `/api/schema` as `models` — one list, no free text, so typos can't silently miss.
+- A note matches a van when the van's model (or, if empty, the first base model in
+  its title) is one of the ticked models, and its year is inside the range. Open
+  ends mean "onwards"/"up to"; a van with no year matches any range. A note with
+  no models ticked, or an empty comment, matches nothing.
+- A **Notes** view joins Table and Map: a list of editable boxes, newest first, a
+  plus button to add one, a delete button with a confirm. In the listing popup the
+  matching notes sit in the right third of the thumbnail row (thumbnails take the
+  other two thirds), the box keeps the strip's height and scrolls, and the comments
+  are editable there too. Text saves on blur, like the popup's fields (D-052).
+Why: matching on the tidied base model (D-053) is exact and needs no new data.
+Rejected: free-text van types (typos), make-level notes (sister vans across makes
+— Ducato/Relay/Boxer — are better ticked together), a row that grows to fit
+(fields below would jump between vans).

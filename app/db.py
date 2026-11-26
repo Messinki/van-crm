@@ -82,6 +82,18 @@ CREATE TABLE IF NOT EXISTS rejected_regs (
   title       TEXT NOT NULL,
   rejected_at TEXT NOT NULL
 );
+
+-- D-061: what Harry has learnt about a van type (common faults). models is a
+-- JSON list of normalise.BASE_MODELS names; either year end may be open.
+CREATE TABLE IF NOT EXISTS van_notes (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  models      TEXT NOT NULL DEFAULT '[]',
+  year_min    INTEGER,
+  year_max    INTEGER,
+  comment     TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
 """
 
 # Amendment 01 section A: columns added after v1.0 shipped.
@@ -220,3 +232,9 @@ def row_to_home(row: sqlite3.Row) -> dict:
     home = dict(row)
     home["enabled"] = bool(home["enabled"])
     return home
+
+
+def row_to_van_note(row: sqlite3.Row) -> dict:
+    note = dict(row)
+    note["models"] = json.loads(note.get("models") or "[]")
+    return note
