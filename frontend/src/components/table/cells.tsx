@@ -112,6 +112,8 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 export function StatusPill({ value, spec }: { value: string; spec: FieldSpec | null }) {
+  // 'new' is just "not sorted yet" (D-060), so it gets no pill.
+  if (value === 'new') return null
   return (
     <span
       className={cn(

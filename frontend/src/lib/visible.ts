@@ -33,7 +33,10 @@ export function visibleListings(
     if (!filters.showInactive && !l.is_active) return false
     // With no chip picked, rejected rows are out of the way entirely; picking
     // the Rejected chip is how you get one back to un-reject it.
-    if (statuses.size ? !statuses.has(l.status) : l.status === 'rejected') return false
+    if (statuses.size || filters.noPlates) {
+      const noPlate = filters.noPlates && l.status !== 'rejected' && !l.reg?.trim()
+      if (!noPlate && !statuses.has(l.status)) return false
+    } else if (l.status === 'rejected') return false
     if (filters.q && !(l.title || '').toLowerCase().includes(filters.q.toLowerCase())) return false
     return conditions.every(({ prop, cond }) => matchesCondition(l, prop, cond))
   })

@@ -13,12 +13,14 @@ export type Condition =
 
 export interface Filters {
   statuses: string[]
+  /** The No plates chip (D-060): non-rejected listings with no reg. ORs with `statuses`. */
+  noPlates: boolean
   q: string
   showInactive: boolean
   props: Record<string, Condition>
 }
 
-export const BLANK_FILTERS: Filters = { statuses: [], q: '', showInactive: false, props: {} }
+export const BLANK_FILTERS: Filters = { statuses: [], noPlates: false, q: '', showInactive: false, props: {} }
 
 // Registry fields that never get a property filter: the derived display-only
 // columns, the two that already own a control in the bar (status has the chips,

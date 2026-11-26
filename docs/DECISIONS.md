@@ -743,3 +743,16 @@ Why: the table is short, the data bears it out, and empty Length boxes on LWB va
 hide them from the size filter. Rejected: guessing for unlisted models, and letting
 wheelbase words break a tie between conflicting codes.
 Supersedes: D-058 (its "wheelbase words fill nothing" line; the rest stands)
+
+## D-060 — A "No plates" chip replaces the New chip (2026-11-26)
+Context: every van starts as status `new` and stays there until Harry changes it, so the
+New chip and the New pill in each row said nothing useful. What Harry needs after a
+scrape is a worklist of vans whose plate still has to be filled in by hand.
+Decision: the status chips drop New and gain **No plates**: any non-rejected listing
+with no `reg`, whatever its status. It ORs with the other status chips. The `new`
+status stays in the database as the "not sorted yet" default, but is labelled
+"No status" and shows no pill in the table.
+Why: a plate-based list empties as you work through it, and needs no new data. Rejected:
+"vans from the last scrape" (no scrape time is stored, and the next scrape would wipe an
+unfinished list), and renaming the stored `new` value (SQLite can't alter the CHECK
+constraint without rebuilding the listings table, for no gain).

@@ -89,7 +89,7 @@ closest enabled home with a pill naming it (D-047), seller, source, status pill
 (with an orange "Rejected before" pill when the plate was rejected under another
 listing, D-055), MOT due, live MOT summary, notes preview, plus user-defined custom
 columns.
-Above it: title search, status chips, show-ended, a View menu for column visibility,
+Above it: title search, status chips (led by **No plates** — non-rejected vans with no reg; `new` has no chip or pill, D-060), show-ended, a View menu for column visibility,
 the faceted filter bar and the rank panel. The table is read-only (D-025) apart from
 the +VAT chip (D-044), the MOT cell's Check button and the Location cell, which
 opens a small map of that van and the homes (D-049). Clicking a row opens the

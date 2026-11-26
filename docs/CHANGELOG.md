@@ -17,6 +17,11 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: No plates chip replaces New (2026-11-26)
+- The New status chip is gone; a **No plates** chip lists every non-rejected van with
+  no plate, so after a scrape you can work down it filling plates in (D-060).
+- `new` is now labelled "No status" and shows no pill in the table.
+
 ## Goal: fill Length from wheelbase words (2026-10-07)
 - SWB / MWB / LWB / extra-long wording (and "long wheelbase" etc.) fills an empty
   Length on Relay, Jumper, Boxer, Ducato, Master, Movano, NV400, Interstar and

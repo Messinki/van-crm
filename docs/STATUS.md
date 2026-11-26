@@ -37,6 +37,9 @@ Notes for working in `frontend/`:
 
 Open, not blocking:
 
+- The New chip was replaced by **No plates** on 2026-11-26 (D-060); `new` still exists
+  as the stored default, labelled "No status". Checked in Chrome only.
+
 - D-058's Plus VAT fill trusts any "+ VAT" in the text. The backfill's stray hits
   were all on rejected engine/body listings ("add £700 + VAT onto the price"); if a
   van ever shows Plus VAT wrongly, untick it — editing the notes won't re-tick it.

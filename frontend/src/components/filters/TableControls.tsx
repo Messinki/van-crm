@@ -65,17 +65,19 @@ export function TableControls({
       />
 
       <div className="flex flex-wrap gap-1">
-        {schema.statuses.map((status) => {
+        {/* D-060: No plates takes the place of a New chip — 'new' only means "not sorted yet". */}
+        <button
+          className={chipClass(filters.noPlates)}
+          onClick={() => onFiltersChange({ ...filters, noPlates: !filters.noPlates })}
+        >
+          No plates
+        </button>
+        {schema.statuses.filter((s) => s !== 'new').map((status) => {
           const on = filters.statuses.includes(status)
           return (
             <button
               key={status}
-              className={cn(
-                'rounded-full border px-2.5 py-0.5 text-xs transition-colors',
-                on
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'bg-background text-muted-foreground hover:bg-accent',
-              )}
+              className={chipClass(on)}
               onClick={() =>
                 onFiltersChange({
                   ...filters,
@@ -124,5 +126,12 @@ export function TableControls({
         </div>
       )}
     </div>
+  )
+}
+
+function chipClass(on: boolean) {
+  return cn(
+    'rounded-full border px-2.5 py-0.5 text-xs transition-colors',
+    on ? 'border-primary bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-accent',
   )
 }

@@ -21,7 +21,8 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 STATUSES = ("new", "considering", "contacted", "viewing_booked", "rejected", "purchased")
 STATUS_LABELS = {
-    "new": "New",
+    # D-060: `new` is the "not sorted yet" default; it shows no pill and has no chip.
+    "new": "No status",
     "considering": "Considering",
     "contacted": "Contacted",
     "viewing_booked": "Viewing booked",
