@@ -162,7 +162,7 @@ function CommentBox({
 
 function NoteLines({ lines }: { lines: string[] }) {
   return (
-    <ul className="list-disc space-y-0.5 pl-4 text-xs">
+    <ul className="list-disc space-y-0.5 pl-4 text-sm">
       {lines.map((line, i) => (
         <li key={i} className={/^src:/i.test(line) ? 'list-none -ml-4 text-muted-foreground' : undefined}>
           {line}
@@ -180,13 +180,13 @@ export function ListingNotes({ listing, schema }: { listing: Listing; schema: Sc
 
   return (
     <div className="min-w-0 space-y-3">
-      <div className="text-xs font-medium">Known issues</div>
+      <div className="text-sm font-medium">Known issues</div>
       {matching.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No notes for this van type and year.</p>
+        <p className="text-sm text-muted-foreground">No notes for this van type and year.</p>
       ) : (
         matching.map(({ note, lines }) => (
           <div key={note.id} className="space-y-1">
-            <div className="text-[11px] font-medium text-muted-foreground">{noteScope(note)}</div>
+            <div className="text-sm font-medium text-muted-foreground">{noteScope(note)}</div>
             <NoteLines lines={lines} />
           </div>
         ))

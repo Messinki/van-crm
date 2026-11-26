@@ -42,7 +42,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1">
-      <Label htmlFor={htmlFor} className="text-xs text-muted-foreground">
+      <Label htmlFor={htmlFor} className="text-sm text-muted-foreground">
         {label}
       </Label>
       {children}
@@ -168,7 +168,7 @@ export function EditableField({ listing, spec }: { listing: Listing; spec: Field
 
   if (spec.type === 'checkbox') {
     return (
-      <Label className="flex items-center gap-2 text-xs text-muted-foreground">
+      <Label className="flex items-center gap-2 text-sm text-muted-foreground">
         <input
           type="checkbox"
           key={String(value)}
@@ -350,7 +350,7 @@ export function RegField({ listing }: { listing: Listing }) {
   return (
     <PlateField
       id="detail-reg"
-      labelClassName="text-xs text-muted-foreground"
+      labelClassName="text-sm text-muted-foreground"
       inputRef={plate.props.ref}
       defaultValue={plate.props.defaultValue}
       onChange={(value) => plate.edit(value)}
@@ -412,7 +412,7 @@ export function NotesField({
   return (
     <div className="space-y-1">
       <HighlightTextarea rows={14} value={text} onChange={(e) => onChange(e.target.value)} onBlur={flush} />
-      <p className="h-4 text-xs text-muted-foreground">{hint}</p>
+      <p className="h-4 text-sm text-muted-foreground">{hint}</p>
     </div>
   )
 }
@@ -428,7 +428,7 @@ export function CustomField({ listing, prop }: { listing: Listing; prop: Propert
 
   if (prop.type === 'checkbox') {
     return (
-      <Label className="flex items-center gap-2 text-xs text-muted-foreground">
+      <Label className="flex items-center gap-2 text-sm text-muted-foreground">
         <input
           type="checkbox"
           key={String(value)}

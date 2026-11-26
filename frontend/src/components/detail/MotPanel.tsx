@@ -48,9 +48,9 @@ export function MotPanel({ listing }: { listing: Listing }) {
         </Button>
       )}
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {!error && derived && fetchedAt && (
-        <p className="text-xs text-muted-foreground">Checked {formatStamp(fetchedAt)}</p>
+        <p className="text-sm text-muted-foreground">Checked {formatStamp(fetchedAt)}</p>
       )}
       {!derived && !error && (
         <MotPlaceholder
@@ -77,11 +77,11 @@ function MotPlaceholder({
   failure: string
 }) {
   if (failure) {
-    return <p className="text-xs text-destructive">Could not load the MOT report: {failure}</p>
+    return <p className="text-sm text-destructive">Could not load the MOT report: {failure}</p>
   }
-  if (loading) return <p className="text-xs text-muted-foreground">Loading the report…</p>
+  if (loading) return <p className="text-sm text-muted-foreground">Loading the report…</p>
   return (
-    <p className="text-xs text-muted-foreground">
+    <p className="text-sm text-muted-foreground">
       {listing.reg
         ? 'Press Look up plate above to fetch the MOT history.'
         : 'Add a number plate above to see the MOT history.'}
@@ -151,7 +151,7 @@ function MotReport({ derived }: { derived: MotDerived }) {
               Mileage goes backwards in this history — possible clocking.
             </p>
           )}
-          <ul className="space-y-0.5 text-xs text-muted-foreground">
+          <ul className="space-y-0.5 text-sm text-muted-foreground">
             {[...derived.mileage_series].reverse().map((point) => (
               <li key={point.date + point.miles}>
                 {formatDate(point.date)} — {number(point.miles)} mi
@@ -163,7 +163,7 @@ function MotReport({ derived }: { derived: MotDerived }) {
 
       {derived.tests.length > 0 && (
         <div className="rounded-md border p-2">
-          <div className="text-xs font-medium">
+          <div className="text-sm font-medium">
             All {derived.tests.length} test{derived.tests.length === 1 ? '' : 's'}
           </div>
           <div className="mt-2 space-y-3">
@@ -194,7 +194,7 @@ function MotTestBlock({ test }: { test: MotTest }) {
   )
   return (
     <div className="space-y-1">
-      <div className="flex gap-3 text-xs">
+      <div className="flex gap-3 text-sm">
         <span>{formatDate(test.date)}</span>
         <span className={test.result === 'PASSED' ? 'text-green-700 dark:text-green-400' : 'text-destructive'}>
           {test.result || ''}
@@ -204,7 +204,7 @@ function MotTestBlock({ test }: { test: MotTest }) {
         </span>
       </div>
       {sorted.length > 0 ? (
-        <ul className="list-disc space-y-0.5 pl-5 text-xs">
+        <ul className="list-disc space-y-0.5 pl-5 text-sm">
           {sorted.map((defect, i) => (
             <li key={defect.text + i} className={DEFECT_STYLES[defect.level.toLowerCase()]}>
               {defect.text}
@@ -212,7 +212,7 @@ function MotTestBlock({ test }: { test: MotTest }) {
           ))}
         </ul>
       ) : (
-        <p className="text-xs text-muted-foreground">No defects recorded</p>
+        <p className="text-sm text-muted-foreground">No defects recorded</p>
       )}
     </div>
   )
