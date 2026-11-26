@@ -66,6 +66,9 @@ Project state lives in `docs/`:
 | `docs/ARCHITECTURE.md` | How is it put together and how do I run it?        | Update when structure or commands change.    |
 | `docs/CHANGELOG.md`    | What changed, per goal/release?                    | Append-only, newest first.                   |
 
+`docs/VAN-NOTES-STYLE.md` — how to write entries in `notes/van-notes.json`; read it before
+adding or editing van notes.
+
 CHANGELOG says *what happened*; DECISIONS says *why we chose it*. A CHANGELOG entry
 may cite decision IDs; a DECISIONS entry never lists changes. Each doc carries its
 own entry format at the top — follow it, don't invent one.
