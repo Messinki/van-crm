@@ -37,11 +37,12 @@ Notes for working in `frontend/`:
 
 Open, not blocking:
 
-- Van-type notes (D-061, D-062): 13 researched fault notes were added through the API
-  on 2026-11-26, each ending in a `Src:` line. Sources were thin in places (Honest John's
-  van guides are gone since it became Drive) and end years are capped at what the
-  sources cover. Most vans in the table are 2017-2021 Boxer/Relay, which only match
-  the sparse 2014-2021 note — worth adding to as Harry learns more.
+- Van-type notes (D-061–D-063): 19 researched fault notes, each ending in a `Src:`
+  line. The Relay/Boxer/Jumper/Ducato ones are layered (body, engine by years,
+  recalls) — keep new notes to that shape. The 2016–2019 2.0 BlueHDi note rests on
+  forum threads only; no proper guide was found for that engine. Honest John's van
+  guides are gone since it became Drive. Movano was dropped from the 2019–2024
+  Master note (later Movanos are Ducato-based); no note covers 2019+ Movanos.
 
 - The New chip was replaced by **No plates** on 2026-11-26 (D-060); `new` still exists
   as the stored default, labelled "No status". Checked in Chrome only.

@@ -794,3 +794,21 @@ Why: the MOT history and the known faults are read together when judging a van.
 Rejected: keeping the popup editable (see Context), and a row that grows beside the
 thumbnails (pushes every field down).
 Supersedes: D-061 (its popup placement and "editable there too" lines; the rest stands)
+
+## D-063 — Overlapping van notes: layer them, most specific first, no repeats (2026-11-26)
+Context: several notes can match one van (a family note, an engine note, a recalls
+note), and the first batch repeated the same advice across them.
+Decision:
+- Notes are written in layers: one body/platform note per family (e.g. all four
+  Sevel badges), one note per engine (model + the engine's years), one recalls note.
+  The engine isn't stored on a listing, so model + year stands in for it; in a
+  changeover year both engine notes match on purpose, and each says to check the
+  logbook.
+- The popup orders matching notes most specific first — fewest models ticked, then
+  the narrowest year range — so engine and recall notes come before the family one.
+- A line already shown by an earlier note is dropped (case- and space-insensitive
+  match); `Src:` lines are always kept, and a note left with only its source is hidden.
+Why: layering keeps each fact in one place, and ordering plus de-duplication cover
+the repeats that slip through. Rejected: merging matching notes into one list (you
+lose which note, and which source, a point came from), and an engine field on
+listings (new data to keep filled for a display nicety).

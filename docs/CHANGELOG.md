@@ -17,6 +17,12 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: layered van notes (2026-11-26)
+- The popup shows matching notes most specific first and drops lines already shown
+  by an earlier note (D-063).
+- Relay/Boxer/Jumper/Ducato notes rewritten as layers: a body note for all four,
+  engine notes (Fiat 2.3; 2.2 HDi, 2.0 BlueHDi, 2.2 BlueHDi), and Ducato recalls.
+
 ## Goal: van notes beside the MOT report (2026-11-26)
 - The popup's matching van notes moved from beside the thumbnails to the right half of
   the MOT section, as a read-only **Known issues** list (D-062).

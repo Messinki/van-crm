@@ -19,7 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Textarea } from '@/components/ui/textarea'
 import type { Listing, Schema, VanNote } from '@/lib/schema'
 import { cn } from '@/lib/utils'
-import { matchingNotes, noteScope } from '@/lib/vanNotes'
+import { dedupedNotes, matchingNotes, noteScope } from '@/lib/vanNotes'
 
 /* -------------------------------------------------------------- Notes view */
 
@@ -160,17 +160,13 @@ function CommentBox({
 
 /* ------------------------------------------------------- popup (D-061) */
 
-/** One note's comment as a list: each line is an item, a leading bullet or
- *  dash dropped. */
-function CommentLines({ comment }: { comment: string }) {
-  const lines = comment
-    .split('\n')
-    .map((line) => line.replace(/^\s*[•\-*]\s*/, '').trim())
-    .filter(Boolean)
+function NoteLines({ lines }: { lines: string[] }) {
   return (
     <ul className="list-disc space-y-0.5 pl-4 text-xs">
       {lines.map((line, i) => (
-        <li key={i}>{line}</li>
+        <li key={i} className={/^src:/i.test(line) ? 'list-none -ml-4 text-muted-foreground' : undefined}>
+          {line}
+        </li>
       ))}
     </ul>
   )
@@ -180,7 +176,7 @@ function CommentLines({ comment }: { comment: string }) {
  *  cover many vans, so it's edited on the Notes view, not from one van. */
 export function ListingNotes({ listing, schema }: { listing: Listing; schema: Schema }) {
   const { data: notes = [] } = useVanNotes()
-  const matching = matchingNotes(notes, listing, schema)
+  const matching = dedupedNotes(matchingNotes(notes, listing, schema))
 
   return (
     <div className="min-w-0 space-y-3">
@@ -188,10 +184,10 @@ export function ListingNotes({ listing, schema }: { listing: Listing; schema: Sc
       {matching.length === 0 ? (
         <p className="text-xs text-muted-foreground">No notes for this van type and year.</p>
       ) : (
-        matching.map((note) => (
+        matching.map(({ note, lines }) => (
           <div key={note.id} className="space-y-1">
             <div className="text-[11px] font-medium text-muted-foreground">{noteScope(note)}</div>
-            <CommentLines comment={note.comment} />
+            <NoteLines lines={lines} />
           </div>
         ))
       )}
