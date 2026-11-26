@@ -827,3 +827,17 @@ showing a recall to check rather than hiding one that applies.
 Rejected: one recalls note per family (shows every recall to every year), and
 exact build years (misses vans registered the year after they were built).
 Supersedes: D-063 (its "`Src:` lines are always kept" line; there are none now)
+
+## D-065 — Van notes live in a JSON file in the repo, not the database (2026-11-26)
+Context: Claude researches and edits van notes, but `data/` is off-limits to it by
+Harry's deny rules, so every change had to go through the running app's API.
+Decision: the notes are stored in `notes/van-notes.json` (tracked in git), read on
+every request and rewritten whole on every save (`app/vannotes.py`). The Notes view
+and `/api/van-notes` work as before. In the file each comment is a `lines` list, so a
+hand edit or a git diff is one line per fault. On first start, if the file doesn't
+exist, the old `van_notes` table is copied into it; the table is left in place, unused.
+Why: Claude can read and edit the notes directly, even with the app stopped, and they
+are backed up to GitHub with a history. They're general knowledge, not personal data.
+Rejected: keeping the table and using the API (needs the server up, and deletes trip
+the permission checker); widening the deny rules (they protect the listings).
+Supersedes: D-061 (its "`van_notes` table" line; the rest stands)

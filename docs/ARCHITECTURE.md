@@ -45,6 +45,11 @@ Backend modules, all under `app/`:
   turned out not to be a plate (D-057); `attach()` hangs the derived `rejected_before`
   flag on listings as they're read. Any new path that writes `status` or `reg` must
   call `sync()`.
+- **`vannotes.py`** — van-type notes (D-061) live in `notes/van-notes.json`, not the
+  DB (D-065): read on every request, rewritten whole (via a temp file) on every save.
+  Each note's comment is a `lines` list in the file and one `comment` string in the
+  API. Hand edits show on the next page load; a broken file answers 500 with the
+  parse error. `import_from_db()` copied the old `van_notes` table across once at startup.
 - **`geo.py`** — UK geocoding through postcodes.io (D-048): `locate()` turns a
   free-text location into coordinates, `locate_listing()` stores them on one listing,
   `fill_missing()` runs every listing that needs a lookup. See "Geocoding and maps".
@@ -228,8 +233,10 @@ interactive personal use is fine.
 │   ├── geo.py           # postcodes.io geocoding, fill_missing
 │   ├── normalise.py     # one spelling per make/model, size-code parsing
 │   ├── rejected.py      # remembered rejected plates, "Rejected before" flag
+│   ├── vannotes.py      # van notes read/written in notes/van-notes.json
 │   └── static/dist/     # frontend build output, served at /; gitignored
 ├── frontend/            # Vite + React + TypeScript app (src/api, components, lib)
+├── notes/van-notes.json # van-type fault notes; committed, safe to edit by hand
 └── data/vancrm.db       # created on first run; never committed
 ```
 

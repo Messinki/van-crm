@@ -37,13 +37,16 @@ Notes for working in `frontend/`:
 
 Open, not blocking:
 
-- Van-type notes (D-061–D-064): 33 researched fault notes, no sources kept. The
-  Relay/Boxer/Jumper/Ducato ones are layered (body, engine by years) and each
-  build-dated recall is its own note ranged to its build years + 1 (D-064) — keep
-  new notes to that shape. The Boxer brake-pipe recall note (up to 2014) has assumed
-  years; its real build window wasn't found. Honest John's van guides are gone since
-  it became Drive. Movano was dropped from the 2019–2024 Master note (later Movanos
-  are Ducato-based); no note covers 2019+ Movanos.
+- Van-type notes (D-061–D-065): 32 researched fault notes in `notes/van-notes.json`
+  (committed; edit it directly or through the Notes view). No sources kept, and a
+  note whose details weren't found is left out. The Relay/Boxer/Jumper/Ducato ones are
+  layered (body, engine by years) and each build-dated recall is its own note ranged
+  to its build years + 1 (D-064) — keep new notes to that shape. Honest John's van
+  guides are gone since it became Drive. Movano was dropped from the 2019–2024 Master
+  note (later Movanos are Ducato-based); no note covers 2019+ Movanos. The old
+  `van_notes` table is still in the DB, unused (D-065).
+- Edits made in the Notes view change `notes/van-notes.json`, so they show as an
+  uncommitted change until the next commit.
 
 - The New chip was replaced by **No plates** on 2026-11-26 (D-060); `new` still exists
   as the stored default, labelled "No status". Checked in Chrome only.

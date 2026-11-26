@@ -9,10 +9,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import Body, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import db, ebay, geo, mot, normalise, rejected
+from app import db, ebay, geo, mot, normalise, rejected, vannotes
 from app.normalise import parse_size_codes
 
 load_dotenv()
@@ -309,6 +309,11 @@ async def lifespan(app: FastAPI):
         remembered = rejected.backfill(conn)
     if remembered:
         print(f"VanCRM: remembered {remembered} rejected plate(s)")
+    # Van notes moved from the DB to notes/van-notes.json (D-065): copy them once.
+    with db.connect() as conn:
+        copied = vannotes.import_from_db(conn)
+    if copied:
+        print(f"VanCRM: copied {copied} van note(s) to {vannotes.NOTES_PATH.name}")
     yield
 
 
@@ -898,7 +903,7 @@ def _van_note_fields(payload: dict) -> dict:
         if not isinstance(models, list) or any(m not in _KNOWN_MODELS for m in models):
             raise HTTPException(400, "models must be a list of known base models")
         # Stored in the registry's order, once each.
-        fields["models"] = json.dumps([m for m in _KNOWN_MODELS if m in models])
+        fields["models"] = [m for m in _KNOWN_MODELS if m in models]
     for key in ("year_min", "year_max"):
         if key in payload:
             fields[key] = _as_number(payload[key], key, integer=True)
@@ -907,45 +912,39 @@ def _van_note_fields(payload: dict) -> dict:
     return fields
 
 
+@app.exception_handler(vannotes.NotesFileError)
+def notes_file_error(request, exc: vannotes.NotesFileError):
+    """A hand edit broke notes/van-notes.json: say so rather than a bare 500."""
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
+
+
 @app.get("/api/van-notes")
 def list_van_notes():
-    with db.connect() as conn:
-        rows = conn.execute("SELECT * FROM van_notes ORDER BY id DESC").fetchall()
-    return [db.row_to_van_note(r) for r in rows]
+    return vannotes.list_notes()
 
 
 @app.post("/api/van-notes", status_code=201)
 def create_van_note(payload: dict = Body(default={})):
-    fields = {"models": "[]", "comment": "", **_van_note_fields(payload)}
+    fields = {"models": [], "year_min": None, "year_max": None, "comment": "", **_van_note_fields(payload)}
     fields["created_at"] = fields["updated_at"] = db.now_iso()
-    with db.connect() as conn:
-        cols = ", ".join(fields)
-        marks = ", ".join("?" for _ in fields)
-        cursor = conn.execute(f"INSERT INTO van_notes ({cols}) VALUES ({marks})", list(fields.values()))
-        row = conn.execute("SELECT * FROM van_notes WHERE id = ?", (cursor.lastrowid,)).fetchone()
-        return db.row_to_van_note(row)
+    return vannotes.create(fields)
 
 
 @app.patch("/api/van-notes/{note_id}")
 def update_van_note(note_id: int, payload: dict = Body(...)):
     fields = _van_note_fields(payload)
-    with db.connect() as conn:
-        if conn.execute("SELECT 1 FROM van_notes WHERE id = ?", (note_id,)).fetchone() is None:
-            raise HTTPException(404, "note not found")
-        if fields:
-            fields["updated_at"] = db.now_iso()
-            assignments = ", ".join(f"{f} = ?" for f in fields)
-            conn.execute(f"UPDATE van_notes SET {assignments} WHERE id = ?", [*fields.values(), note_id])
-        row = conn.execute("SELECT * FROM van_notes WHERE id = ?", (note_id,)).fetchone()
-        return db.row_to_van_note(row)
+    if fields:
+        fields["updated_at"] = db.now_iso()
+    note = vannotes.update(note_id, fields)
+    if note is None:
+        raise HTTPException(404, "note not found")
+    return note
 
 
 @app.delete("/api/van-notes/{note_id}")
 def delete_van_note(note_id: int):
-    with db.connect() as conn:
-        if conn.execute("SELECT 1 FROM van_notes WHERE id = ?", (note_id,)).fetchone() is None:
-            raise HTTPException(404, "note not found")
-        conn.execute("DELETE FROM van_notes WHERE id = ?", (note_id,))
+    if not vannotes.delete(note_id):
+        raise HTTPException(404, "note not found")
     return {"deleted": note_id}
 
 

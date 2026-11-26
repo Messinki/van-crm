@@ -17,6 +17,13 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: van notes in a file, recalls by build year (2026-11-26)
+- Van notes moved from the database to `notes/van-notes.json`, committed to git; the
+  Notes view and API are unchanged (D-065).
+- Recall and fault lines tied to a build window split into their own notes, ranged to
+  those build years (D-064); `Src:` lines and source caveats removed.
+- The Boxer brake-pipe recall note was dropped (its build years were never found).
+
 ## Goal: layered van notes (2026-11-26)
 - The popup shows matching notes most specific first and drops lines already shown
   by an earlier note (D-063).
