@@ -812,3 +812,18 @@ Why: layering keeps each fact in one place, and ordering plus de-duplication cov
 the repeats that slip through. Rejected: merging matching notes into one list (you
 lose which note, and which source, a point came from), and an engine field on
 listings (new data to keep filled for a display nicety).
+
+## D-064 — Build-dated van-note lines get their own note, sources dropped (2026-11-26)
+Context: recall and fault lines tied to a build window ("built Oct 2014–Jun 2015")
+sat inside notes covering a whole engine or family, so a 2008 van showed 2019
+recalls. Harry also doesn't want `Src:` lines or "only forum reports" caveats.
+Decision:
+- A line that only applies to a build window is its own note, ranged to those build
+  years with `year_max` one year later — a van built late in a year is often
+  registered the next. The line keeps its "built …" wording and says to check the VIN.
+- Notes carry no `Src:` lines or source-quality caveats.
+Why: a van should only show what can apply to it; the extra year errs towards
+showing a recall to check rather than hiding one that applies.
+Rejected: one recalls note per family (shows every recall to every year), and
+exact build years (misses vans registered the year after they were built).
+Supersedes: D-063 (its "`Src:` lines are always kept" line; there are none now)
