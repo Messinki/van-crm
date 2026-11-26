@@ -26,7 +26,7 @@ export interface FieldSpec {
   in_form?: boolean
   section?: 'Details' | 'Images' | 'Notes' | 'MOT'
   cell?: string
-  widget?: 'reg_lookup' | 'notes' | 'price_vat' | 'distance' | 'location' | 'engine' | 'vin_check'
+  widget?: 'reg_lookup' | 'notes' | 'price_vat' | 'distance' | 'location' | 'engine' | 'gearbox' | 'vin_check'
   sortable?: boolean
   suggest?: boolean
   numeric?: boolean
@@ -48,7 +48,7 @@ export interface Schema {
   /** Badge shortcuts for the note model picker: label -> models (D-067). */
   model_families: Record<string, string[]>
   /** Engines a note can be limited to, and the models each fits (D-066). */
-  engines: { name: string; models: string[] }[]
+  engines: { name: string; models: string[]; built_from: string | null; built_to: string | null }[]
 }
 
 /** What Harry has learnt about a van type (D-061). Either year end may be open. */

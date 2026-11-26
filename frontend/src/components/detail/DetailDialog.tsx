@@ -21,6 +21,7 @@ import {
   DistanceField,
   EditableField,
   EngineField,
+  GearboxField,
   LocationField,
   NotesField,
   PriceField,
@@ -284,6 +285,7 @@ function DetailField({
   if (spec.widget === 'reg_lookup') return <RegField listing={listing} />
   if (spec.widget === 'engine') return <EngineField listing={listing} schema={schema} />
   if (spec.widget === 'vin_check') return <VinField listing={listing} />
+  if (spec.widget === 'gearbox') return <GearboxField listing={listing} spec={spec} />
   if (spec.widget === 'notes') return <NotesField listing={listing} flushRef={flushNotes} />
   if (spec.widget === 'price_vat') return <PriceField listing={listing} spec={spec} />
   if (spec.widget === 'distance') return <DistanceField listing={listing} spec={spec} />

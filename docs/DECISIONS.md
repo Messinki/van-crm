@@ -893,3 +893,32 @@ Rejected: a condition per line (messy to edit); hiding notes that can't be check
 (silently loses advice for vans with no plate).
 Supersedes: D-061 (its year_min/year_max matching), D-064 (its +1 year on recall
 ranges: build months replace it)
+
+## D-068 — Engine and gearbox read from the title and description, most trusted source first (2026-11-26)
+Context: many vans have no DVSA engine guess (no plate, not looked up, or a size two
+engines share), but the advert usually names the engine ("2.3 MULTIJET") and often
+the gearbox ("Diesel Manual"). Gearbox has no DVSA source at all.
+Decision:
+- Plain regexes in `frontend/src/lib/keywords.ts` (no AI, inside D-036) read an
+  engine as size + family word ("2.2 BlueHDi", "2.3 MultiJet", "2.0 HDi") and keep it
+  only if it's a known engine for the van's model (`normalise.ENGINES`). In the title
+  a bare size counts too when the model has exactly one engine of that size ("2.3"
+  on a Ducato). Gearbox: "automatic", "Comfort-Matic", "EAT8", "auto gearbox";
+  "manual gearbox", "6 speed manual"; in the title a bare "manual" or "auto" counts.
+  A source naming two different engines (or both gearboxes) gives no answer.
+- Sources, most trusted first. Engine: what Harry typed → DVSA (engine size + build
+  date, D-066) → title → description. Gearbox: typed → title → description. Build
+  date: DVSA's manufactureDate → the listed year (D-067). Mileage: the higher of the
+  listed mileage and the latest MOT reading (mileage only goes up).
+- The first source with an answer is used; it is never written into the field, so
+  the field holds only Harry's own entry. Any source that disagrees is shown under
+  the field in amber ("Title says 2.2 BlueHDi"): it may be a copied advert or the
+  wrong plate.
+- Engine and gearbox wording is highlighted in the description like VAT and size
+  words (D-056).
+Why: Harry's own entry is checked at a viewing; DVSA's engine size is the vehicle
+record; the title is the seller's one-line summary; the description is the longest
+and most often copied text ("also available in 2.2"). Showing disagreements turns a
+conflict into something to ask the seller about instead of a silent pick.
+Rejected: filling the Engine/Gearbox fields from text like D-058 (a filled field
+would outrank DVSA and hide where the value came from).

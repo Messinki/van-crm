@@ -122,9 +122,13 @@ matching notes as a read-only **Known issues** list in the right half of the MOT
 section: definite matches, then recalls under one heading with their build dates,
 then "may apply" notes greyed with the reason (D-061, D-062, D-067; matching in
 `lib/vanNotes.ts`, where `vanFacts()` takes the build month from DVSA, else the
-listed year, and the engine from the Engine field, else DVSA, else the title).
-The popup's Details also has **Engine** (placeholder shows the guessed engine) and
-**Gearbox**; the MOT section has **VIN** with a **Check** button (D-066).
+listed year; engine and gearbox from `engineSources()` / `gearboxSources()`).
+The popup's Details also has **Engine** and **Gearbox**: your entry wins; left empty,
+they go by the most trusted other source — engine: DVSA, then title, then
+description; gearbox: title, then description — read by `enginesNamed()` /
+`gearboxesNamed()` in `lib/keywords.ts`, and any source that disagrees shows in
+amber under the field (D-068). The MOT section has **VIN** with a **Check** button
+(D-066).
 Topbar: **Scrape eBay** (runs all enabled saved searches), **Check live** (bulk liveness
 sweep), **Add listing ▾** (manual entry with plate lookup, or import from an eBay URL),
 **Searches**, **Homes** and **Columns** modals.

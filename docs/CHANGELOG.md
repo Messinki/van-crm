@@ -17,6 +17,14 @@ scrape/import/liveness, DVSA MOT + reg lookup); first production scrape 2026-08-
 
 ---
 
+## Goal: engine and gearbox from the advert text (2026-11-26)
+- Engine and gearbox are read from the title and description when not entered, with
+  sources ranked you → DVSA → title → description; "HDi" is read against the build
+  date, since sellers write it for BlueHDi too (D-068).
+- Disagreeing sources show in amber under Engine / Gearbox; the Gearbox field says
+  which source it's going by.
+- Engine and gearbox wording is highlighted in the description.
+
 ## Goal: richer van-note matching, engine, VIN and recall flag (2026-11-26)
 - The MOT lookup's cached data now gives each van a build date, an outstanding-recall
   flag (red **Recall** badge in the MOT column, a line in the MOT report) and a

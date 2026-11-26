@@ -30,7 +30,7 @@ import { NUMERIC_TYPES, specLabel } from '@/lib/filtering'
 import { cleanReg, formatReg, plusVat } from '@/lib/format'
 import { LOOKUP_FILLS, type LookupState } from '@/lib/lookup'
 import type { FieldSpec, Listing, PropertyDef, Schema, VinCheckResult } from '@/lib/schema'
-import { vanEngine } from '@/lib/vanNotes'
+import { disagreeing, engineSources, gearboxSources, type Source, type Sourced } from '@/lib/vanNotes'
 
 /** Label + control, the shape every row in the dialog takes. `htmlFor` ties the
  *  two together — the control carries the matching id. */
@@ -315,15 +315,43 @@ export function DistanceField({ listing, spec }: { listing: Listing; spec: Field
   )
 }
 
-/** Engine (D-066): typed by hand, or left empty to go by the engine DVSA's
- *  engine size and build date point to — shown as the placeholder. The
- *  suggestions are the known engines for this model. */
+const SOURCE_WORDS: Record<Source, string> = {
+  you: 'You entered',
+  DVSA: 'DVSA points to',
+  title: 'Title says',
+  description: 'Description says',
+}
+
+/** Under Engine / Gearbox: any source that disagrees with the one in use
+ *  (D-068) — a copied advert, or the wrong plate. */
+function SourceClash({ sources, used }: { sources: Sourced[]; used: Sourced | undefined }) {
+  const clashes = disagreeing(sources)
+  if (!used || clashes.length === 0) return null
+  // Sources that agree with each other are named together: "Title and description say …".
+  const byValue = new Map<string, Source[]>()
+  for (const c of clashes) byValue.set(c.value, [...(byValue.get(c.value) ?? []), c.source])
+  const text = [...byValue].map(([value, from]) =>
+    from.length === 1
+      ? `${SOURCE_WORDS[from[0]]} ${value}`
+      : `${from.map((s) => (s === 'you' ? 'you' : s)).join(' and ').replace(/^./, (c) => c.toUpperCase())} say ${value}`,
+  )
+  return (
+    <p className="text-xs text-amber-700 dark:text-amber-400" title={`Going by ${used.source === 'you' ? 'your entry' : 'the ' + used.source}; the most trusted source wins`}>
+      {text.join(' · ')}
+    </p>
+  )
+}
+
+/** Engine (D-066, D-068): your entry wins; empty, the box shows the best other
+ *  source as its placeholder — DVSA's engine size + build date, then the title,
+ *  then the description. The suggestions are the known engines for this model. */
 export function EngineField({ listing, schema }: { listing: Listing; schema: Schema }) {
   const save = useSaveField(listing)
   const id = 'detail-engine'
   const box = useCommit<HTMLInputElement>(listing.engine ?? '', (raw) => save('engine', asText(raw.trim())))
-  const found = vanEngine(listing, schema)
-  const guess = found && found.source !== 'typed' ? found : null
+  const sources = engineSources(listing, schema)
+  const used = sources[0]
+  const fallback = used && used.source !== 'you' ? used : null
   const size = listing.mot?.engine_size
   const options = schema.engines.filter((e) => !listing.model || e.models.includes(listing.model))
   return (
@@ -333,21 +361,34 @@ export function EngineField({ listing, schema }: { listing: Listing; schema: Sch
         id={id}
         className="h-8"
         list={id + '-options'}
-        placeholder={guess ? `${guess.name} (from ${guess.source})` : size ? `${size}cc — type the engine` : ''}
-        title={
-          guess
-            ? guess.source === 'DVSA'
-              ? 'From DVSA engine size and build date — type to override'
-              : 'Named in the title — type to override'
-            : undefined
-        }
+        placeholder={fallback ? `${fallback.value} (from ${fallback.source})` : size ? `${size}cc — type the engine` : ''}
+        title={fallback ? `From the ${fallback.source} — type to override` : undefined}
       />
       <datalist id={id + '-options'}>
         {options.map((e) => (
           <option key={e.name} value={e.name} />
         ))}
       </datalist>
+      <SourceClash sources={sources} used={used} />
     </Field>
+  )
+}
+
+/** Gearbox (D-068): your pick wins; left blank, it says what the title or
+ *  description names, and flags any disagreement. */
+export function GearboxField({ listing, spec }: { listing: Listing; spec: FieldSpec }) {
+  const sources = gearboxSources(listing)
+  const used = sources[0]
+  return (
+    <div className="space-y-1">
+      <EditableField listing={listing} spec={spec} />
+      {used && used.source !== 'you' && (
+        <p className="text-xs text-muted-foreground">
+          {SOURCE_WORDS[used.source]} {used.value}
+        </p>
+      )}
+      <SourceClash sources={sources} used={used} />
+    </div>
   )
 }
 

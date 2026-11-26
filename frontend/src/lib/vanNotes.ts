@@ -1,5 +1,6 @@
 // Which van notes apply to a listing (D-061, D-067).
 
+import { enginesNamed, gearboxesNamed } from './keywords'
 import type { Listing, Schema, VanNote } from './schema'
 
 /** Every known base model, longest first so "Transit Custom" wins over "Transit". */
@@ -36,34 +37,67 @@ export interface VanFacts {
   mileage: number | null
 }
 
-/** The van's engine and where it came from (D-066): typed on the listing, else
- *  DVSA's engine size + build date, else a known engine for its model named in
- *  the title ("2.3 MULTIJET"). */
-export function vanEngine(
-  listing: Listing,
-  schema: Schema,
-): { name: string; source: 'typed' | 'DVSA' | 'title' } | null {
-  if (listing.engine) return { name: listing.engine, source: 'typed' }
-  if (listing.mot?.engine_guess) return { name: listing.mot.engine_guess, source: 'DVSA' }
+export type Source = 'you' | 'DVSA' | 'title' | 'description'
+export interface Sourced {
+  value: string
+  source: Source
+}
+
+/** Each source's answer, most trusted first (D-068). A source naming two
+ *  different values gives none. */
+function ranked(answers: [Source, string[] | string | null | undefined][]): Sourced[] {
+  const out: Sourced[] = []
+  for (const [source, raw] of answers) {
+    const values = Array.isArray(raw) ? raw : raw ? [raw] : []
+    if (values.length === 1) out.push({ value: values[0], source })
+  }
+  return out
+}
+
+/** The van's engine by source: typed → DVSA → title → description (D-068). */
+export function engineSources(listing: Listing, schema: Schema): Sourced[] {
   const model = listingModel(listing, schema)
-  const title = (listing.title ?? '').toLowerCase().replace(/\s+/g, ' ')
-  const named = schema.engines.filter((e) => model && e.models.includes(model) && title.includes(e.name.toLowerCase()))
-  return named.length === 1 ? { name: named[0].name, source: 'title' } : null
+  const built = buildRange(listing)
+  return ranked([
+    ['you', listing.engine],
+    ['DVSA', listing.mot?.engine_guess],
+    ['title', enginesNamed(listing.title ?? '', model, schema.engines, { title: true, built })],
+    ['description', enginesNamed(listing.notes ?? '', model, schema.engines, { built })],
+  ])
+}
+
+/** When the van was built, as a 'YYYY-MM' range: exact from DVSA's
+ *  manufactureDate, else from the listed year — a reg year trails the build, so
+ *  July of the year before to the end of that year (D-067) — else null. */
+export function buildRange(listing: Listing): [string, string] | null {
+  const dvsa = listing.mot?.built?.slice(0, 7)
+  if (dvsa) return [dvsa, dvsa]
+  return listing.year ? [`${listing.year - 1}-07`, `${listing.year}-12`] : null
+}
+
+/** The van's gearbox by source: typed → title → description (D-068). */
+export function gearboxSources(listing: Listing): Sourced[] {
+  return ranked([
+    ['you', listing.gearbox],
+    ['title', gearboxesNamed(listing.title ?? '', { title: true })],
+    ['description', gearboxesNamed(listing.notes ?? '')],
+  ])
+}
+
+/** The sources that disagree with the one in use. */
+export function disagreeing(sources: Sourced[]): Sourced[] {
+  const used = sources[0]
+  return used ? sources.filter((s) => !same(s.value, used.value)) : []
 }
 
 export function vanFacts(listing: Listing, schema: Schema): VanFacts {
-  const dvsa = listing.mot?.built?.slice(0, 7)
-  const built: [string, string] | null = dvsa
-    ? [dvsa, dvsa]
-    : listing.year
-      ? [`${listing.year - 1}-07`, `${listing.year}-12`]
-      : null
+  const built = buildRange(listing)
   const miles = [listing.mileage, listing.mot?.odometer_miles].filter((m): m is number => m != null)
   return {
     model: listingModel(listing, schema),
     built,
-    engine: vanEngine(listing, schema)?.name ?? null,
-    gearbox: listing.gearbox,
+    engine: engineSources(listing, schema)[0]?.value ?? null,
+    gearbox: gearboxSources(listing)[0]?.value ?? null,
     mileage: miles.length ? Math.max(...miles) : null,
   }
 }

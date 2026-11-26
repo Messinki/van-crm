@@ -45,7 +45,12 @@ Open, not blocking:
   part — the window is the wider of the two). Honest John's van guides are gone since
   it became Drive. No note covers 2019+ Movanos. The old `van_notes` table is still
   in the DB, unused (D-065).
-- Engine guessing (D-066) covers the Sevel family only. Of 253 looked-up vans, 33 have
+- Engine and gearbox are also read from the title and description (D-068), ranked
+  you → DVSA → title → description. Across the stored Sevel vans the title names an
+  engine for 294 of 406 and the description for 266; DVSA and the title disagree on
+  two (listings 1923, 1916 — worth asking the seller). Gearbox: 170 titles, ~360
+  descriptions (mostly eBay's "Transmission: Manual").
+- Engine guessing (D-066) and reading (D-068) cover the Sevel family only. Of 253 looked-up vans, 33 have
   DVSA's outstanding-recall flag set (shown as a red **Recall** badge in the MOT
   column). The VIN check's not-found and bad-VIN paths were tried against live DVSA;
   a successful VIN lookup hasn't been seen yet — no real VIN to hand. Try one at the

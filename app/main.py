@@ -137,7 +137,7 @@ FIELD_SPECS = [
     {
         "key": "gearbox", "label": "Gearbox", "type": "select", "options": list(GEARBOXES),
         "labels": {"manual": "Manual", "automatic": "Automatic"}, "editable": True,
-        "in_table": False, "in_form": True, "section": "Details",
+        "in_table": False, "in_form": True, "section": "Details", "widget": "gearbox",
     },
     {
         "key": "reg", "label": "Reg", "type": "text", "editable": True,
@@ -572,7 +572,10 @@ def get_schema():
         "models": normalise.BASE_MODELS,
         # D-066/D-067: badge shortcuts and engines a note can be limited to.
         "model_families": normalise.MODEL_FAMILIES,
-        "engines": [{"name": e[0], "models": e[1]} for e in normalise.ENGINES],
+        "engines": [
+            {"name": name, "models": models, "built_from": start, "built_to": end}
+            for name, models, _lo, _hi, start, end in normalise.ENGINES
+        ],
     }
 
 
