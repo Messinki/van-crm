@@ -7,3 +7,4 @@ venv/
 .DS_Store
 app/static/dist/
 node_modules/
+.serve.log
